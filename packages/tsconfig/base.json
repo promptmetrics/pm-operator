@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Default",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "ES2022"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@pm-operator/ui/*": ["../../packages/ui/src/*"],
+      "@pm-operator/api": ["../../packages/api/src/index.ts"],
+      "@pm-operator/db": ["../../packages/db/src/index.ts"],
+      "@pm-operator/mcp": ["../../packages/mcp/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules"]
+}

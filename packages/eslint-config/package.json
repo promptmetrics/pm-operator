@@ -1,0 +1,13 @@
+{
+  "name": "@pm-operator/eslint-config",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./index.js",
+  "dependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.22.0",
+    "@typescript-eslint/parser": "^8.22.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-import-resolver-typescript": "^3.7.0",
+    "eslint-plugin-import": "^2.31.0"
+  }
+}

@@ -1,0 +1,23 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-background: var(--color-paper-0);
+  --color-foreground: var(--color-paper-12);
+  --color-primary: var(--color-paper-9);
+  --color-primary-foreground: var(--color-paper-0);
+  --color-muted: var(--color-paper-3);
+  --color-muted-foreground: var(--color-paper-11);
+  --color-border: var(--color-paper-6);
+  --color-ring: var(--color-paper-9);
+  --radius: 0.75rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+}

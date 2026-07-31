@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS "point_events_daily_visit_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "point_events_daily_visit_idx" ON "point_events" USING btree ("user_id",CAST(("awarded_at" AT TIME ZONE 'UTC') AS date)) WHERE "point_events"."event_type" = 'daily_visit';

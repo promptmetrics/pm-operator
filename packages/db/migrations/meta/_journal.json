@@ -1,0 +1,62 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1785409952179,
+      "tag": "0000_young_king_cobra",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785414625676,
+      "tag": "0001_numerous_killer_shrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785415758853,
+      "tag": "0002_slimy_pandemic",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785417803421,
+      "tag": "0003_lowly_chamber",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785484502200,
+      "tag": "0004_handy_bulldozer",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785484579199,
+      "tag": "0005_square_the_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785484899382,
+      "tag": "0006_groovy_edwin_jarvis",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785488700258,
+      "tag": "0007_lonely_wonder_man",
+      "breakpoints": true
+    }
+  ]
+}

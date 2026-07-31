@@ -1,0 +1,17 @@
+{
+  "extends": "@pm-operator/tsconfig/base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/components/*": ["./components/*"],
+      "@/lib/*": ["./lib/*"],
+      "@/*": ["./app/*", "./lib/*"],
+      "@pm-operator/ui/*": ["../../packages/ui/src/*"],
+      "@pm-operator/api": ["../../packages/api/src/index.ts"],
+      "@pm-operator/db": ["../../packages/db/src/index.ts"],
+      "@pm-operator/mcp": ["../../packages/mcp/src/index.ts"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
