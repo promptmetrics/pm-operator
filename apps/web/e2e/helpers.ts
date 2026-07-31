@@ -118,7 +118,7 @@ export async function signIn(page: Page, email: string, password: string): Promi
   ]);
 
   // Navigate to a protected route so the app redirects based on onboarding state.
-  await page.goto('/feed');
+  await page.goto('/settings');
 }
 
 export async function completeOnboarding(page: Page, returnUrl = '/feed'): Promise<void> {

@@ -47,7 +47,7 @@ test('onboarding can be completed and redirects to the requested page', async ({
 
   await page.locator('#painful-tool-stack-task').fill('End-to-end onboarding test');
   await page.locator('button[type="submit"]').click();
-  await page.waitForURL('/feed');
+  await page.waitForURL('/settings');
 });
 
 test('forgot-password flow shows a confirmation message', async ({ page }) => {
@@ -69,7 +69,6 @@ test('returnUrl is preserved through login and onboarding', async ({ page }) => 
   const user = await createTestUser({ onboardingComplete: false });
   usersToClean.push(user.id);
 
-  // /feed is public, so use a protected route (/settings) to test returnUrl.
   await page.goto('/settings');
   await page.waitForURL(/\/login/);
   const url = new URL(page.url());
