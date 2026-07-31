@@ -90,6 +90,11 @@ export async function deleteTestUser(userId: string): Promise<void> {
   await serviceSupabase.auth.admin.deleteUser(userId);
 }
 
+function cookieDomainFromBaseUrl(): string {
+  const base = process.env.BASE_URL || 'http://localhost:3000';
+  return new URL(base).hostname;
+}
+
 export async function signIn(page: Page, email: string, password: string): Promise<void> {
   // Sign in via the admin-backed client and inject the session cookies to avoid
   // Supabase Auth IP rate limits in repeated test runs.
@@ -105,7 +110,7 @@ export async function signIn(page: Page, email: string, password: string): Promi
     {
       name: cookieName,
       value: JSON.stringify(data.session),
-      domain: 'localhost',
+      domain: cookieDomainFromBaseUrl(),
       path: '/',
       httpOnly: false,
       sameSite: 'Lax',
