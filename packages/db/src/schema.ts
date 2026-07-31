@@ -85,7 +85,7 @@ export const users = pgTable(
     lowerUsernameIdx: uniqueIndex('users_lower_username_idx').on(sql`lower(${table.username})`),
     lowerUserslugIdx: uniqueIndex('users_lower_userslug_idx').on(sql`lower(${table.userslug})`),
   })
-);
+).enableRLS();
 
 export const membershipTiers = pgTable('membership_tiers', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -99,7 +99,7 @@ export const membershipTiers = pgTable('membership_tiers', {
   isActive: boolean('is_active').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}).enableRLS();
 
 export const userMemberships = pgTable(
   'user_memberships',
@@ -120,7 +120,7 @@ export const userMemberships = pgTable(
   (table) => ({
     uniqueUserTier: unique('user_memberships_user_tier_idx').on(table.userId, table.tierId),
   })
-);
+).enableRLS();
 
 export const groups = pgTable(
   'groups',
@@ -140,7 +140,7 @@ export const groups = pgTable(
   (table) => ({
     visibilityCreatedIdx: index('groups_visibility_created_idx').on(table.visibility, table.createdAt),
   })
-);
+).enableRLS();
 
 export const groupMemberships = pgTable(
   'group_memberships',
@@ -161,7 +161,7 @@ export const groupMemberships = pgTable(
     uniqueGroupUser: unique('group_memberships_group_user_idx').on(table.groupId, table.userId),
     userRoleIdx: index('group_memberships_user_role_idx').on(table.userId, table.role),
   })
-);
+).enableRLS();
 
 export const groupInvites = pgTable(
   'group_invites',
@@ -182,7 +182,7 @@ export const groupInvites = pgTable(
   (table) => ({
     inviterIdx: index('group_invites_inviter_idx').on(table.inviterId),
   })
-);
+).enableRLS();
 
 export const posts = pgTable(
   'posts',
@@ -224,7 +224,7 @@ export const posts = pgTable(
       sql`lower(${table.contentPlain}) gin_trgm_ops`
     ),
   })
-);
+).enableRLS();
 
 export const comments = pgTable(
   'comments',
@@ -253,7 +253,7 @@ export const comments = pgTable(
       name: 'comments_parent_comment_id_fk',
     }),
   })
-);
+).enableRLS();
 
 export const reactions = pgTable(
   'reactions',
@@ -271,7 +271,7 @@ export const reactions = pgTable(
     uniqueUserTarget: unique('reactions_user_target_idx').on(table.userId, table.targetType, table.targetId),
     targetIdx: index('reactions_target_idx').on(table.targetType, table.targetId),
   })
-);
+).enableRLS();
 
 export const postViews = pgTable(
   'post_views',
@@ -288,7 +288,7 @@ export const postViews = pgTable(
     postIdx: index('post_views_post_idx').on(table.postId),
     uniqueUserPost: unique('post_views_user_post_idx').on(table.postId, table.userId),
   })
-);
+).enableRLS();
 
 export const notifications = pgTable(
   'notifications',
@@ -306,7 +306,7 @@ export const notifications = pgTable(
   (table) => ({
     userCreatedIdx: index('notifications_user_created_idx').on(table.userId, table.createdAt),
   })
-);
+).enableRLS();
 
 export const pointEvents = pgTable(
   'point_events',
@@ -331,7 +331,7 @@ export const pointEvents = pgTable(
       .on(table.userId, sql`CAST((${table.awardedAt} AT TIME ZONE 'UTC') AS date)`)
       .where(sql`${table.eventType} = 'daily_visit'`),
   })
-);
+).enableRLS();
 
 export const userScores = pgTable(
   'user_scores',
@@ -348,7 +348,7 @@ export const userScores = pgTable(
     pk: unique('user_scores_pk').on(table.userId, table.groupId, table.period),
     scoreIdx: index('user_scores_score_idx').on(table.groupId, table.period, table.score),
   })
-);
+).enableRLS();
 
 export const userDailyStats = pgTable(
   'user_daily_stats',
@@ -367,7 +367,7 @@ export const userDailyStats = pgTable(
   (table) => ({
     uniqueUserDateType: unique('user_daily_stats_user_date_type_idx').on(table.userId, table.date, table.statType),
   })
-);
+).enableRLS();
 
 export const badges = pgTable('badges', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -378,7 +378,7 @@ export const badges = pgTable('badges', {
   criteria: jsonb('criteria').default(sql`'{}'::jsonb`).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}).enableRLS();
 
 export const userBadges = pgTable(
   'user_badges',
@@ -397,7 +397,7 @@ export const userBadges = pgTable(
   (table) => ({
     uniqueUserBadge: unique('user_badges_user_badge_idx').on(table.userId, table.badgeId),
   })
-);
+).enableRLS();
 
 export const flags = pgTable(
   'flags',
@@ -418,7 +418,7 @@ export const flags = pgTable(
   (table) => ({
     targetStatusIdx: index('flags_target_status_idx').on(table.targetType, table.targetId, table.status),
   })
-);
+).enableRLS();
 
 export const watchedPhrases = pgTable('watched_phrases', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -427,7 +427,7 @@ export const watchedPhrases = pgTable('watched_phrases', {
   isRegex: boolean('is_regex').default(false).notNull(),
   autoFlag: boolean('auto_flag').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}).enableRLS();
 
 export const agentActions = pgTable(
   'agent_actions',
@@ -445,7 +445,7 @@ export const agentActions = pgTable(
   (table) => ({
     clientCreatedIdx: index('agent_actions_client_created_idx').on(table.clientId, table.createdAt),
   })
-);
+).enableRLS();
 
 export const mcpClients = pgTable(
   'mcp_clients',
@@ -457,4 +457,4 @@ export const mcpClients = pgTable(
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   }
-);
+).enableRLS();
