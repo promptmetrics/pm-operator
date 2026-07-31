@@ -1,5 +1,4 @@
 const nextConfig = {
-  output: 'standalone',
   transpilePackages: [
     '@pm-operator/ui',
     '@pm-operator/api',
