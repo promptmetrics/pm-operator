@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 const PUBLIC_FILE_REGEX = /\.(?:png|jpg|jpeg|gif|svg|ico|css|js|woff2?|ttf|eot)$/;
 
 const COMMUNITY_ROUTE_REGEX =
-  /^\/(feed|g\/|p\/|u\/|leaderboards|settings|search|notifications|moderation)(\/|$)/;
+  /^\/(g\/|p\/|u\/|leaderboards|settings|search|notifications|moderation)(\/|$)/;
 
 function isApiV1Write(request: NextRequest) {
   if (!request.nextUrl.pathname.startsWith('/api/v1/')) return false;
