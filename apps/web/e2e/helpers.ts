@@ -95,6 +95,15 @@ function cookieDomainFromBaseUrl(): string {
   return new URL(base).hostname;
 }
 
+export async function dismissOverlays(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    document.querySelectorAll('.cf_modal_container, .turnstile-wrapper, [class*="cf-"]').forEach((el) => {
+      (el as HTMLElement).style.display = 'none';
+      (el as HTMLElement).remove();
+    });
+  });
+}
+
 export async function signIn(page: Page, email: string, password: string): Promise<void> {
   // Sign in via the admin-backed client and inject the session cookies to avoid
   // Supabase Auth IP rate limits in repeated test runs.
