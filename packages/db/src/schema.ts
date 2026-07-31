@@ -54,7 +54,7 @@ export const notificationTypeEnum = pgEnum('notification_type', ['comment', 'rea
 export const dailyStatTypeEnum = pgEnum('daily_stat_type', ['posts_read', 'likes_given']);
 
 // Sentinel UUID used for global leaderboard rows in user_scores.
-// Migration 0001_triggers.sql seeds a matching groups row so the FK is satisfied.
+// Migration 0001_numerous_killer_shrike.sql seeds a matching groups row so the FK is satisfied.
 export const GLOBAL_GROUP_ID = '00000000-0000-0000-0000-000000000000';
 
 export const users = pgTable(
@@ -204,7 +204,7 @@ export const posts = pgTable(
     commentCount: integer('comment_count').default(0).notNull(),
     viewCount: integer('view_count').default(0).notNull(),
     isPinned: boolean('is_pinned').default(false).notNull(),
-    // FK added in migration 0001_triggers.sql to avoid circular module load.
+    // FK added in migration 0001_numerous_killer_shrike.sql to avoid circular module load.
     acceptedCommentId: uuid('accepted_comment_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

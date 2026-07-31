@@ -42,7 +42,7 @@ These users are technical enough to value API access and agent integration, busy
 2. **Gamification improves participation quality, not just volume.** Points and badges must attract helpful contributors; otherwise they become noise or gaming targets.
 3. **Agent API access becomes a real differentiator.** The investment in `/api/v1` parity only pays off if Claude/agent interactions meaningfully reuse community data.
 4. **Public-read with private circles is the right growth model.** Open discovery must convert enough signups to justify gating engagement behind login and private groups.
-5. **Supabase Pro eu-central-1 + Vercel Pro fra1 host the production launch.** Upgrade triggers are defined, but early cost and scale limits must not block momentum.
+5. **Supabase Pro eu-west-1 + Vercel Pro fra1 host the production launch.** Upgrade triggers are defined, but early cost and scale limits must not block momentum.
 
 ## Product Principles
 

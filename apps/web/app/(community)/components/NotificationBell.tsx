@@ -129,7 +129,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
   );
 }
 
-function notificationText(n: Notification): string {
+export function notificationText(n: Notification): string {
   switch (n.type) {
     case 'comment':
       return 'New comment on your post';
@@ -152,7 +152,7 @@ function notificationText(n: Notification): string {
   }
 }
 
-function notificationHref(n: Notification): string {
+export function notificationHref(n: Notification): string {
   const p = n.payload;
   if (p.groupSlug) return `/g/${p.groupSlug}`;
   if (p.postId) return `/p/${p.postId}`;

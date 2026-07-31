@@ -40,40 +40,34 @@ export function createCommunityMcpServer(options: CommunityMcpServerOptions): Mc
 }
 
 export interface McpHandlerConfig {
-  server: McpServer;
   /**
-   * Declared for forward compatibility with MCP protocol negotiation.
-   * The underlying SDK handles version exchange during initialization.
+   * Factory that creates a fresh MCP server for each request. The SDK's
+   * Streamable HTTP transport is stateless when no sessionIdGenerator is
+   * provided, so each request must get its own server and transport.
    */
-  supportedProtocolVersions?: string[];
+  createServer: () => McpServer;
   auth: {
     verify: (req: Request) => Promise<Omit<VerifiedMcpToken, 'expiresAt'> | Response>;
   };
 }
 
 export function createMcpHandler(config: McpHandlerConfig): (req: Request) => Promise<Response> {
-  const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-  });
-
-  let connectPromise: Promise<void> | null = null;
-
-  function ensureConnected(): Promise<void> {
-    if (!connectPromise) {
-      connectPromise = config.server.connect(transport).catch((err) => {
-        connectPromise = null;
-        throw err;
-      });
-    }
-    return connectPromise;
-  }
-
   return async function handle(req: Request): Promise<Response> {
-    await ensureConnected();
-
     const auth = await config.auth.verify(req);
     if (auth instanceof Response) {
       return auth;
+    }
+
+    const transport = new WebStandardStreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+    });
+    const server = config.createServer();
+
+    try {
+      await server.connect(transport);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to start MCP server';
+      return new Response(message, { status: 500 });
     }
 
     return transport.handleRequest(req, {
@@ -81,6 +75,7 @@ export function createMcpHandler(config: McpHandlerConfig): (req: Request) => Pr
         token: auth.token,
         clientId: auth.clientId,
         scopes: auth.scopes,
+        extra: auth.userId ? { userId: auth.userId } : undefined,
       },
     });
   };

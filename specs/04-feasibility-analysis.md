@@ -79,7 +79,7 @@ At 10–50 users, acquisition should be **manual, high-context, and invite-only*
 | Component | Maturity | Feasibility | Critical Caveats |
 |---|---|---|---|
 | **Next.js 16 App Router** | Stable since Oct 2025 | Feasible | Node 20+ and ESM-only. Pin `runtime = 'nodejs'` on Drizzle-backed routes to avoid Edge-runtime breakage. Track security patches. |
-| **Supabase Pro (Postgres, Auth, Realtime, Storage)** | Production-grade | Feasible | Region cannot be changed after creation; choose `eu-central-1` day one. RLS is powerful but the most likely source of bugs and performance issues. |
+| **Supabase Pro (Postgres, Auth, Realtime, Storage)** | Production-grade | Feasible | Region cannot be changed after creation; choose `eu-west-1` day one. RLS is powerful but the most likely source of bugs and performance issues. |
 | **Drizzle ORM + Drizzle Kit** | Stable, type-safe | Feasible | Works well with Node.js route handlers. Strictly separate `packages/db` from Next.js imports. Migrations and RLS policies must be reviewable in Git. |
 | **Supabase Auth (OAuth + email/password)** | Mature | Feasible | LinkedIn OAuth is less battle-tested than GitHub/Google. Mandatory `painful_tool_stack_task` must be enforced in middleware and API. |
 | **Supabase Realtime** | Mature for push | Feasible at 10–50 users | At-least-once delivery, no cross-channel ordering, 500 connection / 5M message cap on Pro. Clients must dedupe and rehydrate from `notifications` table. |
@@ -92,7 +92,7 @@ At 10–50 users, acquisition should be **manual, high-context, and invite-only*
 | Concern | Decision | Rationale |
 |---|---|---|
 | Identity, OAuth, sessions, password reset | **Buy — Supabase Auth** | Mature, supports required providers, RLS-aware. |
-| Relational database, backups, extensions | **Buy — Supabase Postgres** | Managed Postgres in `eu-central-1`, backups, RLS, `pg_trgm`, full-text search. |
+| Relational database, backups, extensions | **Buy — Supabase Postgres** | Managed Postgres in `eu-west-1`, backups, RLS, `pg_trgm`, full-text search. |
 | File / avatar / attachment storage | **Buy — Supabase Storage** | Signed URLs, RLS on buckets, CDN egress included. |
 | Live feed / comment / notification push | **Buy — Supabase Realtime** | Avoids self-hosting WebSocket infrastructure. |
 | Rate limiting / short-lived cache | **Buy — Upstash Redis** | Serverless Redis with free tier sufficient for launch. |
@@ -222,7 +222,7 @@ There are no hard blockers. The project is technically feasible, strategically a
 3. **RLS and gamification must be load-tested, not just coded.** Automated tests for the access matrix and concurrent point awards are non-negotiable. The reputation system will break trust the first time duplicate points appear or a private post leaks.
 
 **Required before DNS cutover:**
-- Supabase project created in `eu-central-1`.
+- Supabase project created in `eu-west-1`.
 - RLS policies tested for public / invite-only / paid × member / non-member / admin.
 - Rate limiting active on public endpoints and `/api/mcp`.
 - MCP route mounted and at least the 4 read tools return P95 < 2 s.

@@ -3,7 +3,10 @@ import {
   createCommunityMcpServer,
   createMcpHandler,
   verifyMcpOAuthToken,
+  type McpClientInfo,
 } from '@pm-operator/mcp';
+import { eq } from 'drizzle-orm';
+import * as schema from '@pm-operator/db';
 import { createServiceDb } from '@/lib/db';
 import { createMcpServices } from '@/lib/services/mcp';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -14,10 +17,29 @@ export const runtime = 'nodejs';
 const db = createServiceDb();
 const services = createMcpServices(db, logger);
 
+async function lookupClient(clientId: string): Promise<McpClientInfo | undefined> {
+  const rows = await db
+    .select({
+      clientId: schema.mcpClients.clientId,
+      scopes: schema.mcpClients.scopes,
+      isActive: schema.mcpClients.isActive,
+    })
+    .from(schema.mcpClients)
+    .where(eq(schema.mcpClients.clientId, clientId))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return undefined;
+  return {
+    clientId: row.clientId,
+    scopes: row.scopes,
+    isActive: row.isActive,
+  };
+}
+
 const handler = createMcpHandler({
-  server: createCommunityMcpServer({ services, logger }),
-  supportedProtocolVersions: ['2026-07-28', '2025-03-26', '2024-11-05'],
-  auth: { verify: verifyMcpOAuthToken },
+  createServer: () => createCommunityMcpServer({ services, logger }),
+  auth: { verify: (req) => verifyMcpOAuthToken(req, { lookupClient }) },
 });
 
 async function requireMcpAuthAndRateLimit(req: NextRequest) {
@@ -25,7 +47,7 @@ async function requireMcpAuthAndRateLimit(req: NextRequest) {
     return new NextResponse('MCP not enabled', { status: 503 });
   }
 
-  const auth = await verifyMcpOAuthToken(req);
+  const auth = await verifyMcpOAuthToken(req, { lookupClient });
   if (auth instanceof Response) {
     return auth;
   }

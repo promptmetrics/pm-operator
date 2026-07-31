@@ -51,7 +51,7 @@
 | # | Assumption | Why it matters | Test |
 |---|---|---|---|
 | 1 | Next.js App Router route handlers in `apps/web` can host both `/api/v1/*` REST and `/api/mcp` without a separate backend service | Determines monorepo layout and deployment complexity | Build a spike route with Drizzle query and MCP `ping` tool; measure cold-start latency in `fra1` |
-| 2 | `eu-central-1` (Frankfurt) Supabase + `fra1` Vercel satisfies EU data-residency expectations for German/EU operators | Compliance sell to Priya; latency to DB | Confirm Supabase project region cannot be migrated later; document Vercel DPA/SCC limitations |
+| 2 | `eu-west-1` (Frankfurt) Supabase + `fra1` Vercel satisfies EU data-residency expectations for German/EU operators | Compliance sell to Priya; latency to DB | Confirm Supabase project region cannot be migrated later; document Vercel DPA/SCC limitations |
 | 3 | Postgres full-text search + `pg_trgm` is sufficient for 10–50 active users and thousands of posts | Search strategy is currently undecided | Index `to_tsvector` on `content_plain`, run relevance benchmark against expected query set |
 | 4 | Denormalized counters maintained by DB triggers prevent drift under concurrent reactions/comments | Drift breaks leaderboard and feed trust | Load-test concurrent like/comment inserts; compare `posts.upvotes`/`comment_count` to source rows |
 | 5 | Atomic `UPDATE users SET reputation_score = reputation_score + N` + unique partial indexes prevents duplicate points | Gamification integrity is core to reputation | Concurrently award points for same event; verify exactly one `point_events` row and one score delta |
@@ -125,10 +125,10 @@
 - **RSC pattern:** server components fetch initial data; client components subscribe to Realtime for inserts and handle optimistic UI.
 
 ### Supabase Pro EU region and compliance
-- **Primary region:** `eu-central-1` (Frankfurt).
+- **Primary region:** `eu-west-1` (Frankfurt).
 - **Vercel region:** set `vercel.json` to `"regions": ["fra1"]` for co-located functions.
 - **Caveat:** Vercel is a US entity; `fra1` gives physical EU residency but not full jurisdictional sovereignty. Signed DPAs and SCCs are the practical mitigation.
-- **Checklist:** upgrade to Pro, sign Supabase DPA, create production project in `eu-central-1`, enable RLS everywhere, turn on PITR/backups, configure OAuth providers, set egress alerts, sign Vercel DPA, document GDPR erasure procedures.
+- **Checklist:** upgrade to Pro, sign Supabase DPA, create production project in `eu-west-1`, enable RLS everywhere, turn on PITR/backups, configure OAuth providers, set egress alerts, sign Vercel DPA, document GDPR erasure procedures.
 
 ### Drizzle schema assessment
 The draft schema is viable but needs indexes, FK hardening, counters, and expanded group access.

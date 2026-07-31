@@ -263,7 +263,7 @@ As Jordan, I want onboarding to use my `painful_tool_stack_task` answer to rank 
 
 | ID | Requirement | Implementation |
 |----|-------------|----------------|
-| COMP-1 | Supabase production project created in `eu-central-1` (Frankfurt) before DNS cutover | Infra checklist |
+| COMP-1 | Supabase production project created in `eu-west-1` (Frankfurt) before DNS cutover | Infra checklist |
 | COMP-2 | Vercel functions pinned to `fra1` via `vercel.json` | `regions: ["fra1"]` |
 | COMP-3 | Signed Supabase DPA and Vercel DPA/SCCs where required | Legal checklist |
 | COMP-4 | Document data retention and deletion procedures for GDPR erasure requests | Privacy policy / runbook |
@@ -459,7 +459,7 @@ These questions must be resolved before dev start or during the first sprint.
 ### In scope for MVP (launch)
 
 - Next.js 16 App Router community app in `apps/web`
-- Supabase Pro `eu-central-1` project with Drizzle schema + migrations
+- Supabase Pro `eu-west-1` project with Drizzle schema + migrations
 - Supabase Auth (OAuth + email/password) and mandatory `painful_tool_stack_task` onboarding
 - Groups with `visibility` enum `public`/`invite_only`/`paid` (paid inactive)
 - Public read of circles and posts; auth required for engagement

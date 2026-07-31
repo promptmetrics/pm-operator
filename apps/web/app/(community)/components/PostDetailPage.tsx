@@ -3,6 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { Heart, MessageSquare, Share2, Flag } from 'lucide-react';
+import { FlagDialog } from './FlagDialog';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Badge } from '@pm-operator/ui/components/Badge';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
@@ -84,7 +85,7 @@ export function PostDetailPage({ post, currentUserId }: PostDetailPageProps) {
       const json = (await res.json()) as { data?: { removed?: boolean; id?: string } };
       const removed = json.data?.removed ?? !json.data?.id;
       setLiked(!removed);
-      setLikeCount(removed ? previous : previous + 1);
+      setLikeCount(removed ? previous - 1 : previous + 1);
     } catch {
       setLiked((l) => !l);
       setLikeCount(previous);
@@ -176,10 +177,12 @@ export function PostDetailPage({ post, currentUserId }: PostDetailPageProps) {
           </Button>
 
           {currentUserId ? (
-            <Button variant="ghost" size="sm" className="gap-1">
-              <Flag className="h-4 w-4" aria-hidden="true" />
-              <span className="text-xs">Flag</span>
-            </Button>
+            <FlagDialog targetType="post" targetId={post.id}>
+              <Button variant="ghost" size="sm" className="gap-1">
+                <Flag className="h-4 w-4" aria-hidden="true" />
+                <span className="text-xs">Flag</span>
+              </Button>
+            </FlagDialog>
           ) : null}
         </div>
       </div>

@@ -30,6 +30,10 @@ export function SearchPage({
   const [sort, setSort] = React.useState<SearchSort>(initialSort);
   const [results, setResults] = React.useState<SearchResult[]>(initialResults);
   const [cursor, setCursor] = React.useState<string | undefined>(initialCursor);
+  const [page, setPage] = React.useState<number>(() => {
+    const initialPage = Number(searchParams.get('page') || '1');
+    return Number.isFinite(initialPage) && initialPage > 0 ? initialPage : 1;
+  });
   const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
@@ -37,6 +41,7 @@ export function SearchPage({
     setSort(initialSort);
     setResults(initialResults);
     setCursor(initialCursor);
+    setPage(1);
   }, [initialQuery, initialSort, initialResults, initialCursor]);
 
   const submitSearch = (e: React.FormEvent) => {
@@ -49,10 +54,13 @@ export function SearchPage({
       params.delete('q');
     }
     params.delete('page');
+    setPage(1);
     router.push(`/search?${params.toString()}`, { scroll: false });
   };
 
   const changeSort = (value: SearchSort) => {
+    setSort(value);
+    setPage(1);
     const params = new URLSearchParams(searchParams.toString());
     params.set('sort', value);
     params.delete('page');
@@ -63,16 +71,17 @@ export function SearchPage({
     if (!cursor || loading) return;
     setLoading(true);
     try {
+      const nextPage = page + 1;
       const params = new URLSearchParams(searchParams.toString());
       params.set('q', query);
       params.set('sort', sort);
-      const page = Number(params.get('page') || '1') + 1;
-      params.set('page', String(page));
+      params.set('page', String(nextPage));
       const res = await fetch(`/api/v1/search?${params.toString()}`);
       if (!res.ok) throw new Error('Search failed');
       const json = (await res.json()) as { data?: { results: SearchResult[] }; meta?: { hasMore?: boolean } };
       const next = json.data?.results ?? [];
       setResults((prev) => [...prev, ...next]);
+      setPage(nextPage);
       setCursor(json.meta?.hasMore ? next[next.length - 1]?.createdAt : undefined);
     } catch (err: any) {
       alert(err.message || 'Search failed');

@@ -3,7 +3,9 @@ import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type { FeedQuery, FeedResponse, PostDetail, CreatePostRequest, PatchPostRequest, PostListItem } from '@pm-operator/api';
 import { getAvatarReadUrl } from '../storage';
+import { htmlToText } from '../html-to-text';
 import { toISO, toNumber, isAdminOrModerator } from './shared';
+import { autoFlagIfWatched } from './flags';
 
 type FilterValue = FeedQuery['filter'];
 type SortValue = FeedQuery['sort'];
@@ -284,20 +286,28 @@ export async function createPost(
 
   if (!canPost) throw new Error('Forbidden');
 
-  const [post] = await db
-    .insert(schema.posts)
-    .values({
-      groupId: group.id,
-      authorId,
-      title: input.title,
-      content: input.content,
-      contentPlain: '', // caller is expected to provide plain text or strip HTML upstream
-      type: input.type,
-      tags: input.tags,
-    })
-    .returning();
+  const contentPlain = htmlToText(input.content);
 
-  if (!post) throw new Error('Failed to create post');
+  const post = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(schema.posts)
+      .values({
+        groupId: group.id,
+        authorId,
+        title: input.title,
+        content: input.content,
+        contentPlain,
+        type: input.type,
+        tags: input.tags,
+      })
+      .returning();
+
+    if (!created) throw new Error('Failed to create post');
+
+    await autoFlagIfWatched(tx, created.contentPlain, 'post', created.id);
+
+    return created;
+  });
 
   const detail = await getPostById(db, post.id, authorId);
   if (!detail) throw new Error('Failed to load created post');
@@ -333,7 +343,7 @@ export async function updatePost(
   if (input.title !== undefined) update.title = input.title;
   if (input.content !== undefined) {
     update.content = input.content;
-    update.contentPlain = '';
+    update.contentPlain = htmlToText(input.content);
   }
   if (input.type !== undefined) update.type = input.type;
   if (input.tags !== undefined) update.tags = input.tags;
@@ -347,7 +357,7 @@ export async function updatePost(
 
   if (!updated) throw new Error('Failed to update post');
 
-  const detail = await getPostById(db, id, currentUserId);
+  const detail = await getPostById(db, updated.id, currentUserId);
   if (!detail) throw new Error('Failed to load updated post');
   return detail;
 }

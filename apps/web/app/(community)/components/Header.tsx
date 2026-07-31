@@ -4,7 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Search, Menu, X, ChevronDown, LogOut, User, Settings, Award } from 'lucide-react';
+import { Search, Menu, X, ChevronDown, LogOut, User, Settings, Award, Bell, Shield } from 'lucide-react';
 import { createAuthClient } from '@/lib/auth/client';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
@@ -137,11 +137,25 @@ export function Header() {
             <Link href="/search" className="text-sm text-muted-foreground hover:text-foreground">
               Search
             </Link>
+            {profile ? (
+              <Link href="/notifications" className="text-sm text-muted-foreground hover:text-foreground">
+                Notifications
+              </Link>
+            ) : null}
+            {profile && isModeratorOrAdmin(profile.role) ? (
+              <Link href="/admin/moderation" className="text-sm text-muted-foreground hover:text-foreground">
+                Moderation
+              </Link>
+            ) : null}
           </div>
         </div>
       ) : null}
     </header>
   );
+}
+
+function isModeratorOrAdmin(role: string): boolean {
+  return role === 'moderator' || role === 'admin';
 }
 
 function UserDropdown({
@@ -181,6 +195,26 @@ function UserDropdown({
               Profile
             </Link>
           </DropdownMenu.Item>
+          <DropdownMenu.Item asChild>
+            <Link
+              href="/notifications"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none hover:bg-muted"
+            >
+              <Bell className="h-4 w-4" aria-hidden="true" />
+              Notifications
+            </Link>
+          </DropdownMenu.Item>
+          {isModeratorOrAdmin(profile.role) ? (
+            <DropdownMenu.Item asChild>
+              <Link
+                href="/admin/moderation"
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none hover:bg-muted"
+              >
+                <Shield className="h-4 w-4" aria-hidden="true" />
+                Moderation
+              </Link>
+            </DropdownMenu.Item>
+          ) : null}
           <DropdownMenu.Item asChild>
             <Link
               href="/settings"

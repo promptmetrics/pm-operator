@@ -2,7 +2,7 @@
 
 **Target:** Ship an internal demo / alpha in 2 weeks, then a production-grade closed-alpha launch in 4–6 weeks with 10 developers.
 **North star:** A free, EU-resident operator knowledge network where public-read content drives discovery, authenticated engagement builds reputation, and agent interfaces consume the same data as the UI.
-**Constraint baseline:** Supabase Pro `eu-central-1`, Vercel Pro `fra1`, Next.js 16 App Router, Drizzle ORM, Upstash Redis, Loops email. Paid tiers exist in schema but are UI-inactive at launch.
+**Constraint baseline:** Supabase Pro `eu-west-1`, Vercel Pro `fra1`, Next.js 16 App Router, Drizzle ORM, Upstash Redis, Loops email. Paid tiers exist in schema but are UI-inactive at launch.
 
 ---
 
@@ -27,7 +27,7 @@ Goal: repo, schema, auth, contracts, CI/CD, seeded data, and a working local end
 |---|---|---|
 | Infra / Monorepo | Infra lead + Frontend lead | `pnpm` + Turborepo skeleton; `apps/web`, `packages/{ui,db,api,mcp}`; TypeScript shared configs; ESLint/Prettier; CI checks on Vercel + GitHub. |
 | Database | Backend lead + Gamification lead | `packages/db` scaffold with Drizzle config, first migration of `users`, `groups`, `posts`, `comments`, `reactions`, base indexes, RLS stubs. |
-| Auth / Onboarding | Auth lead | Supabase `eu-central-1` project created (Pro); OAuth apps registered (GitHub, Google, LinkedIn); auth callback routes stubbed. |
+| Auth / Onboarding | Auth lead | Supabase `eu-west-1` project created (Pro); OAuth apps registered (GitHub, Google, LinkedIn); auth callback routes stubbed. |
 | Design system | UI lead | Paper-v3 tokens ported to `packages/ui`; first reusable components: button, input, card shell, badge, avatar placeholder. |
 | Contracts | API lead | `packages/api` Zod request/response contracts for user, group, post, comment, feed. |
 | QA / Test harness | QA lead | Playwright + Vitest setup; first RLS smoke-test harness. |
@@ -105,7 +105,7 @@ Goal: feature-complete community by day 14, followed by production hardening and
 
 | Track | Deliverable |
 |---|---|
-| Infra | Production Supabase `eu-central-1` project provisioned for week 4–6 cutover; Vercel production project; Upstash Redis connected; Loops email configured. |
+| Infra | Production Supabase `eu-west-1` project provisioned for week 4–6 cutover; Vercel production project; Upstash Redis connected; Loops email configured. |
 | Auth | Branded Loops transactional emails (welcome, password reset); OAuth scope copy finalized; rate limiting on auth routes. |
 | Security | RLS policies reviewed and tightened; service-role key audit; env var checklist. |
 | QA | Production smoke tests: signup, onboarding, public read, private group block. |
@@ -401,7 +401,7 @@ Day 1–2: Repo + Schema
 | Onboarding drop-off exceeds 30% | Medium | High | A/B test framing in Phase 1; fallback to optional onboarding if completion drops below 50%. |
 | Empty-room problem at alpha launch | High | High | Seed 30+ posts before inviting; require founding members to post weekly for first month; host first office hour within 48 hours of invite. |
 | LinkedIn OAuth instability | Low | Medium | Launch with GitHub + Google; add LinkedIn later if it blocks users. |
-| Vercel/Supabase region mismatch or cold starts | Low | Medium | Confirm `fra1` + `eu-central-1`; monitor latency; add Edge caching for public pages. |
+| Vercel/Supabase region mismatch or cold starts | Low | Medium | Confirm `fra1` + `eu-west-1`; monitor latency; add Edge caching for public pages. |
 | Paid-tier schema confusion delays launch | Low | Medium | Keep `membership_tiers`/`user_memberships` in schema but hide paid UI; paid gating is a day-1 schema decision, not a day-1 product feature. |
 | Team coordination overhead with 10 parallel tracks | Medium | Medium | Daily 15-min standup; frozen contracts by day 3; async status updates; PM resolves blockers within 24 hours. |
 | Realtime message quota or at-least-once delivery issues | Low | Medium | Monitor Pro quota (500 peak connections, 5M messages/mo); client dedupe and `notifications` rehydration handle duplicates. |

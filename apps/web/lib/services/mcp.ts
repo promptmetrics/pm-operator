@@ -176,6 +176,7 @@ export function createMcpServices(db: DrizzleClient, logger: Logger): McpService
         if (Math.random() < READ_TOOL_SAMPLE_RATE) {
           await logAgentAction(db, logger, {
             clientId: ctx.clientId,
+            userId: ctx.userId,
             toolName,
             input,
             output: result,
@@ -207,6 +208,7 @@ export function createMcpServices(db: DrizzleClient, logger: Logger): McpService
         if (Math.random() < READ_TOOL_SAMPLE_RATE) {
           await logAgentAction(db, logger, {
             clientId: ctx.clientId,
+            userId: ctx.userId,
             toolName: `resource:${resourceName}`,
             input: { arg, query },
             output: result,

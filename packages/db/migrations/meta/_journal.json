@@ -64,6 +64,13 @@
       "when": 1785498755062,
       "tag": "0008_concerned_centennial",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785500000000,
+      "tag": "0009_serene_galactic",
+      "breakpoints": true
     }
   ]
 }

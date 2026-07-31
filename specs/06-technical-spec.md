@@ -16,7 +16,7 @@
 │         └──────────────────┴──────────────────┘                           │
 │                            │                                                │
 │              ┌─────────────▼──────────────┐                              │
-│              │   Supabase eu-central-1     │                              │
+│              │   Supabase eu-west-1     │                              │
 │              │   Postgres + Auth + Storage │                              │
 │              └─────────────┬───────────────┘                              │
 │                            │                                                │
@@ -33,7 +33,7 @@
 2. **Database-first domain logic.** RLS policies, triggers, and unique constraints enforce access and counter integrity before application code runs.
 3. **Server-only secrets.** The Supabase service-role key, Loops API key, and MCP token secret live only in Vercel environment variables and are never accepted from clients.
 4. **Read-first MCP.** The MCP route is feature-flagged and ships with four read tools first. Write/admin tools are added after the human UI is live.
-5. **EU residency.** Supabase production project is created in `eu-central-1`; Vercel functions are pinned to `fra1`. Signed DPAs/SCCs are the practical compliance mitigation; full jurisdictional sovereignty is documented as a future option.
+5. **EU residency.** Supabase production project is created in `eu-west-1`; Vercel functions are pinned to `fra1`. Signed DPAs/SCCs are the practical compliance mitigation; full jurisdictional sovereignty is documented as a future option.
 
 ---
 
@@ -90,7 +90,7 @@ pm-operator/
 | Components | Radix primitives | latest stable | Accessible primitives. |
 | ORM / migrations | Drizzle ORM + Drizzle Kit | 0.36+ / 0.27+ | Type-safe schema and migrations. |
 | Auth | Supabase Auth | `@supabase/ssr` 0.5+, `@supabase/supabase-js` 2.48+ | OAuth, email, sessions, JWT, RLS. |
-| Database | Supabase Postgres | Pro, `eu-central-1` | Managed Postgres, backups, extensions, RLS. |
+| Database | Supabase Postgres | Pro, `eu-west-1` | Managed Postgres, backups, extensions, RLS. |
 | Realtime | Supabase Realtime | Pro plan | Live posts/comments/notifications. |
 | Storage | Supabase Storage | Pro plan | Avatars, attachments, signed URLs. |
 | Cache / rate limit | Upstash Redis | Free tier via Vercel Marketplace | Rate limits, short-lived cache. |
@@ -1825,7 +1825,7 @@ export const writeLimit = new Ratelimit({
 
 | Service | Plan / Region | Purpose |
 |---|---|---|
-| Supabase | Pro, `eu-central-1` | Postgres, Auth, Realtime, Storage. |
+| Supabase | Pro, `eu-west-1` | Postgres, Auth, Realtime, Storage. |
 | Vercel | Pro, `fra1` | Next.js hosting, CDN, previews. |
 | Upstash Redis | Free via Vercel Marketplace | Rate limits, short cache. |
 | Loops | Free | Transactional and lifecycle email. |
@@ -1879,7 +1879,7 @@ OPENAI_API_KEY=<server-only>
 
 ### 11.4 Deployment sequence
 
-1. Create Supabase project in `eu-central-1`; sign DPA.
+1. Create Supabase project in `eu-west-1`; sign DPA.
 2. Configure OAuth providers and branded email templates.
 3. Push Drizzle migrations and seed groups/badges/watched phrases.
 4. Create Vercel project, set env vars, pin `fra1`.

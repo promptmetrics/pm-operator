@@ -41,17 +41,24 @@ export function FeedPage({
   const [filter, setFilter] = React.useState<FeedFilter>(initialFilter);
   const [posts, setPosts] = React.useState<PostListItem[]>(initialPosts);
   const [cursor, setCursor] = React.useState<string | undefined>(initialCursor);
+  const [page, setPage] = React.useState<number>(() => {
+    const initialPage = Number(searchParams.get('page') || '1');
+    return Number.isFinite(initialPage) && initialPage > 0 ? initialPage : 1;
+  });
   const [loading, setLoading] = React.useState(false);
   const [createOpen, setCreateOpen] = React.useState(false);
 
   React.useEffect(() => {
     setPosts(initialPosts);
     setCursor(initialCursor);
+    setPage(1);
   }, [initialPosts, initialCursor]);
 
   const changeFilter = (value: FeedFilter) => {
     setFilter(value);
+    setPage(1);
     const params = new URLSearchParams(searchParams.toString());
+    params.delete('page');
     if (value === 'all') {
       params.delete('filter');
     } else {
@@ -65,18 +72,18 @@ export function FeedPage({
     if (!cursor || loading) return;
     setLoading(true);
     try {
+      const nextPage = page + 1;
       const params = new URLSearchParams(searchParams.toString());
       params.set('filter', filter);
       if (groupSlug) params.set('groupSlug', groupSlug);
-      // Server-side feed uses page + limit; the client asks for the next page by incrementing page.
-      const page = Number(params.get('page') || '1') + 1;
-      params.set('page', String(page));
-      const endpoint = groupSlug ? `/api/v1/feed?${params.toString()}` : `/api/v1/feed?${params.toString()}`;
+      params.set('page', String(nextPage));
+      const endpoint = `/api/v1/feed?${params.toString()}`;
       const res = await fetch(endpoint);
       if (!res.ok) throw new Error('Failed to load more');
       const json = (await res.json()) as { data?: { posts: PostListItem[] }; meta?: { hasMore?: boolean } };
       const next = json.data?.posts ?? [];
       setPosts((prev) => [...prev, ...next]);
+      setPage(nextPage);
       setCursor(json.meta?.hasMore ? next[next.length - 1]?.createdAt : undefined);
     } catch (err: any) {
       alert(err.message || 'Failed to load more');

@@ -6,7 +6,6 @@ import type {
   CreateFlagRequest,
   ResolveFlagRequest,
   FlagQuery,
-  NotificationType,
 } from '@pm-operator/api';
 import { toISO, isAdminOrModerator } from './shared';
 import { insertNotification } from './notifications';
@@ -17,6 +16,49 @@ async function isModerator(db: DrizzleClient, userId: string): Promise<boolean> 
     columns: { role: true },
   });
   return isAdminOrModerator(user?.role ?? '');
+}
+
+function matchesPhrase(content: string, phrase: string, isRegex: boolean): boolean {
+  if (isRegex) {
+    try {
+      const re = new RegExp(phrase, 'iu');
+      return re.test(content);
+    } catch {
+      return false;
+    }
+  }
+  return content.toLowerCase().includes(phrase.toLowerCase());
+}
+
+export async function autoFlagIfWatched(
+  db: DrizzleClient,
+  contentPlain: string,
+  targetType: 'post' | 'comment',
+  targetId: string
+): Promise<void> {
+  const phrases = await db.query.watchedPhrases.findMany();
+  const matches = phrases.filter(
+    (p) => p.autoFlag && matchesPhrase(contentPlain, p.phrase, p.isRegex)
+  );
+  if (matches.length === 0) return;
+
+  const phraseList = matches.map((m) => m.phrase).join(', ');
+  const suggestions = matches
+    .filter((m) => m.sanctionedFraming)
+    .map((m) => `${m.phrase} → ${m.sanctionedFraming}`)
+    .join('; ');
+
+  const reason = suggestions
+    ? `Auto-flagged for watched phrases: ${phraseList}. Suggested framing: ${suggestions}`
+    : `Auto-flagged for watched phrases: ${phraseList}`;
+
+  await db.insert(schema.flags).values({
+    targetType,
+    targetId,
+    reporterId: null,
+    reason,
+    autoFlagged: true,
+  });
 }
 
 export async function createFlag(

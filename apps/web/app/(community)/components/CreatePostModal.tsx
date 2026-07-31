@@ -79,7 +79,20 @@ export function CreatePostModal({
 
     let content = body;
     if (type === 'build' && repoUrl.trim()) {
-      content += `<p><a href="${repoUrl.trim()}">${repoUrl.trim()}</a></p>`;
+      let url: URL;
+      try {
+        url = new URL(repoUrl.trim());
+      } catch {
+        setError('Repo link must be a valid URL.');
+        return;
+      }
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        setError('Repo link must use http or https.');
+        return;
+      }
+      const safeUrl = escapeHtml(url.href);
+      const safeLabel = escapeHtml(url.href);
+      content += `<p><a href="${safeUrl}">${safeLabel}</a></p>`;
     }
 
     const payload: CreatePostRequest = {
@@ -262,4 +275,13 @@ export function CreatePostModal({
       </Dialog.Portal>
     </Dialog.Root>
   );
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

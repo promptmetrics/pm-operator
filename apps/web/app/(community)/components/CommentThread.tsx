@@ -97,7 +97,7 @@ function SingleComment({
       const json = (await res.json()) as { data?: { removed?: boolean; id?: string } };
       const removed = json.data?.removed ?? !json.data?.id;
       setLiked(!removed);
-      setLikeCount(removed ? previous : previous + 1);
+      setLikeCount(removed ? previous - 1 : previous + 1);
     } catch {
       setLiked((l) => !l);
       setLikeCount(previous);

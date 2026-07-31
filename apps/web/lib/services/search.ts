@@ -4,6 +4,12 @@ import * as schema from '@pm-operator/db';
 import type { SearchQuery, SearchResponse, SearchResult, PostType } from '@pm-operator/api';
 import { toISO, toNumber } from './shared';
 
+function sanitizeTsQueryTerm(term: string): string | null {
+  // Keep letters, numbers, and underscores; drop tsquery operators and punctuation.
+  const cleaned = term.replace(/[^\p{L}\p{N}_]/gu, '');
+  return cleaned.length > 0 ? `${cleaned}:*` : null;
+}
+
 function postVisibilityFilter(currentUserId: string | undefined) {
   const notDeleted = sql`${schema.posts.status} <> 'deleted'`;
   if (!currentUserId) {
@@ -13,19 +19,32 @@ function postVisibilityFilter(currentUserId: string | undefined) {
       sql`${schema.posts.status} <> 'hidden'`
     );
   }
+  const isAuthor = eq(schema.posts.authorId, currentUserId);
+  const isAdmin = sql`exists (
+    select 1 from ${schema.users}
+    where ${schema.users.id} = ${currentUserId} and ${schema.users.role} = 'admin'
+  )`;
   return and(
     notDeleted,
     or(
       sql`${schema.groups.visibility} = 'public'`,
-      eq(schema.posts.authorId, currentUserId),
+      isAuthor,
       sql`exists (
         select 1 from ${schema.groupMemberships}
         where ${schema.groupMemberships.groupId} = ${schema.posts.groupId}
           and ${schema.groupMemberships.userId} = ${currentUserId}
       )`,
+      isAdmin
+    ),
+    or(
+      sql`${schema.posts.status} <> 'hidden'`,
+      isAuthor,
+      isAdmin,
       sql`exists (
-        select 1 from ${schema.users}
-        where ${schema.users.id} = ${currentUserId} and ${schema.users.role} = 'admin'
+        select 1 from ${schema.groupMemberships}
+        where ${schema.groupMemberships.groupId} = ${schema.posts.groupId}
+          and ${schema.groupMemberships.userId} = ${currentUserId}
+          and ${schema.groupMemberships.role} in ('admin', 'moderator')
       )`
     )
   );
@@ -41,7 +60,8 @@ export async function searchPosts(
   const tsQuery = q
     .split(/\s+/)
     .filter(Boolean)
-    .map((term) => `${term}:*`)
+    .map(sanitizeTsQueryTerm)
+    .filter((term): term is string => term !== null)
     .join(' & ');
 
   const asCount = db.$with('as_count').as(

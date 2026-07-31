@@ -9,9 +9,11 @@ import type {
   AcceptSolutionRequest,
 } from '@pm-operator/api';
 import { getAvatarReadUrl } from '../storage';
+import { htmlToText } from '../html-to-text';
 import { toISO, toNumber, isAdminOrModerator } from './shared';
 import { insertNotification } from './notifications';
 import { awardPoints, trackDailyStat } from './points';
+import { autoFlagIfWatched } from './flags';
 
 function commentVisibilityFilter(currentUserId: string | undefined) {
   const notDeleted = sql`${comments.status} <> 'deleted'`;
@@ -152,18 +154,26 @@ export async function createComment(
     if (!parent || parent.postId !== postId) throw new Error('Invalid parent comment');
   }
 
-  const [comment] = await db
-    .insert(comments)
-    .values({
-      postId,
-      authorId,
-      parentCommentId: input.parentCommentId ?? null,
-      content: input.content,
-      contentPlain: '', // caller should strip HTML upstream
-    })
-    .returning();
+  const contentPlain = htmlToText(input.content);
 
-  if (!comment) throw new Error('Failed to create comment');
+  const comment = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(comments)
+      .values({
+        postId,
+        authorId,
+        parentCommentId: input.parentCommentId ?? null,
+        content: input.content,
+        contentPlain,
+      })
+      .returning();
+
+    if (!created) throw new Error('Failed to create comment');
+
+    await autoFlagIfWatched(tx, created.contentPlain, 'comment', created.id);
+
+    return created;
+  });
 
   await awardPoints(db, {
     userId: authorId,
@@ -205,13 +215,32 @@ export async function updateComment(
     where: eq(users.id, currentUserId),
     columns: { role: true },
   });
-  const canEdit = comment.authorId === currentUserId || isAdminOrModerator(user?.role ?? '');
+  const post = await db.query.posts.findFirst({
+    where: eq(posts.id, comment.postId),
+    columns: { groupId: true },
+  });
+  if (!post) throw new Error('Post not found');
+
+  const isGroupMod =
+    input.status !== undefined &&
+    input.content === undefined &&
+    (await db.query.groupMemberships.findFirst({
+      where: and(
+        eq(groupMemberships.groupId, post.groupId),
+        eq(groupMemberships.userId, currentUserId),
+        inArray(groupMemberships.role, ['admin', 'moderator'])
+      ),
+    }));
+  const canEdit =
+    comment.authorId === currentUserId ||
+    isAdminOrModerator(user?.role ?? '') ||
+    Boolean(isGroupMod);
   if (!canEdit) throw new Error('Forbidden');
 
   const update: Partial<typeof comments.$inferInsert> = { updatedAt: new Date() };
   if (input.content !== undefined) {
     update.content = input.content;
-    update.contentPlain = '';
+    update.contentPlain = htmlToText(input.content);
   }
   if (input.status !== undefined) update.status = input.status;
 
@@ -267,6 +296,22 @@ export async function acceptSolution(
     where: and(eq(comments.id, input.commentId), eq(comments.postId, postId)),
   });
   if (!comment) throw new Error('Comment not found on this post');
+  if (comment.status !== 'published') throw new Error('Only published comments can be accepted as a solution');
+
+  if (post.acceptedCommentId === input.commentId) {
+    return {
+      id: comment.id,
+      postId: comment.postId,
+      authorId: comment.authorId,
+      parentCommentId: comment.parentCommentId,
+      content: comment.content,
+      contentPlain: comment.contentPlain,
+      upvotes: comment.upvotes,
+      status: comment.status,
+      createdAt: toISO(comment.createdAt),
+      updatedAt: toISO(comment.updatedAt),
+    };
+  }
 
   const [updatedPost] = await db
     .update(posts)

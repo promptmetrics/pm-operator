@@ -28,5 +28,10 @@ export {
 export {
   verifyMcpOAuthToken,
   REQUIRED_READ_SCOPE,
+  TOKEN_ISSUER,
+  TOKEN_AUDIENCE,
   type VerifiedMcpToken,
+  type McpClientInfo,
+  type LookupMcpClient,
+  type McpAuthOptions,
 } from './auth';

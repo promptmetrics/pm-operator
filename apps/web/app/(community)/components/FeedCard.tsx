@@ -3,6 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { Heart, MessageSquare, Flag, CheckCircle2 } from 'lucide-react';
+import { FlagDialog } from './FlagDialog';
 import { Card, CardContent } from '@pm-operator/ui/components/Card';
 import { Badge } from '@pm-operator/ui/components/Badge';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
@@ -42,7 +43,7 @@ export function FeedCard({ post, currentUserId, rank, onClickResult }: FeedCardP
       const json = (await res.json()) as { data?: { removed?: boolean; id?: string } };
       const removed = json.data?.removed ?? !json.data?.id;
       setLiked(!removed);
-      setLikeCount(removed ? previous : previous + 1);
+      setLikeCount(removed ? previous - 1 : previous + 1);
     } catch {
       setLiked((l) => !l);
       setLikeCount(previous);
@@ -129,15 +130,16 @@ export function FeedCard({ post, currentUserId, rank, onClickResult }: FeedCardP
                 </Button>
               </Link>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-label="Flag post"
-                disabled={!currentUserId}
-                onClick={() => alert('Flag reason dialog not implemented in this preview')}
-              >
-                <Flag className="h-4 w-4" aria-hidden="true" />
-              </Button>
+              <FlagDialog targetType="post" targetId={post.id}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Flag post"
+                  disabled={!currentUserId}
+                >
+                  <Flag className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </FlagDialog>
             </div>
           </div>
         </CardContent>

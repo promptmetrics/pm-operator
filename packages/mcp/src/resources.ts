@@ -112,6 +112,7 @@ function toContext(authInfo?: {
   clientId: string;
   scopes: string[];
   token: string;
+  extra?: Record<string, unknown>;
 }): McpContext {
   if (!authInfo) {
     return { clientId: 'anonymous', scopes: [], token: '' };
@@ -120,6 +121,7 @@ function toContext(authInfo?: {
     clientId: authInfo.clientId,
     scopes: authInfo.scopes,
     token: authInfo.token,
+    userId: typeof authInfo.extra?.userId === 'string' ? authInfo.extra.userId : undefined,
   };
 }
 

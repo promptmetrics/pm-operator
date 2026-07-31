@@ -52,7 +52,7 @@
 - **Database-first domain logic:** RLS, triggers, and unique constraints enforce access and counter integrity before application code.
 - **Server-only secrets:** Supabase service-role key, Loops API key, MCP token secret live only in Vercel env vars.
 - **Read-first MCP:** MCP route feature-flagged; four read tools at launch (`search_posts`, `get_user_profile`, `list_leaderboards`, `summarize_thread`); write/admin tools deferred.
-- **EU residency:** Supabase `eu-central-1`, Vercel `fra1`, signed DPAs/SCCs.
+- **EU residency:** Supabase `eu-west-1`, Vercel `fra1`, signed DPAs/SCCs.
 - **Postgres search at launch:** Full-text search + `pg_trgm`; defer Meilisearch/Algolia.
 - **Paper-v3 frontend:** Reuse existing design system; no shadcn/ui.
 - **Paid tiers are PromptMetrics-owned memberships** unlocking specific circles; launch is free-only but schema supports paid gating.
@@ -117,7 +117,7 @@
 - **Day 3:** Define notification payload schema with Frontend Lead and finalize invite-code delivery method.
 - **Day 3:** Set per-route rate limits with Backend + Security.
 - **Day 4:** Define avatar/attachment limits, signed-URL TTLs, and content moderation rules.
-- **Week 1:** Create Supabase `eu-central-1` project, configure Vercel project with env vars, push Drizzle migrations, seed groups/badges/watched phrases.
+- **Week 1:** Create Supabase `eu-west-1` project, configure Vercel project with env vars, push Drizzle migrations, seed groups/badges/watched phrases.
 - **Week 1:** Begin RLS access-matrix test scaffolding and load-test plan for gamification race conditions.
 
 ## Top risk register

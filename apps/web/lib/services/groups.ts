@@ -125,20 +125,34 @@ export async function createGroup(
     throw new Error('Forbidden');
   }
 
-  const [group] = await db
-    .insert(schema.groups)
-    .values({
-      slug: input.slug,
-      name: input.name,
-      description: input.description,
-      color: input.color,
-      visibility: input.visibility,
-      requiredTierId: input.requiredTierId,
-      createdBy: createdById,
-    })
-    .returning();
+  const group = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(schema.groups)
+      .values({
+        slug: input.slug,
+        name: input.name,
+        description: input.description,
+        color: input.color,
+        visibility: input.visibility,
+        requiredTierId: input.requiredTierId,
+        createdBy: createdById,
+      })
+      .returning();
 
-  if (!group) throw new Error('Failed to create group');
+    if (!created) throw new Error('Failed to create group');
+
+    await tx.insert(schema.groupMemberships).values({
+      groupId: created.id,
+      userId: createdById,
+      role: 'admin',
+    });
+
+    return created;
+  });
+
+  const refreshed = await db.query.groups.findFirst({
+    where: eq(schema.groups.id, group.id),
+  });
 
   return {
     id: group.id,
@@ -148,7 +162,7 @@ export async function createGroup(
     color: group.color,
     visibility: group.visibility,
     requiredTierId: group.requiredTierId,
-    memberCount: group.memberCount,
+    memberCount: refreshed?.memberCount ?? group.memberCount,
     createdBy: group.createdBy,
     createdAt: toISO(group.createdAt),
     updatedAt: toISO(group.updatedAt),
@@ -215,6 +229,7 @@ export async function joinGroup(
   }
 
   let assignedRole: 'member' | 'moderator' | 'admin' = 'member';
+  let inviteId: string | undefined;
 
   if (group.visibility === 'invite_only') {
     if (!request.inviteCode) throw new Error('Invite code required');
@@ -229,38 +244,54 @@ export async function joinGroup(
       throw new Error('Invite code fully redeemed');
     }
     assignedRole = invite.role;
-
-    await db
-      .update(schema.groupInvites)
-      .set({ usedCount: invite.usedCount + 1, updatedAt: new Date() })
-      .where(eq(schema.groupInvites.id, invite.id));
+    inviteId = invite.id;
   }
 
-  try {
-    const [membership] = await db
+  const membership = await db.transaction(async (tx) => {
+    if (inviteId) {
+      const [updatedInvite] = await tx
+        .update(schema.groupInvites)
+        .set({
+          usedCount: sql`${schema.groupInvites.usedCount} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.groupInvites.id, inviteId),
+            sql`${schema.groupInvites.usedCount} < ${schema.groupInvites.maxUses}`
+          )
+        )
+        .returning();
+
+      if (!updatedInvite) throw new Error('Invite code fully redeemed');
+    }
+
+    const [row] = await tx
       .insert(schema.groupMemberships)
       .values({
         groupId: group.id,
         userId,
         role: assignedRole,
       })
+      .onConflictDoNothing({
+        target: [schema.groupMemberships.groupId, schema.groupMemberships.userId],
+      })
       .returning();
 
-    return {
-      id: membership.id,
-      groupId: membership.groupId,
-      userId: membership.userId,
-      role: membership.role,
-      joinedAt: toISO(membership.joinedAt),
-      createdAt: toISO(membership.createdAt),
-      updatedAt: toISO(membership.updatedAt),
-    };
-  } catch (err: any) {
-    if (err.message?.includes('unique constraint')) {
-      throw new Error('Already a member of this group');
-    }
-    throw err;
-  }
+    if (!row) throw new Error('Already a member of this group');
+
+    return row;
+  });
+
+  return {
+    id: membership.id,
+    groupId: membership.groupId,
+    userId: membership.userId,
+    role: membership.role,
+    joinedAt: toISO(membership.joinedAt),
+    createdAt: toISO(membership.createdAt),
+    updatedAt: toISO(membership.updatedAt),
+  };
 }
 
 async function countGroupAdmins(db: DrizzleClient, groupId: string): Promise<number> {
@@ -447,22 +478,39 @@ export async function acceptInvite(
   });
   if (!group) throw new Error('Group not found');
 
-  await db
-    .update(schema.groupInvites)
-    .set({ usedCount: invite.usedCount + 1, updatedAt: new Date() })
-    .where(eq(schema.groupInvites.id, invite.id));
+  const membership = await db.transaction(async (tx) => {
+    const [updatedInvite] = await tx
+      .update(schema.groupInvites)
+      .set({
+        usedCount: sql`${schema.groupInvites.usedCount} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.groupInvites.id, invite.id),
+          sql`${schema.groupInvites.usedCount} < ${schema.groupInvites.maxUses}`
+        )
+      )
+      .returning();
 
-  const [membership] = await db
-    .insert(schema.groupMemberships)
-    .values({
-      groupId: group.id,
-      userId,
-      role: invite.role,
-    })
-    .onConflictDoNothing({ target: [schema.groupMemberships.groupId, schema.groupMemberships.userId] })
-    .returning();
+    if (!updatedInvite) throw new Error('Invite code fully redeemed');
 
-  if (!membership) throw new Error('Already a member of this group');
+    const [row] = await tx
+      .insert(schema.groupMemberships)
+      .values({
+        groupId: group.id,
+        userId,
+        role: invite.role,
+      })
+      .onConflictDoNothing({
+        target: [schema.groupMemberships.groupId, schema.groupMemberships.userId],
+      })
+      .returning();
+
+    if (!row) throw new Error('Already a member of this group');
+
+    return row;
+  });
 
   return {
     id: membership.id,

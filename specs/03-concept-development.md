@@ -31,7 +31,7 @@ The core value proposition from `01-concept-brief.md` still holds: persistent se
 
 - **Access model is expanded from day one.** The brief assumed "public-read with private circles." Validation showed that `is_public` alone is insufficient; the concept now uses a `visibility` enum (`public`, `invite_only`, `paid`) plus a `group_invites` table and optional `paid_tier_id`. This directly serves Priya Nair's gated-monetization job and Alex Ríos's private-cohort need.
 - **Agent interface is scoped to read-first at launch.** The brief claimed "every human-facing feature reachable under `/api/v1`" and implied broad MCP parity. Feasibility review recommends shipping 4 read tools first (`search_posts`, `get_user_profile`, `list_leaderboards`, `summarize_thread`) and adding write/admin tools only after the human UI is live. This reduces the risk of over-building the agent layer before user validation.
-- **EU data residency is a compliance sell, not just hosting.** The brief listed it as a differentiator. Validation adds the explicit Supabase `eu-central-1` (Frankfurt) region, Vercel `fra1` region, DPA/SCC requirements, and the caveat that Vercel's US jurisdiction remains unless contractual terms cover it.
+- **EU data residency is a compliance sell, not just hosting.** The brief listed it as a differentiator. Validation adds the explicit Supabase `eu-west-1` (Frankfurt) region, Vercel `fra1` region, DPA/SCC requirements, and the caveat that Vercel's US jurisdiction remains unless contractual terms cover it.
 - **Gamification is hardened against drift and gaming.** The brief warned against over-gamification. Validation turns that into a concrete trigger-based counter and atomic point-award design with idempotency per event type.
 
 ### Solution statement in one paragraph
@@ -249,11 +249,11 @@ pm-operator/
 
 ### Supabase Pro EU region and compliance
 
-- **Primary region:** `eu-central-1` (Frankfurt).
+- **Primary region:** `eu-west-1` (Frankfurt).
 - **Vercel region:** `vercel.json` with `"regions": ["fra1"]`.
 - **Compliance checklist:**
   1. Upgrade to Supabase Pro; sign the DPA in the dashboard.
-  2. Create production project in `eu-central-1` (region cannot be changed after creation).
+  2. Create production project in `eu-west-1` (region cannot be changed after creation).
   3. Enable RLS on every table and document policies.
   4. Turn on PITR/backups; confirm backup storage stays in the selected region.
   5. Configure OAuth providers (GitHub, Google, LinkedIn) and include their data-processing terms in the privacy policy.
@@ -281,7 +281,7 @@ pm-operator/
 From the architecture validation output, T-shirt sized:
 
 1. **Repo & tooling** — S (~1 day): pnpm workspace, Turborepo, TypeScript, ESLint, shared tsconfig.
-2. **Supabase Pro EU project + Drizzle schema + migrations** — M (2–3 days): create `eu-central-1` project; scaffold `packages/db` with tables, indexes, FKs, RLS stubs.
+2. **Supabase Pro EU project + Drizzle schema + migrations** — M (2–3 days): create `eu-west-1` project; scaffold `packages/db` with tables, indexes, FKs, RLS stubs.
 3. **Auth + onboarding enforcement** — M (2–3 days): Supabase Auth routes, OAuth callbacks, middleware redirect for missing `painful_tool_stack_task`, register validation.
 4. **Core CRUD + feed endpoint** — L (4–5 days): groups, posts, comments, reactions, `/api/v1/feed` with group/tag filters, RLS policies.
 5. **Frontend API client + profile port** — M (2–3 days): replace `web/app/lib/nodebb.ts` with `packages/api` client; port profile page; add `/g/:slug` shell.
@@ -612,7 +612,7 @@ commit;
 
 ### Data residency
 
-- Supabase production project in `eu-central-1` (Frankfurt).
+- Supabase production project in `eu-west-1` (Frankfurt).
 - Vercel functions pinned to `fra1`.
 - Signed Supabase DPA and Vercel DPA/SCCs where required.
 - Document jurisdictional limits: Vercel is a US entity; physical EU residency does not eliminate US legal exposure.
@@ -654,7 +654,7 @@ commit;
 | **Counters** | DB triggers, not application read-modify-write | Prevents drift under concurrent reactions/comments. | More trigger code to maintain and test. |
 | **Gamification leaderboards** | `user_scores` summary table maintained by triggers | Fast reads without materialized-view refresh lag. | Extra table and trigger logic. |
 | **Daily caps** | Separate `user_daily_stats` table, not scans of `point_events` | Race-safe and faster for `daily_visit` / `posts_read` caps. | Extra table to keep in sync. |
-| **EU hosting** | Supabase `eu-central-1` + Vercel `fra1` | Physical EU residency and low latency for German/EU ICP. | Vercel's US jurisdictional exposure remains; full sovereignty may require a future EU-hosted alternative. |
+| **EU hosting** | Supabase `eu-west-1` + Vercel `fra1` | Physical EU residency and low latency for German/EU ICP. | Vercel's US jurisdictional exposure remains; full sovereignty may require a future EU-hosted alternative. |
 | **Auth model** | Supabase JWT for humans + MCP OAuth token for agents | Clear separation of human and agent identity; service role stays server-side. | Two token systems to implement and document. |
 | **Realtime** | Supabase Realtime for posts, comments, notifications | No self-hosted WebSocket server; integrated with DB. | At-least-once delivery; clients must dedupe and rehydrate. |
 | **Email** | Loops | Loops for transactional and lifecycle email. | Branded transactional and lifecycle email handled by Loops. |

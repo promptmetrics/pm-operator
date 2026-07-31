@@ -38,10 +38,43 @@ jobs:
       - name: Build
         run: pnpm build
 
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    needs: ci
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run MCP unit tests
+        run: pnpm --filter @pm-operator/mcp test
+
+      - name: Run web unit tests
+        env:
+          BASE_URL: https://operator.promptmetrics.dev
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm test:unit
+
   production-smoke-e2e:
     name: Production smoke E2E
     runs-on: ubuntu-latest
-    needs: ci
+    needs: unit-tests
     environment: production
     steps:
       - name: Checkout

@@ -9,6 +9,7 @@ import { listPinnedPosts, listGroupLeaderboard, getWritableGroups } from '@/lib/
 import { FeedPage } from '../../components/FeedPage';
 import { FeedCard } from '../../components/FeedCard';
 import { GroupMembershipButton } from '../../components/GroupMembershipButton';
+import { GroupInviteButton } from '../../components/GroupInviteButton';
 import { FeedFilter } from '@pm-operator/api';
 
 type PageSearchParams = Record<string, string | string[] | undefined>;
@@ -37,20 +38,32 @@ export default async function GroupRoute({
   const pageParam = typeof paramsQuery.page === 'string' ? Number(paramsQuery.page) : undefined;
   const page = Number.isFinite(pageParam) && pageParam && pageParam > 0 ? pageParam : 1;
 
-  const [membership, pinned, { posts, nextCursor }, leaderboard, writableGroups] = await Promise.all([
-    currentUserId
-      ? db.query.groupMemberships.findFirst({
-          where: and(
-            eq(schema.groupMemberships.groupId, group.id),
-            eq(schema.groupMemberships.userId, currentUserId)
-          ),
-        })
-      : Promise.resolve(null),
-    listPinnedPosts(db, group.id, currentUserId),
-    listGroupPosts(db, slug, { filter, sort: 'new', page, limit: 20 }, currentUserId),
-    listGroupLeaderboard(db, group.id, 'weekly', 5),
-    currentUserId ? getWritableGroups(db, currentUserId) : Promise.resolve([]),
-  ]);
+  const [membership, pinned, { posts, nextCursor }, leaderboard, writableGroups, currentUser] =
+    await Promise.all([
+      currentUserId
+        ? db.query.groupMemberships.findFirst({
+            where: and(
+              eq(schema.groupMemberships.groupId, group.id),
+              eq(schema.groupMemberships.userId, currentUserId)
+            ),
+          })
+        : Promise.resolve(null),
+      listPinnedPosts(db, group.id, currentUserId),
+      listGroupPosts(db, slug, { filter, sort: 'new', page, limit: 20 }, currentUserId),
+      listGroupLeaderboard(db, group.id, 'weekly', 5),
+      currentUserId ? getWritableGroups(db, currentUserId) : Promise.resolve([]),
+      currentUserId
+        ? db.query.users.findFirst({
+            where: eq(schema.users.id, currentUserId),
+            columns: { role: true },
+          })
+        : Promise.resolve(null),
+    ]);
+
+  const canInvite =
+    membership?.role === 'admin' ||
+    membership?.role === 'moderator' ||
+    currentUser?.role === 'admin';
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -65,17 +78,25 @@ export default async function GroupRoute({
               />
             ) : null}
             <div>
-              <h1 className="text-2xl font-semibold">{group.name}</h1>
+              <div className="mb-1 flex items-center gap-2">
+                <h1 className="text-2xl font-semibold">{group.name}</h1>
+                <span className="rounded-full border border-border px-2 py-0.5 text-xs capitalize text-muted-foreground">
+                  {group.visibility.replace('_', ' ')}
+                </span>
+              </div>
               {group.description ? (
                 <p className="text-sm text-muted-foreground">{group.description}</p>
               ) : null}
             </div>
           </div>
-          <GroupMembershipButton
-            slug={slug}
-            initialIsMember={Boolean(membership)}
-            isLoggedIn={Boolean(currentUserId)}
-          />
+          <div className="flex items-center gap-2">
+            {canInvite ? <GroupInviteButton slug={slug} /> : null}
+            <GroupMembershipButton
+              slug={slug}
+              initialIsMember={Boolean(membership)}
+              isLoggedIn={Boolean(currentUserId)}
+            />
+          </div>
         </div>
       </div>
 

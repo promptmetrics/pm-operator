@@ -6,6 +6,7 @@ export interface McpContext {
   clientId: string;
   scopes: string[];
   token: string;
+  userId?: string;
 }
 
 export interface McpToolServices {
@@ -119,7 +120,7 @@ export function registerTools(
     'summarize_thread',
     {
       description:
-        'Summarize a post and its comments. Heavy tool; may return a job URI if >2s.',
+        'Summarize a post and its comments synchronously using a simple truncation heuristic. Returns the summary immediately.',
       inputSchema: summarizeThreadSchema.shape,
     },
     async (args, extra) => {
@@ -141,6 +142,7 @@ function toContext(authInfo?: {
   clientId: string;
   scopes: string[];
   token: string;
+  extra?: Record<string, unknown>;
 }): McpContext {
   if (!authInfo) {
     return { clientId: 'anonymous', scopes: [], token: '' };
@@ -149,5 +151,6 @@ function toContext(authInfo?: {
     clientId: authInfo.clientId,
     scopes: authInfo.scopes,
     token: authInfo.token,
+    userId: typeof authInfo.extra?.userId === 'string' ? authInfo.extra.userId : undefined,
   };
 }

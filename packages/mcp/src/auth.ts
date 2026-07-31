@@ -3,34 +3,52 @@ import { createHmac, timingSafeEqual } from 'crypto';
 /**
  * OAuth verification for the operator MCP server.
  *
- * P1-27 decision: the token issuer is the platform OAuth provider (Supabase Auth
- * or a dedicated MCP issuer). Access tokens are JWTs with a one-hour lifetime and
- * must include the `mcp:read` scope. In production this function should either:
- *   1. Verify the JWT signature with `MCP_TOKEN_SECRET` (HS256 stub below), or
- *   2. Introspect the token at the issuer's introspection endpoint (configured via
- *      `MCP_INTROSPECTION_URL` and `MCP_INTROSPECTION_CLIENT_SECRET`).
+ * Access tokens are JWTs signed with HS256 using `MCP_TOKEN_SECRET` and must
+ * include the `community:read` scope. Tokens are expected to carry:
+ *   - `iss`: 'operator.promptmetrics.dev'
+ *   - `aud`: 'operator.promptmetrics.dev/mcp'
+ *   - `sub` or `client_id`: registered MCP client ID
+ *   - `scope`: space-separated OAuth scopes
+ *   - optional `user_id`: acting user to attribute to agent_actions
  *
- * The current implementation uses HS256 signature verification when
- * `MCP_TOKEN_SECRET` is present; otherwise it decodes the payload without
- * verifying the signature and logs a warning. This is intentionally a stub so
- * the route typechecks and runs in development while the issuer is provisioned.
- *
- * Expected environment variables:
- *   - `MCP_TOKEN_SECRET` (server-only): symmetric key used to verify HS256 tokens.
- *   - `MCP_INTROSPECTION_URL` (optional): RFC 7662 token introspection endpoint.
- *   - `MCP_INTROSPECTION_CLIENT_SECRET` (optional): introspection client credentials.
+ * When `lookupClient` is provided, the client ID is validated against the
+ * `mcp_clients` table: the client must be active and the token's scopes are
+ * intersected with the client's allowed scopes.
  */
 
-export const REQUIRED_READ_SCOPE = 'mcp:read';
+export const TOKEN_ISSUER = 'operator.promptmetrics.dev';
+export const TOKEN_AUDIENCE = 'operator.promptmetrics.dev/mcp';
+export const REQUIRED_READ_SCOPE = 'community:read';
 
 export interface VerifiedMcpToken {
   clientId: string;
   scopes: string[];
   token: string;
   expiresAt?: number;
+  userId?: string;
 }
 
-export async function verifyMcpOAuthToken(req: Request): Promise<VerifiedMcpToken | Response> {
+export interface McpClientInfo {
+  clientId: string;
+  scopes: string[];
+  isActive: boolean;
+}
+
+export type LookupMcpClient = (clientId: string) => Promise<McpClientInfo | null | undefined | void>;
+
+export interface McpAuthOptions {
+  lookupClient?: LookupMcpClient;
+}
+
+export async function verifyMcpOAuthToken(
+  req: Request,
+  options: McpAuthOptions = {}
+): Promise<VerifiedMcpToken | Response> {
+  const secret = process.env.MCP_TOKEN_SECRET;
+  if (!secret) {
+    return unauthorized('MCP_TOKEN_SECRET not configured');
+  }
+
   const authHeader = req.headers.get('authorization');
   if (!authHeader) {
     return unauthorized('Missing Authorization header');
@@ -43,13 +61,8 @@ export async function verifyMcpOAuthToken(req: Request): Promise<VerifiedMcpToke
   const token = match[1];
 
   let payload: Record<string, unknown>;
-  const secret = process.env.MCP_TOKEN_SECRET;
   try {
-    if (secret) {
-      payload = verifyJwt(token, secret);
-    } else {
-      payload = decodeJwtPayload(token);
-    }
+    payload = verifyJwt(token, secret);
   } catch (err) {
     return unauthorized(err instanceof Error ? err.message : 'Invalid token');
   }
@@ -59,9 +72,12 @@ export async function verifyMcpOAuthToken(req: Request): Promise<VerifiedMcpToke
     return unauthorized('Token missing client identifier claim (sub or client_id)');
   }
 
-  const scopes = parseScopes(payload.scope);
-  if (!scopes.includes(REQUIRED_READ_SCOPE)) {
-    return forbidden(`Missing required scope ${REQUIRED_READ_SCOPE}`);
+  if (payload.iss !== TOKEN_ISSUER) {
+    return unauthorized('Invalid token issuer');
+  }
+
+  if (payload.aud !== TOKEN_AUDIENCE) {
+    return unauthorized('Invalid token audience');
   }
 
   const expiresAt = typeof payload.exp === 'number' ? payload.exp : undefined;
@@ -69,7 +85,26 @@ export async function verifyMcpOAuthToken(req: Request): Promise<VerifiedMcpToke
     return unauthorized('Token expired');
   }
 
-  return { clientId, scopes, token, expiresAt };
+  let scopes = parseScopes(payload.scope);
+
+  if (options.lookupClient) {
+    const client = await options.lookupClient(clientId);
+    if (!client || !client.isActive) {
+      return forbidden('Client not registered or inactive');
+    }
+    scopes = scopes.filter((scope) => client.scopes.includes(scope));
+  }
+
+  if (!scopes.includes(REQUIRED_READ_SCOPE)) {
+    return forbidden(`Missing required scope ${REQUIRED_READ_SCOPE}`);
+  }
+
+  const userId =
+    typeof payload.user_id === 'string' && payload.user_id.length > 0
+      ? payload.user_id
+      : undefined;
+
+  return { clientId, scopes, token, expiresAt, userId };
 }
 
 function unauthorized(message: string): Response {
@@ -100,14 +135,6 @@ function base64UrlDecode(value: string): string {
   return Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/') + padding, 'base64').toString(
     'utf8'
   );
-}
-
-function decodeJwtPayload(token: string): Record<string, unknown> {
-  const parts = token.split('.');
-  if (parts.length !== 3) {
-    throw new Error('Invalid JWT format');
-  }
-  return JSON.parse(base64UrlDecode(parts[1] ?? '')) as Record<string, unknown>;
 }
 
 function verifyJwt(token: string, secret: string): Record<string, unknown> {

@@ -4,7 +4,7 @@ import * as schema from '@pm-operator/db';
 import type { CreateReactionRequest, Reaction } from '@pm-operator/api';
 import { toISO } from './shared';
 import { insertNotification } from './notifications';
-import { trackDailyStat } from './points';
+import { awardPoints, trackDailyStat } from './points';
 
 async function canSeeTarget(
   db: DrizzleClient,
@@ -46,85 +46,120 @@ export async function toggleReaction(
   const canSee = await canSeeTarget(db, input.targetType, input.targetId, userId);
   if (!canSee) throw new Error('Target not found');
 
-  const existing = await db.query.reactions.findFirst({
-    where: and(
-      eq(schema.reactions.userId, userId),
-      eq(schema.reactions.targetType, input.targetType),
-      eq(schema.reactions.targetId, input.targetId)
+  type ToggleRow = {
+    id: string;
+    user_id: string;
+    target_type: 'post' | 'comment';
+    target_id: string;
+    reaction_type: 'like' | 'celebrate';
+    created_at: Date;
+    action: 'created' | 'removed';
+  };
+
+  const rows = await db.execute<ToggleRow>(sql`
+    WITH existing AS (
+      DELETE FROM ${schema.reactions}
+      WHERE ${schema.reactions.userId} = ${userId}
+        AND ${schema.reactions.targetType} = ${input.targetType}
+        AND ${schema.reactions.targetId} = ${input.targetId}
+      RETURNING id, user_id, target_type, target_id, reaction_type, created_at, 'removed'::text AS action
     ),
-  });
+    inserted AS (
+      INSERT INTO ${schema.reactions} (id, user_id, target_type, target_id, reaction_type, created_at)
+      SELECT gen_random_uuid(), ${userId}, ${input.targetType}, ${input.targetId}, ${input.reactionType}, now()
+      WHERE NOT EXISTS (SELECT 1 FROM existing)
+      RETURNING id, user_id, target_type, target_id, reaction_type, created_at, 'created'::text AS action
+    )
+    SELECT * FROM existing
+    UNION ALL
+    SELECT * FROM inserted
+  `);
 
-  if (existing) {
-    await db
-      .delete(schema.reactions)
-      .where(eq(schema.reactions.id, existing.id));
-    return { reaction: null, created: false };
-  }
+  const row = rows[0];
+  if (!row) throw new Error('Failed to toggle reaction');
 
-  const [reaction] = await db
-    .insert(schema.reactions)
-    .values({
+  const created = row.action === 'created';
+
+  if (created) {
+    // Cap like_given points via daily stats. Use the target id as the source
+    // so liking/unliking the same target cannot create duplicate point events.
+    await trackDailyStat(
+      db,
       userId,
-      targetType: input.targetType,
-      targetId: input.targetId,
-      reactionType: input.reactionType,
-    })
-    .returning();
+      'likes_given',
+      {
+        countCap: 50,
+        pointsCap: 50,
+        pointsPerAction: 1,
+      },
+      input.targetId
+    );
 
-  if (!reaction) throw new Error('Failed to create reaction');
+    let targetAuthorId: string | null = null;
+    let groupId: string | null = null;
 
-  // Cap like_given points via daily stats. Use the target id as the source
-  // so liking/unliking the same target cannot create duplicate point events.
-  await trackDailyStat(
-    db,
-    userId,
-    'likes_given',
-    {
-      countCap: 50,
-      pointsCap: 50,
-      pointsPerAction: 1,
-    },
-    input.targetId
-  );
-
-  // Notify the target author.
-  if (input.targetType === 'post') {
-    const post = await db.query.posts.findFirst({
-      where: eq(schema.posts.id, input.targetId),
-      columns: { authorId: true },
-    });
-    if (post && post.authorId !== userId) {
-      await insertNotification(db, {
-        userId: post.authorId,
-        actorId: userId,
-        type: 'reaction',
-        payload: { postId: input.targetId },
+    if (input.targetType === 'post') {
+      const post = await db.query.posts.findFirst({
+        where: eq(schema.posts.id, input.targetId),
+        columns: { authorId: true, groupId: true },
       });
+      if (post) {
+        targetAuthorId = post.authorId;
+        groupId = post.groupId;
+      }
+    } else {
+      const comment = await db.query.comments.findFirst({
+        where: eq(schema.comments.id, input.targetId),
+        columns: { authorId: true, postId: true },
+      });
+      if (comment) {
+        targetAuthorId = comment.authorId;
+        const post = await db.query.posts.findFirst({
+          where: eq(schema.posts.id, comment.postId),
+          columns: { groupId: true },
+        });
+        groupId = post?.groupId ?? null;
+      }
     }
-  } else if (input.targetType === 'comment') {
-    const comment = await db.query.comments.findFirst({
-      where: eq(schema.comments.id, input.targetId),
-      columns: { authorId: true, postId: true },
-    });
-    if (comment && comment.authorId !== userId) {
+
+    if (targetAuthorId && targetAuthorId !== userId) {
+      await awardPoints(db, {
+        userId: targetAuthorId,
+        eventType: 'like_received',
+        points: 2,
+        sourceId: row.id,
+        groupId,
+        context: {
+          targetType: input.targetType,
+          targetId: input.targetId,
+          reactorId: userId,
+        },
+      });
+
+      // Notify the target author.
       await insertNotification(db, {
-        userId: comment.authorId,
+        userId: targetAuthorId,
         actorId: userId,
         type: 'reaction',
-        payload: { postId: comment.postId, commentId: input.targetId },
+        payload:
+          input.targetType === 'post'
+            ? { postId: input.targetId }
+            : { postId: (await db.query.comments.findFirst({ where: eq(schema.comments.id, input.targetId), columns: { postId: true } }))?.postId, commentId: input.targetId },
       });
     }
   }
 
   return {
-    reaction: {
-      id: reaction.id,
-      userId: reaction.userId,
-      targetType: reaction.targetType,
-      targetId: reaction.targetId,
-      reactionType: reaction.reactionType,
-      createdAt: toISO(reaction.createdAt),
-    },
-    created: true,
+    reaction: created
+      ? {
+          id: row.id,
+          userId: row.user_id,
+          targetType: row.target_type,
+          targetId: row.target_id,
+          reactionType: row.reaction_type,
+          createdAt: toISO(row.created_at),
+        }
+      : null,
+    created,
   };
 }
