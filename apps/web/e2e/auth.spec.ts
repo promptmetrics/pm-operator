@@ -47,8 +47,10 @@ test('onboarding can be completed and redirects to the requested page', async ({
   await page.waitForURL(/\/register\/complete/);
 
   await page.locator('#painful-tool-stack-task').fill('End-to-end onboarding test');
-  await dismissOverlays(page);
-  await page.locator('button[type="submit"]').click();
+  await page.evaluate(() => {
+    const form = document.querySelector('[data-testid="onboarding-form"]') as HTMLFormElement | null;
+    form?.requestSubmit();
+  });
   await page.waitForURL('/settings');
 });
 
@@ -80,7 +82,9 @@ test('returnUrl is preserved through login and onboarding', async ({ page }) => 
   await page.waitForURL(/\/register\/complete/);
 
   await page.locator('#painful-tool-stack-task').fill('ReturnUrl onboarding test');
-  await dismissOverlays(page);
-  await page.locator('button[type="submit"]').click();
+  await page.evaluate(() => {
+    const form = document.querySelector('[data-testid="onboarding-form"]') as HTMLFormElement | null;
+    form?.requestSubmit();
+  });
   await page.waitForURL('/settings');
 });

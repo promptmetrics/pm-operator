@@ -99,7 +99,7 @@ export function OnboardingForm({ userId, fullName, returnUrl }: OnboardingFormPr
           <CardDescription>One question places you in the right circles.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6" data-testid="onboarding-form">
             <Input
               id="painful-tool-stack-task"
               label="What is the most painful tool-stack or agent problem you are working on right now?"
