@@ -102,6 +102,7 @@ export const postListItemSchema = z.object({
   tags: z.array(z.string()),
   createdAt: z.string().datetime(),
   viewerHasLiked: z.boolean().optional(),
+  viewerHasBookmarked: z.boolean().optional(),
   featuredLabel: z.string().nullable().optional(),
 });
 
@@ -158,6 +159,7 @@ export const postDetailSchema = postSchema.extend({
   group: groupSchema,
   author: publicUserProfileSchema,
   viewerHasLiked: z.boolean().optional(),
+  viewerHasBookmarked: z.boolean().optional(),
 });
 
 export type PostDetail = z.infer<typeof postDetailSchema>;

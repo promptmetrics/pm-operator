@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { MessageSquare, Award, FileText } from 'lucide-react';
+import { MessageSquare, Award, FileText, Bookmark } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Card } from '@pm-operator/ui/components/Card';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
@@ -12,7 +12,7 @@ import { timeAgo } from '@/lib/format';
 import type { PublicUserProfile, PostListItem, CommentDetail, UserBadgesResponse } from '@pm-operator/api';
 import type { AcceptedSolutionItem } from '@/lib/services/community';
 
-type Tab = 'posts' | 'solutions' | 'comments';
+type Tab = 'posts' | 'solutions' | 'comments' | 'bookmarks';
 
 const MAX_BADGE_CHIPS = 4;
 
@@ -23,9 +23,10 @@ interface ProfileTabsProps {
   solutions: AcceptedSolutionItem[];
   comments: CommentDetail[];
   badges: UserBadgesResponse;
+  bookmarks?: PostListItem[];
 }
 
-export function ProfileTabs({ user, currentUserId, posts, solutions, comments, badges }: ProfileTabsProps) {
+export function ProfileTabs({ user, currentUserId, posts, solutions, comments, badges, bookmarks }: ProfileTabsProps) {
   const [tab, setTab] = React.useState<Tab>('posts');
   const isMe = currentUserId === user.id;
 
@@ -96,6 +97,9 @@ export function ProfileTabs({ user, currentUserId, posts, solutions, comments, b
         {<TabButton tab="posts" label="Posts" icon={FileText} active={tab} onClick={setTab} count={posts.length} />}
         {<TabButton tab="solutions" label="Solutions" icon={Award} active={tab} onClick={setTab} count={solutions.length} />}
         {<TabButton tab="comments" label="Comments" icon={MessageSquare} active={tab} onClick={setTab} count={comments.length} />}
+        {isMe ? (
+          <TabButton tab="bookmarks" label="Bookmarks" icon={Bookmark} active={tab} onClick={setTab} count={bookmarks?.length ?? 0} />
+        ) : null}
       </div>
 
       {tab === 'posts' ? (
@@ -134,6 +138,18 @@ export function ProfileTabs({ user, currentUserId, posts, solutions, comments, b
           </div>
         ) : (
           <EmptyState message="No accepted solutions yet." />
+        )
+      ) : null}
+
+      {tab === 'bookmarks' && isMe ? (
+        bookmarks && bookmarks.length > 0 ? (
+          <div className="flex flex-col gap-4">
+            {bookmarks.map((post) => (
+              <FeedCard key={post.id} post={post} currentUserId={currentUserId} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState message="No bookmarks yet." />
         )
       ) : null}
 

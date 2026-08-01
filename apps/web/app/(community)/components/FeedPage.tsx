@@ -2,20 +2,33 @@
 
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Trophy, TrendingUp, Users, Pin, Star } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, Trophy, TrendingUp, Users, Pin, Star, Bookmark, FileText } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Card, CardContent, CardTitle } from '@pm-operator/ui/components/Card';
 import { Badge } from '@pm-operator/ui/components/Badge';
+import { Chip } from '@pm-operator/ui/components/Chip';
+import { Select } from '@pm-operator/ui/components/Select';
+import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { useToast } from '@pm-operator/ui/components/Toast';
 import { FeedCard } from './FeedCard';
 import { CreatePostModal } from './CreatePostModal';
 import { useRealtimeGroup } from './RealtimeProvider';
-import type { FeedFilter, PostListItem, Group, LeaderboardEntry } from '@pm-operator/api';
+import type {
+  FeedFilter,
+  FeedSort,
+  PostType,
+  PostListItem,
+  Group,
+  GroupWithPostCount,
+  LeaderboardEntry,
+} from '@pm-operator/api';
 import { POINT_WEIGHTS } from '@pm-operator/api';
 
 interface FeedPageProps {
   initialPosts: PostListItem[];
   initialFilter: FeedFilter;
+  initialSort?: FeedSort;
   initialCursor?: string;
   currentUserId?: string;
   writableGroups: Group[];
@@ -23,19 +36,33 @@ interface FeedPageProps {
   groupSlug?: string;
   featuredPost?: PostListItem | null;
   pinnedPosts?: PostListItem[];
+  /** Circles rail data (global feed only). */
+  circles?: GroupWithPostCount[];
+  totalCirclePosts?: number;
+  /** Session user, for the composer strip avatar and rail shortcuts. */
+  viewerUserslug?: string;
+  viewerUsername?: string;
 }
 
-const FILTERS: { label: string; value: FeedFilter; icon?: React.ReactNode }[] = [
+const FILTERS: { label: string; value: FeedFilter; swatch?: string }[] = [
   { label: 'All', value: 'all' },
   { label: 'My circles', value: 'my-circles' },
-  { label: 'Show your build', value: 'builds' },
-  { label: 'Solutions', value: 'solutions' },
+  { label: 'Questions', value: 'questions' },
+  { label: 'Builds', value: 'builds', swatch: 'var(--pm-cat-sales)' },
+  { label: 'Solutions', value: 'solutions', swatch: 'var(--pm-green)' },
   { label: 'Unanswered', value: 'unanswered' },
+];
+
+const SORTS: { label: string; value: FeedSort }[] = [
+  { label: 'Newest', value: 'new' },
+  { label: 'Top', value: 'top' },
+  { label: 'Trending', value: 'trending' },
 ];
 
 export function FeedPage({
   initialPosts,
   initialFilter,
+  initialSort = 'new',
   initialCursor,
   currentUserId,
   writableGroups,
@@ -43,10 +70,15 @@ export function FeedPage({
   groupSlug,
   featuredPost,
   pinnedPosts,
+  circles,
+  totalCirclePosts,
+  viewerUserslug,
+  viewerUsername,
 }: FeedPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [filter, setFilter] = React.useState<FeedFilter>(initialFilter);
+  const [sort, setSort] = React.useState<FeedSort>(initialSort);
   const [posts, setPosts] = React.useState<PostListItem[]>(initialPosts);
   const [cursor, setCursor] = React.useState<string | undefined>(initialCursor);
   const [page, setPage] = React.useState<number>(() => {
@@ -55,7 +87,13 @@ export function FeedPage({
   });
   const [loading, setLoading] = React.useState(false);
   const [createOpen, setCreateOpen] = React.useState(false);
+  const [composerType, setComposerType] = React.useState<PostType>('question');
   const { toast } = useToast();
+
+  const openComposer = (type: PostType) => {
+    setComposerType(type);
+    setCreateOpen(true);
+  };
 
   React.useEffect(() => {
     setPosts(initialPosts);
@@ -63,18 +101,34 @@ export function FeedPage({
     setPage(1);
   }, [initialPosts, initialCursor]);
 
+  const routeWith = (nextFilter: FeedFilter, nextSort: FeedSort) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('page');
+    if (nextFilter === 'all') {
+      params.delete('filter');
+    } else {
+      params.set('filter', nextFilter);
+    }
+    if (nextSort === 'new') {
+      params.delete('sort');
+    } else {
+      params.set('sort', nextSort);
+    }
+    const base = groupSlug ? `/g/${groupSlug}` : '/feed';
+    const qs = params.toString();
+    router.push(qs ? `${base}?${qs}` : base, { scroll: false });
+  };
+
   const changeFilter = (value: FeedFilter) => {
     setFilter(value);
     setPage(1);
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('page');
-    if (value === 'all') {
-      params.delete('filter');
-    } else {
-      params.set('filter', value);
-    }
-    const base = groupSlug ? `/g/${groupSlug}` : '/feed';
-    router.push(`${base}?${params.toString()}`, { scroll: false });
+    routeWith(value, sort);
+  };
+
+  const changeSort = (value: FeedSort) => {
+    setSort(value);
+    setPage(1);
+    routeWith(filter, value);
   };
 
   const loadMore = async () => {
@@ -82,8 +136,10 @@ export function FeedPage({
     setLoading(true);
     try {
       const nextPage = page + 1;
-      const params = new URLSearchParams(searchParams.toString());
+      // Explicit params only — don't leak arbitrary searchParams into the API.
+      const params = new URLSearchParams();
       params.set('filter', filter);
+      params.set('sort', sort);
       if (groupSlug) params.set('groupSlug', groupSlug);
       params.set('page', String(nextPage));
       const endpoint = `/api/v1/feed?${params.toString()}`;
@@ -154,8 +210,86 @@ export function FeedPage({
     groupSlug
   );
 
+  const showLeftRail = !groupSlug && (circles ?? []).length > 0;
+  const showComposer = !groupSlug && Boolean(currentUserId) && writableGroups.length > 0;
+
   return (
-    <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1fr_320px]">
+    <div
+      className={`mx-auto grid max-w-6xl gap-6 ${
+        showLeftRail
+          ? 'lg:grid-cols-[230px_minmax(0,1fr)_320px]'
+          : 'lg:grid-cols-[minmax(0,1fr)_320px]'
+      }`}
+    >
+      {showLeftRail ? (
+        <nav aria-label="Circles" className="hidden lg:block">
+          <div className="sticky top-24 flex flex-col gap-6">
+            <div>
+              <p className="mb-2 px-2 text-xs font-bold uppercase tracking-wider text-[var(--pm-muted-soft)]">
+                Circles
+              </p>
+              <ul className="flex flex-col gap-0.5">
+                <li>
+                  <Link
+                    href="/g"
+                    className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--pm-ink)] hover:bg-[var(--pm-paper-2)]"
+                  >
+                    <span>All circles</span>
+                    <span className="text-xs text-[var(--pm-muted)]">{totalCirclePosts ?? 0}</span>
+                  </Link>
+                </li>
+                {(circles ?? []).map((circle) => (
+                  <li key={circle.slug}>
+                    <Link
+                      href={`/g/${circle.slug}`}
+                      className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm text-[var(--pm-ink-2)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]"
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: circle.color ?? 'var(--pm-muted-soft)' }}
+                          aria-hidden="true"
+                        />
+                        <span className="truncate">{circle.name}</span>
+                      </span>
+                      <span className="text-xs text-[var(--pm-muted)]">{circle.postCount}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {viewerUserslug ? (
+              <div>
+                <p className="mb-2 px-2 text-xs font-bold uppercase tracking-wider text-[var(--pm-muted-soft)]">
+                  Shortcuts
+                </p>
+                <ul className="flex flex-col gap-0.5">
+                  <li>
+                    <Link
+                      href={`/u/${viewerUserslug}`}
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-[var(--pm-ink-2)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]"
+                    >
+                      <Bookmark className="h-3.5 w-3.5 text-[var(--pm-muted)]" aria-hidden="true" />
+                      Bookmarks
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href={`/u/${viewerUserslug}`}
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-[var(--pm-ink-2)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]"
+                    >
+                      <FileText className="h-3.5 w-3.5 text-[var(--pm-muted)]" aria-hidden="true" />
+                      My posts
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        </nav>
+      ) : null}
+
       <div>
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -166,31 +300,58 @@ export function FeedPage({
               {groupSlug ? 'Posts from this circle' : 'Questions, builds, and solutions from operators'}
             </p>
           </div>
-          {currentUserId && writableGroups.length > 0 ? (
-            <Button onClick={() => setCreateOpen(true)} className="gap-1">
+          {groupSlug && currentUserId && writableGroups.length > 0 ? (
+            <Button onClick={() => openComposer('question')} className="gap-1">
               <Plus className="h-4 w-4" aria-hidden="true" />
               New post
             </Button>
           ) : null}
         </div>
 
-        <div className="mb-4 flex flex-wrap gap-2">
-          {FILTERS.map((f) => {
-            const active = filter === f.value;
-            return (
-              <button
-                key={f.value}
-                onClick={() => changeFilter(f.value)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                  active
-                    ? 'bg-[var(--pm-coral)] text-[var(--pm-on-ink)] shadow-[var(--pm-shadow)]'
-                    : 'bg-[var(--pm-paper-inset)] text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]'
-                }`}
-              >
-                {f.label}
-              </button>
-            );
-          })}
+        {showComposer ? (
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-3 shadow-[var(--pm-shadow)]">
+            <Avatar alt={viewerUsername ?? 'You'} fallback={viewerUsername ?? undefined} size="sm" />
+            <button
+              type="button"
+              onClick={() => openComposer('question')}
+              className="min-w-0 flex-1 cursor-text truncate rounded-[var(--pm-radius-pill)] border border-[var(--pm-line)] bg-[var(--pm-paper)] px-4 py-2 text-left text-sm text-[var(--pm-muted-soft)]"
+            >
+              Ask a question or show your build…
+            </button>
+            <div className="hidden items-center gap-2 sm:flex">
+              <Button variant="secondary" onClick={() => openComposer('question')}>
+                Question
+              </Button>
+              <Button onClick={() => openComposer('build')}>Show a build</Button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {FILTERS.filter((f) => !(groupSlug && f.value === 'my-circles')).map((f) => (
+            <Chip
+              key={f.value}
+              active={filter === f.value}
+              swatch={f.swatch}
+              onClick={() => changeFilter(f.value)}
+            >
+              {f.label}
+            </Chip>
+          ))}
+          <div className="ml-auto">
+            <Select
+              aria-label="Sort posts"
+              value={sort}
+              onChange={(e) => changeSort(e.target.value as FeedSort)}
+              className="h-[30px] w-auto py-0 text-sm"
+            >
+              {SORTS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </Select>
+          </div>
         </div>
 
         <div role="feed" aria-label={groupSlug ? 'Circle discussion' : 'Community feed'} className="flex flex-col gap-4">
@@ -219,9 +380,13 @@ export function FeedPage({
                 </div>
               ))
             : null}
-          {visiblePosts.map((post) => (
-            <FeedCard key={post.id} post={post} currentUserId={currentUserId} />
-          ))}
+          {visiblePosts.length > 0 ? (
+            <div className="divide-y divide-[var(--pm-line)] overflow-hidden rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] shadow-[var(--pm-shadow)]">
+              {visiblePosts.map((post) => (
+                <FeedCard key={post.id} post={post} currentUserId={currentUserId} variant="row" />
+              ))}
+            </div>
+          ) : null}
         </div>
 
         {visiblePosts.length === 0 && !showHighlights ? (
@@ -313,6 +478,7 @@ export function FeedPage({
         onOpenChange={setCreateOpen}
         groups={writableGroups}
         defaultGroupSlug={groupSlug}
+        defaultType={composerType}
         onCreated={() => {
           router.refresh();
         }}

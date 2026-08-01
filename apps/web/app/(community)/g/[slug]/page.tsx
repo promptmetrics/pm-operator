@@ -10,7 +10,7 @@ import { FeedPage } from '../../components/FeedPage';
 import { FeedCard } from '../../components/FeedCard';
 import { GroupMembershipButton } from '../../components/GroupMembershipButton';
 import { GroupInviteButton } from '../../components/GroupInviteButton';
-import { FeedFilter } from '@pm-operator/api';
+import { FeedFilter, FeedSort } from '@pm-operator/api';
 
 type PageSearchParams = Record<string, string | string[] | undefined>;
 
@@ -35,6 +35,10 @@ export default async function GroupRoute({
   const filter: FeedFilter = Object.values(FeedFilter).includes(filterParam as FeedFilter)
     ? (filterParam as FeedFilter)
     : FeedFilter.ALL;
+  const sortParam = typeof paramsQuery.sort === 'string' ? paramsQuery.sort : undefined;
+  const sort: FeedSort = Object.values(FeedSort).includes(sortParam as FeedSort)
+    ? (sortParam as FeedSort)
+    : FeedSort.NEW;
   const pageParam = typeof paramsQuery.page === 'string' ? Number(paramsQuery.page) : undefined;
   const page = Number.isFinite(pageParam) && pageParam && pageParam > 0 ? pageParam : 1;
 
@@ -49,7 +53,7 @@ export default async function GroupRoute({
           })
         : Promise.resolve(null),
       listPinnedPosts(db, group.id, currentUserId),
-      listGroupPosts(db, slug, { filter, sort: 'new', page, limit: 20 }, currentUserId),
+      listGroupPosts(db, slug, { filter, sort, page, limit: 20 }, currentUserId),
       listGroupLeaderboard(db, group.id, 'weekly', 5),
       currentUserId ? getWritableGroups(db, currentUserId) : Promise.resolve([]),
       currentUserId
@@ -114,6 +118,7 @@ export default async function GroupRoute({
       <FeedPage
         initialPosts={posts}
         initialFilter={filter}
+        initialSort={sort}
         initialCursor={nextCursor}
         currentUserId={currentUserId}
         writableGroups={writableGroups}

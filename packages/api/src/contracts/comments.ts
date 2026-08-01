@@ -40,6 +40,29 @@ export const commentDetailSchema: z.ZodType<CommentDetail> = commentSchema.exten
   viewerHasLiked: z.boolean().optional(),
 });
 
+export const commentSortSchema = z.enum(['new', 'top']);
+
+export type CommentSort = z.infer<typeof commentSortSchema>;
+
+export const commentsQuerySchema = z.object({
+  sort: commentSortSchema.default('top'),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export type CommentsQuery = z.infer<typeof commentsQuerySchema>;
+
+// GET /posts/:id/comments response payload (`data`). Root comments are paged
+// (`meta` carries page/limit/hasMore); the accepted solution — when the post
+// has one — is returned separately in `acceptedComment` (hoisted per
+// 07-ux-spec:301) and never appears in `comments`.
+export const commentListResponseSchema = z.object({
+  comments: z.array(commentDetailSchema),
+  acceptedComment: commentDetailSchema.nullable().optional(),
+});
+
+export type CommentListResponse = z.infer<typeof commentListResponseSchema>;
+
 export const createCommentRequestSchema = z.object({
   content: z.string().min(1),
   parentCommentId: z.string().uuid().nullable().optional(),

@@ -84,6 +84,13 @@ export const groupSchema = z.object({
 
 export type Group = z.infer<typeof groupSchema>;
 
+// Group plus the count of posts visible to the viewer (WS5/T5.2 circles rail).
+export const groupWithPostCountSchema = groupSchema.extend({
+  postCount: z.number().int().nonnegative(),
+});
+
+export type GroupWithPostCount = z.infer<typeof groupWithPostCountSchema>;
+
 export const groupMembershipSchema = z.object({
   id: z.string().uuid(),
   groupId: z.string().uuid(),

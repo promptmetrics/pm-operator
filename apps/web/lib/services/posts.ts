@@ -1,4 +1,4 @@
-import { eq, and, or, sql, desc, asc, isNotNull, isNull, inArray, count } from 'drizzle-orm';
+import { eq, ne, and, or, sql, desc, asc, isNotNull, isNull, inArray, count } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type { FeedQuery, FeedResponse, PostDetail, CreatePostRequest, PatchPostRequest, PostListItem } from '@pm-operator/api';
@@ -11,7 +11,7 @@ import { autoFlagIfWatched } from './flags';
 type FilterValue = FeedQuery['filter'];
 type SortValue = FeedQuery['sort'];
 
-function postVisibilityFilter(currentUserId: string | undefined) {
+export function postVisibilityFilter(currentUserId: string | undefined) {
   const notDeleted = sql`${schema.posts.status} <> 'deleted'`;
   if (!currentUserId) {
     return and(
@@ -87,7 +87,7 @@ function orderByClause(sort: SortValue) {
   }
 }
 
-function viewerHasLikedPostSql(currentUserId: string | undefined) {
+export function viewerHasLikedPostSql(currentUserId: string | undefined) {
   if (!currentUserId) return sql<boolean>`false`;
   return sql<boolean>`exists (
     select 1 from ${schema.reactions}
@@ -97,13 +97,23 @@ function viewerHasLikedPostSql(currentUserId: string | undefined) {
   )`;
 }
 
-async function toPostListItem(
+export function viewerHasBookmarkedPostSql(currentUserId: string | undefined) {
+  if (!currentUserId) return sql<boolean>`false`;
+  return sql<boolean>`exists (
+    select 1 from ${schema.savedPosts}
+    where ${schema.savedPosts.userId} = ${currentUserId}
+      and ${schema.savedPosts.postId} = ${schema.posts.id}
+  )`;
+}
+
+export async function toPostListItem(
   row: {
     post: typeof schema.posts.$inferSelect;
     group: typeof schema.groups.$inferSelect;
     author: typeof schema.users.$inferSelect;
     acceptedSolutions: string | number | null;
     viewerHasLiked?: boolean | null;
+    viewerHasBookmarked?: boolean | null;
   }
 ): Promise<PostListItem> {
   return {
@@ -130,14 +140,21 @@ async function toPostListItem(
     tags: row.post.tags,
     createdAt: toISO(row.post.createdAt),
     viewerHasLiked: Boolean(row.viewerHasLiked),
+    viewerHasBookmarked: Boolean(row.viewerHasBookmarked),
     featuredLabel: row.post.featuredLabel,
   };
+}
+
+export interface ListFeedOptions {
+  /** Omit this post from results (post-page "More from this circle" rail). */
+  excludePostId?: string;
 }
 
 export async function listFeed(
   db: DrizzleClient,
   query: FeedQuery,
-  currentUserId?: string
+  currentUserId?: string,
+  opts?: ListFeedOptions
 ): Promise<FeedResponse> {
   const { filter, sort, page, limit } = query;
 
@@ -156,6 +173,9 @@ export async function listFeed(
   if (query.groupSlug) {
     conditions.push(eq(schema.groups.slug, query.groupSlug));
   }
+  if (opts?.excludePostId) {
+    conditions.push(ne(schema.posts.id, opts.excludePostId));
+  }
   const where = and(...conditions.filter(Boolean));
 
   const rows = await db
@@ -166,6 +186,7 @@ export async function listFeed(
       author: schema.users,
       acceptedSolutions: asCount.count,
       viewerHasLiked: viewerHasLikedPostSql(currentUserId),
+      viewerHasBookmarked: viewerHasBookmarkedPostSql(currentUserId),
     })
     .from(schema.posts)
     .innerJoin(schema.groups, eq(schema.posts.groupId, schema.groups.id))
@@ -191,9 +212,10 @@ export async function listGroupPosts(
   db: DrizzleClient,
   slug: string,
   query: Omit<FeedQuery, 'groupSlug'>,
-  currentUserId?: string
+  currentUserId?: string,
+  opts?: ListFeedOptions
 ): Promise<FeedResponse> {
-  return listFeed(db, { ...query, groupSlug: slug }, currentUserId);
+  return listFeed(db, { ...query, groupSlug: slug }, currentUserId, opts);
 }
 
 // Latest featured post (WS7/T7.2). community.ts#listPinnedPosts is
@@ -221,6 +243,7 @@ export async function getFeaturedPost(
       author: schema.users,
       acceptedSolutions: asCount.count,
       viewerHasLiked: viewerHasLikedPostSql(currentUserId),
+      viewerHasBookmarked: viewerHasBookmarkedPostSql(currentUserId),
     })
     .from(schema.posts)
     .innerJoin(schema.groups, eq(schema.posts.groupId, schema.groups.id))
@@ -258,6 +281,7 @@ export async function listGlobalPinnedPosts(
       author: schema.users,
       acceptedSolutions: asCount.count,
       viewerHasLiked: viewerHasLikedPostSql(currentUserId),
+      viewerHasBookmarked: viewerHasBookmarkedPostSql(currentUserId),
     })
     .from(schema.posts)
     .innerJoin(schema.groups, eq(schema.posts.groupId, schema.groups.id))
@@ -294,6 +318,7 @@ export async function getPostById(
       author: schema.users,
       acceptedSolutions: asCount.count,
       viewerHasLiked: viewerHasLikedPostSql(currentUserId),
+      viewerHasBookmarked: viewerHasBookmarkedPostSql(currentUserId),
     })
     .from(schema.posts)
     .innerJoin(schema.groups, eq(schema.posts.groupId, schema.groups.id))
@@ -308,7 +333,7 @@ export async function getPostById(
     .limit(1);
 
   if (!row[0]) return null;
-  const { post, group, author, acceptedSolutions, viewerHasLiked } = row[0];
+  const { post, group, author, acceptedSolutions, viewerHasLiked, viewerHasBookmarked } = row[0];
 
   return {
     id: post.id,
@@ -329,6 +354,7 @@ export async function getPostById(
     createdAt: toISO(post.createdAt),
     updatedAt: toISO(post.updatedAt),
     viewerHasLiked: Boolean(viewerHasLiked),
+    viewerHasBookmarked: Boolean(viewerHasBookmarked),
     group: {
       id: group.id,
       slug: group.slug,

@@ -3,6 +3,7 @@ import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type {
   Group,
+  GroupWithPostCount,
   PostListItem,
   LeaderboardEntry,
   LeaderboardPeriod,
@@ -14,6 +15,11 @@ import type {
 import { levelForScore } from '@pm-operator/api';
 import { getAvatarReadUrl } from '../storage';
 import { toISO, toNumber, isAdminOrModerator } from './shared';
+import {
+  viewerHasLikedPostSql,
+  viewerHasBookmarkedPostSql,
+  postVisibilityFilter as sharedPostVisibilityFilter,
+} from './posts';
 
 function postVisibilityFilter(currentUserId: string | undefined) {
   const notDeleted = sql`${schema.posts.status} <> 'deleted'`;
@@ -63,6 +69,8 @@ async function toPostListItem(
     group: typeof schema.groups.$inferSelect;
     author: typeof schema.users.$inferSelect;
     acceptedSolutions: string | number | null;
+    viewerHasLiked?: boolean | null;
+    viewerHasBookmarked?: boolean | null;
   }
 ): Promise<PostListItem> {
   return {
@@ -84,6 +92,8 @@ async function toPostListItem(
     viewCount: row.post.viewCount,
     tags: row.post.tags,
     createdAt: toISO(row.post.createdAt),
+    viewerHasLiked: Boolean(row.viewerHasLiked),
+    viewerHasBookmarked: Boolean(row.viewerHasBookmarked),
   };
 }
 
@@ -133,6 +143,66 @@ export async function getWritableGroups(
     createdAt: toISO(r.group.createdAt),
     updatedAt: toISO(r.group.updatedAt),
   }));
+}
+
+export interface GroupsWithPostCounts {
+  groups: GroupWithPostCount[];
+  totalPosts: number;
+}
+
+// Circles rail / directory (WS5/T5.2): visibility-appropriate groups (public
+// plus groups the viewer created or belongs to — mirrors services/groups.ts
+// groupVisibilityFilter) each with the count of posts the viewer may see.
+export async function listGroupsWithPostCounts(
+  db: DrizzleClient,
+  currentUserId?: string
+): Promise<GroupsWithPostCounts> {
+  const publicFilter = sql`${schema.groups.visibility} = 'public'`;
+  const groupVisibility = currentUserId
+    ? or(
+        publicFilter,
+        eq(schema.groups.createdBy, currentUserId),
+        sql`exists (
+          select 1 from ${schema.groupMemberships}
+          where ${schema.groupMemberships.groupId} = ${schema.groups.id}
+            and ${schema.groupMemberships.userId} = ${currentUserId}
+        )`
+      )
+    : publicFilter;
+
+  const rows = await db
+    .select({
+      group: schema.groups,
+      postCount: sql<number>`count(${schema.posts.id})::int`,
+    })
+    .from(schema.groups)
+    .leftJoin(
+      schema.posts,
+      and(eq(schema.posts.groupId, schema.groups.id), sharedPostVisibilityFilter(currentUserId))
+    )
+    .where(groupVisibility)
+    .groupBy(schema.groups.id)
+    .orderBy(schema.groups.name);
+
+  const groups = rows.map(({ group: g, postCount }) => ({
+    id: g.id,
+    slug: g.slug,
+    name: g.name,
+    description: g.description,
+    color: g.color,
+    visibility: g.visibility,
+    requiredTierId: g.requiredTierId,
+    memberCount: g.memberCount,
+    createdBy: g.createdBy,
+    createdAt: toISO(g.createdAt),
+    updatedAt: toISO(g.updatedAt),
+    postCount: toNumber(postCount),
+  }));
+
+  return {
+    groups,
+    totalPosts: groups.reduce((sum, g) => sum + g.postCount, 0),
+  };
 }
 
 export async function getUserMembershipGroups(
@@ -187,6 +257,8 @@ export async function listPinnedPosts(
       group: schema.groups,
       author: schema.users,
       acceptedSolutions: asCount.count,
+      viewerHasLiked: viewerHasLikedPostSql(currentUserId),
+      viewerHasBookmarked: viewerHasBookmarkedPostSql(currentUserId),
     })
     .from(schema.posts)
     .innerJoin(schema.groups, eq(schema.posts.groupId, schema.groups.id))
@@ -390,6 +462,8 @@ export async function listPostsByAuthor(
       group: schema.groups,
       author: schema.users,
       acceptedSolutions: asCount.count,
+      viewerHasLiked: viewerHasLikedPostSql(currentUserId),
+      viewerHasBookmarked: viewerHasBookmarkedPostSql(currentUserId),
     })
     .from(schema.posts)
     .innerJoin(schema.groups, eq(schema.posts.groupId, schema.groups.id))

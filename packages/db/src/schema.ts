@@ -279,6 +279,24 @@ export const reactions = pgTable(
   })
 ).enableRLS();
 
+export const savedPosts = pgTable(
+  'saved_posts',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    postId: uuid('post_id')
+      .notNull()
+      .references(() => posts.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    uniqueUserPost: unique('saved_posts_user_post_idx').on(table.userId, table.postId),
+    userCreatedIdx: index('saved_posts_user_created_idx').on(table.userId, table.createdAt),
+  })
+).enableRLS();
+
 export const postViews = pgTable(
   'post_views',
   {

@@ -15,6 +15,8 @@ interface CreatePostModalProps {
   onOpenChange: (open: boolean) => void;
   groups: Group[];
   defaultGroupSlug?: string;
+  /** Post type pre-selected when the modal opens (composer strip intent buttons). */
+  defaultType?: PostType;
   onCreated?: () => void;
 }
 
@@ -23,11 +25,12 @@ export function CreatePostModal({
   onOpenChange,
   groups,
   defaultGroupSlug,
+  defaultType,
   onCreated,
 }: CreatePostModalProps) {
   const [title, setTitle] = React.useState('');
   const [groupSlug, setGroupSlug] = React.useState(defaultGroupSlug || groups[0]?.slug || '');
-  const [type, setType] = React.useState<PostType>('question');
+  const [type, setType] = React.useState<PostType>(defaultType || 'question');
   const [body, setBody] = React.useState('');
   const [plainText, setPlainText] = React.useState('');
   const [tags, setTags] = React.useState<string[]>([]);
@@ -40,7 +43,7 @@ export function CreatePostModal({
     if (open) {
       setTitle('');
       setGroupSlug(defaultGroupSlug || groups[0]?.slug || '');
-      setType('question');
+      setType(defaultType || 'question');
       setBody('');
       setPlainText('');
       setTags([]);
@@ -48,7 +51,7 @@ export function CreatePostModal({
       setRepoUrl('');
       setError(null);
     }
-  }, [open, defaultGroupSlug, groups]);
+  }, [open, defaultGroupSlug, defaultType, groups]);
 
   const addTag = () => {
     const raw = tagInput.trim().replace(/^#/, '');

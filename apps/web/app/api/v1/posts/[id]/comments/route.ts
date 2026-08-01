@@ -1,6 +1,6 @@
 export const runtime = 'nodejs';
 
-import { createCommentRequestSchema } from '@pm-operator/api';
+import { createCommentRequestSchema, commentsQuerySchema } from '@pm-operator/api';
 import { getSession } from '@/lib/auth/server';
 import {
   getDb,
@@ -8,6 +8,8 @@ import {
   requireSession,
   requireOnboarding,
   parseBody,
+  parseQuery,
+  paginationMeta,
   rateLimit,
   getClientIp,
 } from '@/lib/api/server';
@@ -23,9 +25,18 @@ export async function GET(
     if (limited) return limited;
   }
 
+  const query = parseQuery(new URL(request.url).searchParams, commentsQuerySchema);
+  if (query instanceof Response) return query;
+  const { sort, limit, offset } = query;
+
   const { id } = await params;
-  const comments = await listCommentsForPost(getDb(), id, session?.user?.id);
-  return ok({ comments });
+  // data = { comments: paged roots (accepted excluded), acceptedComment: hoisted
+  // solution or null }; meta = { page, limit, hasMore } over ROOT comments.
+  const page = await listCommentsForPost(getDb(), id, session?.user?.id, { sort, limit, offset });
+  return ok(
+    { comments: page.comments, acceptedComment: page.acceptedComment },
+    paginationMeta(Math.floor(offset / limit) + 1, limit, page.hasMore)
+  );
 }
 
 export async function POST(

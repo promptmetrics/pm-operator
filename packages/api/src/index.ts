@@ -4,6 +4,7 @@ export * from './contracts/common';
 export * from './contracts/users';
 export * from './contracts/groups';
 export * from './contracts/posts';
+export * from './contracts/bookmarks';
 export * from './contracts/comments';
 export * from './contracts/reactions';
 export * from './contracts/notifications';

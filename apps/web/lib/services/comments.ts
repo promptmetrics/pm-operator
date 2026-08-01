@@ -1,9 +1,10 @@
-import { eq, and, or, sql, desc, inArray } from 'drizzle-orm';
+import { eq, and, or, sql, asc, desc, ne, isNull, inArray } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
 import { comments, posts, users, groups, groupMemberships, reactions } from '@pm-operator/db';
 import type {
   Comment,
   CommentDetail,
+  CommentSort,
   CreateCommentRequest,
   PatchCommentRequest,
   AcceptSolutionRequest,
@@ -99,12 +100,22 @@ async function toCommentDetail(
   };
 }
 
-export async function listCommentsForPost(
-  db: DrizzleClient,
-  postId: string,
-  currentUserId?: string
-): Promise<CommentDetail[]> {
-  const rows = await db
+export interface ListCommentsOptions {
+  sort: CommentSort;
+  limit: number;
+  offset: number;
+}
+
+export interface CommentListPage {
+  /** Paged root comments (accepted solution excluded), replies nested chronologically. */
+  comments: CommentDetail[];
+  /** The post's accepted solution (hoisted per 07-ux-spec:301), null when none or not visible. */
+  acceptedComment: CommentDetail | null;
+  hasMore: boolean;
+}
+
+function commentSelect(db: DrizzleClient, currentUserId?: string) {
+  return db
     .select({
       comment: comments,
       author: users,
@@ -113,31 +124,127 @@ export async function listCommentsForPost(
     .from(comments)
     .innerJoin(posts, eq(comments.postId, posts.id))
     .innerJoin(groups, eq(posts.groupId, groups.id))
-    .innerJoin(users, eq(comments.authorId, users.id))
-    .where(
-      and(
-        eq(comments.postId, postId),
-        commentVisibilityFilter(currentUserId)
+    .innerJoin(users, eq(comments.authorId, users.id));
+}
+
+export async function listCommentsForPost(
+  db: DrizzleClient,
+  postId: string,
+  currentUserId?: string
+): Promise<CommentDetail[]>;
+export async function listCommentsForPost(
+  db: DrizzleClient,
+  postId: string,
+  currentUserId: string | undefined,
+  opts: ListCommentsOptions
+): Promise<CommentListPage>;
+export async function listCommentsForPost(
+  db: DrizzleClient,
+  postId: string,
+  currentUserId?: string,
+  opts?: ListCommentsOptions
+): Promise<CommentDetail[] | CommentListPage> {
+  if (!opts) {
+    // Legacy shape: full thread, chronological (mcp.ts summarize_thread).
+    const rows = await commentSelect(db, currentUserId)
+      .where(
+        and(
+          eq(comments.postId, postId),
+          commentVisibilityFilter(currentUserId)
+        )
       )
-    )
-    .orderBy(comments.createdAt);
+      .orderBy(comments.createdAt);
 
-  const byId = new Map<string, CommentDetail>();
-  const roots: CommentDetail[] = [];
+    const byId = new Map<string, CommentDetail>();
+    const roots: CommentDetail[] = [];
 
-  for (const { comment: commentRow, author, viewerHasLiked } of rows) {
+    for (const { comment: commentRow, author, viewerHasLiked } of rows) {
+      const detail = await toCommentDetail(commentRow, author, currentUserId, viewerHasLiked);
+      detail.replies = [];
+      byId.set(detail.id, detail);
+      if (detail.parentCommentId) {
+        const parent = byId.get(detail.parentCommentId);
+        parent?.replies?.push(detail);
+      } else {
+        roots.push(detail);
+      }
+    }
+
+    return roots;
+  }
+
+  const post = await db.query.posts.findFirst({
+    where: eq(posts.id, postId),
+    columns: { acceptedCommentId: true },
+  });
+  const acceptedId = post?.acceptedCommentId ?? null;
+
+  // Root comments only are paged; the accepted solution is always excluded
+  // here and returned separately (hoisted first regardless of sort).
+  const rootConditions = [
+    eq(comments.postId, postId),
+    isNull(comments.parentCommentId),
+    commentVisibilityFilter(currentUserId),
+  ];
+  if (acceptedId) rootConditions.push(ne(comments.id, acceptedId));
+
+  const rootOrder =
+    opts.sort === 'new'
+      ? [desc(comments.createdAt)]
+      : [desc(comments.upvotes), asc(comments.createdAt)];
+
+  const rootRows = await commentSelect(db, currentUserId)
+    .where(and(...rootConditions))
+    .orderBy(...rootOrder)
+    .limit(opts.limit + 1)
+    .offset(opts.offset);
+
+  const hasMore = rootRows.length > opts.limit;
+  const pagedRootRows = rootRows.slice(0, opts.limit);
+
+  const acceptedRows = acceptedId
+    ? await commentSelect(db, currentUserId)
+        .where(and(eq(comments.id, acceptedId), commentVisibilityFilter(currentUserId)))
+        .limit(1)
+    : [];
+
+  const rootDetails = new Map<string, CommentDetail>();
+  const rootsInOrder: CommentDetail[] = [];
+  for (const { comment: commentRow, author, viewerHasLiked } of pagedRootRows) {
     const detail = await toCommentDetail(commentRow, author, currentUserId, viewerHasLiked);
     detail.replies = [];
-    byId.set(detail.id, detail);
-    if (detail.parentCommentId) {
-      const parent = byId.get(detail.parentCommentId);
+    rootDetails.set(detail.id, detail);
+    rootsInOrder.push(detail);
+  }
+
+  let acceptedComment: CommentDetail | null = null;
+  if (acceptedRows[0]) {
+    const { comment: commentRow, author, viewerHasLiked } = acceptedRows[0];
+    acceptedComment = await toCommentDetail(commentRow, author, currentUserId, viewerHasLiked);
+    acceptedComment.replies = [];
+    rootDetails.set(acceptedComment.id, acceptedComment);
+  }
+
+  const parentIds = [...rootDetails.keys()];
+  if (parentIds.length > 0) {
+    // Replies stay chronological under their parent, regardless of root sort.
+    const replyRows = await commentSelect(db, currentUserId)
+      .where(
+        and(
+          inArray(comments.parentCommentId, parentIds),
+          commentVisibilityFilter(currentUserId)
+        )
+      )
+      .orderBy(asc(comments.createdAt));
+
+    for (const { comment: commentRow, author, viewerHasLiked } of replyRows) {
+      const detail = await toCommentDetail(commentRow, author, currentUserId, viewerHasLiked);
+      const parent = detail.parentCommentId ? rootDetails.get(detail.parentCommentId) : undefined;
       parent?.replies?.push(detail);
-    } else {
-      roots.push(detail);
     }
   }
 
-  return roots;
+  return { comments: rootsInOrder, acceptedComment, hasMore };
 }
 
 export async function createComment(

@@ -8,11 +8,13 @@ import { Button } from '@pm-operator/ui/components/Button';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { Badge } from '@pm-operator/ui/components/Badge';
 import { ConfirmDialog } from '@pm-operator/ui/components/ConfirmDialog';
+import { LevelBadge } from '@pm-operator/ui/components/LevelBadge';
 import { useToast } from '@pm-operator/ui/components/Toast';
 import { RichTextEditor } from '@pm-operator/ui/editor/RichTextEditor';
 import { timeAgo } from '@/lib/format';
 import { trackEvent } from '@/lib/analytics';
 import { FlagDialog } from './FlagDialog';
+import { POINT_WEIGHTS } from '@pm-operator/api';
 import type { CommentDetail } from '@pm-operator/api';
 
 interface CommentThreadProps {
@@ -207,6 +209,7 @@ function SingleComment({
           alt={comment.author.username}
           fallback={comment.author.fullName || comment.author.username}
           size="sm"
+          badge={<LevelBadge level={comment.author.level} size="xs" />}
         />
       </Link>
 
@@ -217,6 +220,11 @@ function SingleComment({
               <Link href={`/u/${comment.author.userslug}`} className="font-medium hover:text-[var(--pm-coral-dark)]">
                 {comment.author.username}
               </Link>
+              {postAuthorId && comment.authorId === postAuthorId ? (
+                <span className="rounded-[var(--pm-radius-pill)] bg-[var(--pm-coral-tint)] px-1.5 py-px text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--pm-coral-dark)]">
+                  OP
+                </span>
+              ) : null}
               <span className="text-[var(--pm-muted)]">
                 {comment.author.reputationScore} pts · {timeAgo(comment.createdAt)}
               </span>
@@ -379,4 +387,124 @@ function SingleComment({
 function withinEditWindow(createdAt: string): boolean {
   const elapsed = Date.now() - new Date(createdAt).getTime();
   return elapsed <= 15 * 60 * 1000;
+}
+
+interface AcceptedSolutionCardProps {
+  comment: CommentDetail;
+  postId: string;
+  postAuthorId?: string;
+  currentUserId?: string;
+  onChange: () => void;
+}
+
+/**
+ * The accepted solution hoisted above the thread as a standalone card
+ * (design Post.dc.html; 07-ux-spec:301). The comment is excluded from the
+ * regular thread by the comments API; its replies render beneath the card.
+ */
+export function AcceptedSolutionCard({
+  comment,
+  postId,
+  postAuthorId,
+  currentUserId,
+  onChange,
+}: AcceptedSolutionCardProps) {
+  const [liked, setLiked] = React.useState(Boolean(comment.viewerHasLiked));
+  const [likeCount, setLikeCount] = React.useState(comment.upvotes);
+
+  const handleLike = async () => {
+    if (!currentUserId) return;
+    const previous = likeCount;
+    setLiked((l) => !l);
+    setLikeCount((c) => (liked ? c - 1 : c + 1));
+    try {
+      const res = await fetch('/api/v1/reactions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ targetType: 'comment', targetId: comment.id, reactionType: 'like' }),
+      });
+      if (!res.ok) throw new Error('Like failed');
+      const json = (await res.json()) as { data?: { removed?: boolean; id?: string } };
+      const removed = json.data?.removed ?? !json.data?.id;
+      setLiked(!removed);
+      setLikeCount(removed ? previous - 1 : previous + 1);
+    } catch {
+      setLiked((l) => !l);
+      setLikeCount(previous);
+    }
+  };
+
+  return (
+    <article
+      aria-label="Accepted solution"
+      className="rounded-xl border border-[var(--pm-green)] bg-[var(--pm-paper-inset)] p-5 shadow-[var(--pm-shadow)]"
+    >
+      <div className="mb-3 flex items-center gap-2">
+        <span className="rounded-[var(--pm-radius-pill)] bg-[var(--pm-green)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[var(--pm-on-ink)]">
+          ✓ Accepted solution
+        </span>
+        <span className="text-xs text-[var(--pm-muted)]">
+          earned +{POINT_WEIGHTS.solution_accepted} pts
+        </span>
+      </div>
+
+      <div className="mb-2.5 flex items-center gap-2.5 text-sm">
+        <Link href={`/u/${comment.author.userslug}`}>
+          <Avatar
+            src={comment.author.pictureUrl ?? undefined}
+            alt={comment.author.username}
+            fallback={comment.author.fullName || comment.author.username}
+            size="sm"
+            badge={<LevelBadge level={comment.author.level} size="xs" />}
+          />
+        </Link>
+        <Link href={`/u/${comment.author.userslug}`} className="font-medium hover:text-[var(--pm-coral-dark)]">
+          {comment.author.username}
+        </Link>
+        <span className="text-[var(--pm-muted)]">
+          {comment.author.reputationScore} pts · {timeAgo(comment.createdAt)}
+        </span>
+      </div>
+
+      <div
+        className="prose prose-sm max-w-none text-[var(--pm-ink)]"
+        dangerouslySetInnerHTML={{ __html: comment.content }}
+      />
+
+      <div className="mt-3 flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={liked ? 'Unlike' : 'Like'}
+          aria-pressed={liked}
+          onClick={handleLike}
+          disabled={!currentUserId}
+          className="gap-1"
+        >
+          <Heart
+            className={`h-4 w-4 ${liked ? 'fill-[var(--pm-coral)] text-[var(--pm-coral)]' : ''}`}
+            aria-hidden="true"
+          />
+          <span className="text-xs">{likeCount}</span>
+        </Button>
+      </div>
+
+      {comment.replies && comment.replies.length > 0 ? (
+        <ul className="mt-4 flex flex-col gap-4" role="list" aria-label="Replies to the accepted solution">
+          {comment.replies.map((reply) => (
+            <SingleComment
+              key={reply.id}
+              comment={reply}
+              postId={postId}
+              postAuthorId={postAuthorId}
+              currentUserId={currentUserId}
+              isAccepted={false}
+              depth={1}
+              onChange={onChange}
+            />
+          ))}
+        </ul>
+      ) : null}
+    </article>
+  );
 }
