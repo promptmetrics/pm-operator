@@ -1,6 +1,13 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Monorepo root, derived from this file's location so the value is correct
+// on any machine (a hardcoded absolute path broke CI runners).
+const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+
 const nextConfig = {
   turbopack: {
-    root: '/Users/izzy/Documents/pm-operator',
+    root: workspaceRoot,
   },
   transpilePackages: [
     '@pm-operator/ui',
