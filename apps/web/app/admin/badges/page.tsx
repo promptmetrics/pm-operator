@@ -258,7 +258,10 @@ export default function AdminBadgesPage() {
                   <div>
                     <p className="font-medium">{badge.name}</p>
                     <p className="text-sm text-[var(--pm-muted)]">
-                      {badge.description || 'No description'} · {badge.criteria.eventType} · threshold {badge.criteria.threshold}
+                      {badge.description || 'No description'} ·{' '}
+                      {'days' in badge.criteria
+                        ? `${badge.criteria.days}-day streak`
+                        : `${badge.criteria.eventType} · threshold ${badge.criteria.threshold}`}
                     </p>
                   </div>
                 </div>

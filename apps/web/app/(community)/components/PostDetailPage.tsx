@@ -2,10 +2,11 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Heart, MessageSquare, Share2, Flag } from 'lucide-react';
+import { Heart, MessageSquare, Share2, Flag, Pin, Star } from 'lucide-react';
 import { FlagDialog } from './FlagDialog';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Badge } from '@pm-operator/ui/components/Badge';
+import { Input } from '@pm-operator/ui/components/Input';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { useToast } from '@pm-operator/ui/components/Toast';
 import { RichTextEditor } from '@pm-operator/ui/editor/RichTextEditor';
@@ -18,15 +19,39 @@ import type { PostDetail, CommentDetail } from '@pm-operator/api';
 interface PostDetailPageProps {
   post: PostDetail;
   currentUserId?: string;
+  viewerRole?: string;
 }
 
-export function PostDetailPage({ post, currentUserId }: PostDetailPageProps) {
+export function PostDetailPage({ post, currentUserId, viewerRole }: PostDetailPageProps) {
   const [comments, setComments] = React.useState<CommentDetail[]>([]);
   const [body, setBody] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
   const [liked, setLiked] = React.useState(Boolean(post.viewerHasLiked));
   const [likeCount, setLikeCount] = React.useState(post.upvotes);
+  const [pinned, setPinned] = React.useState(post.isPinned);
+  const [featuredLabel, setFeaturedLabel] = React.useState(post.featuredLabel);
+  const [featureInput, setFeatureInput] = React.useState(post.featuredLabel ?? '');
+  const [savingAdmin, setSavingAdmin] = React.useState(false);
+  const isGlobalAdmin = viewerRole === 'admin';
   const { toast } = useToast();
+
+  const patchPost = async (patch: { isPinned?: boolean; featuredLabel?: string | null }) => {
+    setSavingAdmin(true);
+    try {
+      const res = await fetch(`/api/v1/posts/${post.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) throw new Error('Update failed');
+      return true;
+    } catch (err: any) {
+      toast({ title: err.message || 'Update failed', variant: 'error' });
+      return false;
+    } finally {
+      setSavingAdmin(false);
+    }
+  };
 
   const loadComments = React.useCallback(async () => {
     try {
@@ -146,6 +171,18 @@ export function PostDetailPage({ post, currentUserId }: PostDetailPageProps) {
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <Badge variant="default">{typeLabel[post.type] ?? post.type}</Badge>
           {post.acceptedCommentId ? <Badge variant="green">Solved</Badge> : null}
+          {pinned ? (
+            <Badge variant="coral" className="gap-1">
+              <Pin className="h-3 w-3" aria-hidden="true" />
+              Pinned
+            </Badge>
+          ) : null}
+          {featuredLabel ? (
+            <Badge variant="coral" className="gap-1">
+              <Star className="h-3 w-3" aria-hidden="true" />
+              {featuredLabel}
+            </Badge>
+          ) : null}
           {post.tags.map((tag) => (
             <Badge key={tag} variant="outline">#{tag}</Badge>
           ))}
@@ -187,6 +224,67 @@ export function PostDetailPage({ post, currentUserId }: PostDetailPageProps) {
             </FlagDialog>
           ) : null}
         </div>
+
+        {isGlobalAdmin ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--pm-line)] pt-3">
+            <span className="text-xs font-medium text-[var(--pm-muted)]">Admin</span>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={savingAdmin}
+              className="gap-1"
+              onClick={async () => {
+                const next = !pinned;
+                if (await patchPost({ isPinned: next })) {
+                  setPinned(next);
+                  toast({ title: next ? 'Post pinned' : 'Post unpinned' });
+                }
+              }}
+            >
+              <Pin className="h-3.5 w-3.5" aria-hidden="true" />
+              {pinned ? 'Unpin' : 'Pin'}
+            </Button>
+            <Input
+              value={featureInput}
+              onChange={(e) => setFeatureInput(e.target.value)}
+              placeholder="Feature label, e.g. Build of the week"
+              maxLength={40}
+              aria-label="Feature label"
+              className="h-8 w-60 text-sm"
+            />
+            <Button
+              size="sm"
+              disabled={savingAdmin || !featureInput.trim()}
+              className="gap-1"
+              onClick={async () => {
+                const label = featureInput.trim();
+                if (await patchPost({ featuredLabel: label })) {
+                  setFeaturedLabel(label);
+                  toast({ title: 'Post featured' });
+                }
+              }}
+            >
+              <Star className="h-3.5 w-3.5" aria-hidden="true" />
+              Feature
+            </Button>
+            {featuredLabel ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={savingAdmin}
+                onClick={async () => {
+                  if (await patchPost({ featuredLabel: null })) {
+                    setFeaturedLabel(null);
+                    setFeatureInput('');
+                    toast({ title: 'Feature cleared' });
+                  }
+                }}
+              >
+                Clear feature
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {currentUserId ? (

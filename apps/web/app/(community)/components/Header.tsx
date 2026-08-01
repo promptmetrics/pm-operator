@@ -9,8 +9,9 @@ import { createAuthClient } from '@/lib/auth/client';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
+import { Progress } from '@pm-operator/ui/components/Progress';
 import { NotificationBell } from './NotificationBell';
-import type { UserPublicProfile } from '@pm-operator/api';
+import type { UserPublicProfile, UserBadgesResponse, BadgeProgressItem } from '@pm-operator/api';
 
 const NAV = [
   { href: '/feed', label: 'Feed' },
@@ -200,8 +201,28 @@ function UserDropdown({
   profile: UserPublicProfile;
   onSignOut: () => void;
 }) {
+  const [badges, setBadges] = React.useState<UserBadgesResponse | null>(null);
+  const fetchedBadges = React.useRef(false);
+
+  // GAME-7: lazily load badge progress the first time the dropdown opens.
+  const onOpenChange = (open: boolean) => {
+    if (!open || fetchedBadges.current) return;
+    fetchedBadges.current = true;
+    fetch(`/api/v1/users/${profile.userslug}/badges`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => setBadges(json?.data ?? null))
+      .catch(() => {});
+  };
+
+  const nextBadge: BadgeProgressItem | null = React.useMemo(() => {
+    if (!badges || badges.progress.length === 0) return null;
+    return [...badges.progress].sort(
+      (a, b) => b.current / b.threshold - a.current / a.threshold
+    )[0];
+  }, [badges]);
+
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root onOpenChange={onOpenChange}>
       <DropdownMenu.Trigger asChild>
         <Button variant="ghost" size="sm" className="gap-2">
           <Avatar
@@ -221,6 +242,23 @@ function UserDropdown({
           sideOffset={8}
           align="end"
         >
+          {nextBadge ? (
+            <>
+              <div className="px-3 py-2">
+                <p className="mb-1.5 text-xs text-[var(--pm-muted)]">
+                  Next badge: <span className="font-medium text-[var(--pm-ink)]">{nextBadge.badge.name}</span>
+                </p>
+                <Progress
+                  value={(nextBadge.current / nextBadge.threshold) * 100}
+                  aria-label={`Progress toward ${nextBadge.badge.name}`}
+                />
+                <p className="mt-1 text-xs text-[var(--pm-muted)]">
+                  {nextBadge.current}/{nextBadge.threshold}
+                </p>
+              </div>
+              <DropdownMenu.Separator className="my-1 h-px bg-[var(--pm-line)]" />
+            </>
+          ) : null}
           <DropdownMenu.Item asChild>
             <Link
               href={`/u/${profile.userslug}`}

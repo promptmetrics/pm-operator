@@ -1,6 +1,6 @@
 import { createServiceDb } from '@/lib/db';
 import { getSession } from '@/lib/auth/server';
-import { listFeed } from '@/lib/services/posts';
+import { listFeed, getFeaturedPost, listGlobalPinnedPosts } from '@/lib/services/posts';
 import { listGlobalLeaderboard, getWritableGroups } from '@/lib/services/community';
 import { FeedPage } from '../components/FeedPage';
 import { FeedFilter } from '@pm-operator/api';
@@ -21,11 +21,14 @@ export default async function FeedRoute({ searchParams }: { searchParams: Promis
   const { session } = await getSession();
   const currentUserId = session?.user?.id;
 
-  const [{ posts, nextCursor }, leaderboard, writableGroups] = await Promise.all([
-    listFeed(db, { filter, sort: 'new', page, limit: 20 }, currentUserId),
-    listGlobalLeaderboard(db, 'weekly', 5),
-    currentUserId ? getWritableGroups(db, currentUserId) : Promise.resolve([]),
-  ]);
+  const [{ posts, nextCursor }, leaderboard, writableGroups, featuredPost, pinnedPosts] =
+    await Promise.all([
+      listFeed(db, { filter, sort: 'new', page, limit: 20 }, currentUserId),
+      listGlobalLeaderboard(db, 'weekly', 5),
+      currentUserId ? getWritableGroups(db, currentUserId) : Promise.resolve([]),
+      getFeaturedPost(db, currentUserId),
+      listGlobalPinnedPosts(db, currentUserId),
+    ]);
 
   return (
     <FeedPage
@@ -35,6 +38,8 @@ export default async function FeedRoute({ searchParams }: { searchParams: Promis
       currentUserId={currentUserId}
       writableGroups={writableGroups}
       leaderboard={leaderboard}
+      featuredPost={featuredPost}
+      pinnedPosts={pinnedPosts}
     />
   );
 }

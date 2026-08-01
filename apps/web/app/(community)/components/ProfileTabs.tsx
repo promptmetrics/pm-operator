@@ -9,10 +9,12 @@ import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { Badge } from '@pm-operator/ui/components/Badge';
 import { FeedCard } from './FeedCard';
 import { timeAgo } from '@/lib/format';
-import type { PublicUserProfile, PostListItem, CommentDetail } from '@pm-operator/api';
+import type { PublicUserProfile, PostListItem, CommentDetail, UserBadgesResponse } from '@pm-operator/api';
 import type { AcceptedSolutionItem } from '@/lib/services/community';
 
 type Tab = 'posts' | 'solutions' | 'comments';
+
+const MAX_BADGE_CHIPS = 4;
 
 interface ProfileTabsProps {
   user: PublicUserProfile;
@@ -20,9 +22,10 @@ interface ProfileTabsProps {
   posts: PostListItem[];
   solutions: AcceptedSolutionItem[];
   comments: CommentDetail[];
+  badges: UserBadgesResponse;
 }
 
-export function ProfileTabs({ user, currentUserId, posts, solutions, comments }: ProfileTabsProps) {
+export function ProfileTabs({ user, currentUserId, posts, solutions, comments, badges }: ProfileTabsProps) {
   const [tab, setTab] = React.useState<Tab>('posts');
   const isMe = currentUserId === user.id;
 
@@ -46,6 +49,16 @@ export function ProfileTabs({ user, currentUserId, posts, solutions, comments }:
               <span>·</span>
               <span>{user.streakDays}-day streak</span>
             </div>
+            {badges.earned.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {badges.earned.slice(0, MAX_BADGE_CHIPS).map(({ badge }) => (
+                  <Badge key={badge.id} variant="coral">{badge.name}</Badge>
+                ))}
+                {badges.earned.length > MAX_BADGE_CHIPS ? (
+                  <Badge variant="outline">+{badges.earned.length - MAX_BADGE_CHIPS} more</Badge>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           {isMe ? (
             <Button variant="secondary" asChild>
@@ -54,6 +67,30 @@ export function ProfileTabs({ user, currentUserId, posts, solutions, comments }:
           ) : null}
         </div>
       </Card>
+
+      {badges.earned.length > 0 || badges.progress.length > 0 ? (
+        <Card className="mb-6 p-6">
+          <h2 className="mb-3 font-serif text-lg font-semibold text-[var(--pm-ink)]">Achievements</h2>
+          <ul className="space-y-2 text-sm">
+            {badges.earned.map(({ badge, awardedAt }) => (
+              <li key={badge.id} className="flex items-center gap-2">
+                <span className="text-[var(--pm-green)]" aria-hidden="true">✓</span>
+                <span className="text-[var(--pm-ink)]">{badge.name}</span>
+                <span className="ml-auto text-xs text-[var(--pm-muted)]">{timeAgo(awardedAt)}</span>
+              </li>
+            ))}
+            {badges.progress.map(({ badge, current, threshold }) => (
+              <li key={badge.id} className="flex items-center gap-2">
+                <span className="text-[var(--pm-muted)]" aria-hidden="true">○</span>
+                <span className="text-[var(--pm-muted)]">{badge.name}</span>
+                <span className="ml-auto text-xs text-[var(--pm-muted)]">
+                  {current}/{threshold}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
 
       <div className="mb-4 flex flex-wrap gap-2">
         {<TabButton tab="posts" label="Posts" icon={FileText} active={tab} onClick={setTab} count={posts.length} />}

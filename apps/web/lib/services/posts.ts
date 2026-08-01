@@ -130,6 +130,7 @@ async function toPostListItem(
     tags: row.post.tags,
     createdAt: toISO(row.post.createdAt),
     viewerHasLiked: Boolean(row.viewerHasLiked),
+    featuredLabel: row.post.featuredLabel,
   };
 }
 
@@ -195,6 +196,80 @@ export async function listGroupPosts(
   return listFeed(db, { ...query, groupSlug: slug }, currentUserId);
 }
 
+// Latest featured post (WS7/T7.2). community.ts#listPinnedPosts is
+// group-scoped, so the global feed variants live here.
+export async function getFeaturedPost(
+  db: DrizzleClient,
+  currentUserId?: string
+): Promise<PostListItem | null> {
+  const asCount = db.$with('as_count').as(
+    db
+      .select({
+        userId: schema.comments.authorId,
+        count: count().as('count'),
+      })
+      .from(schema.comments)
+      .innerJoin(schema.posts, eq(schema.posts.acceptedCommentId, schema.comments.id))
+      .groupBy(schema.comments.authorId)
+  );
+
+  const rows = await db
+    .with(asCount)
+    .select({
+      post: schema.posts,
+      group: schema.groups,
+      author: schema.users,
+      acceptedSolutions: asCount.count,
+      viewerHasLiked: viewerHasLikedPostSql(currentUserId),
+    })
+    .from(schema.posts)
+    .innerJoin(schema.groups, eq(schema.posts.groupId, schema.groups.id))
+    .innerJoin(schema.users, eq(schema.posts.authorId, schema.users.id))
+    .leftJoin(asCount, eq(asCount.userId, schema.users.id))
+    .where(and(isNotNull(schema.posts.featuredLabel), postVisibilityFilter(currentUserId)))
+    .orderBy(desc(schema.posts.createdAt))
+    .limit(1);
+
+  if (!rows[0]) return null;
+  return toPostListItem(rows[0]);
+}
+
+export async function listGlobalPinnedPosts(
+  db: DrizzleClient,
+  currentUserId?: string,
+  limit = 3
+): Promise<PostListItem[]> {
+  const asCount = db.$with('as_count').as(
+    db
+      .select({
+        userId: schema.comments.authorId,
+        count: count().as('count'),
+      })
+      .from(schema.comments)
+      .innerJoin(schema.posts, eq(schema.posts.acceptedCommentId, schema.comments.id))
+      .groupBy(schema.comments.authorId)
+  );
+
+  const rows = await db
+    .with(asCount)
+    .select({
+      post: schema.posts,
+      group: schema.groups,
+      author: schema.users,
+      acceptedSolutions: asCount.count,
+      viewerHasLiked: viewerHasLikedPostSql(currentUserId),
+    })
+    .from(schema.posts)
+    .innerJoin(schema.groups, eq(schema.posts.groupId, schema.groups.id))
+    .innerJoin(schema.users, eq(schema.posts.authorId, schema.users.id))
+    .leftJoin(asCount, eq(asCount.userId, schema.users.id))
+    .where(and(eq(schema.posts.isPinned, true), postVisibilityFilter(currentUserId)))
+    .orderBy(desc(schema.posts.createdAt))
+    .limit(limit);
+
+  return Promise.all(rows.map(toPostListItem));
+}
+
 export async function getPostById(
   db: DrizzleClient,
   id: string,
@@ -249,6 +324,7 @@ export async function getPostById(
     commentCount: post.commentCount,
     viewCount: post.viewCount,
     isPinned: post.isPinned,
+    featuredLabel: post.featuredLabel,
     acceptedCommentId: post.acceptedCommentId,
     createdAt: toISO(post.createdAt),
     updatedAt: toISO(post.updatedAt),
@@ -367,6 +443,16 @@ export async function updatePost(
   if (input.type !== undefined) update.type = input.type;
   if (input.tags !== undefined) update.tags = input.tags;
   if (input.status !== undefined) update.status = input.status;
+  if (input.featuredLabel !== undefined) {
+    // Featuring is a global-admin-only action (WS7/T7.2).
+    if (user?.role !== 'admin') throw new Error('Forbidden');
+    update.featuredLabel = input.featuredLabel;
+  }
+  if (input.isPinned !== undefined) {
+    // Pinning: global admins or the group's admins/moderators (GROUP-7).
+    if (user?.role !== 'admin' && !isGroupMod) throw new Error('Forbidden');
+    update.isPinned = input.isPinned;
+  }
 
   const [updated] = await db
     .update(schema.posts)

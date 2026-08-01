@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation';
+import { eq } from 'drizzle-orm';
+import * as schema from '@pm-operator/db';
 import { createServiceDb } from '@/lib/db';
 import { getSession } from '@/lib/auth/server';
 import { getPostById } from '@/lib/services/posts';
@@ -10,7 +12,15 @@ export default async function PostRoute({ params }: { params: Promise<{ id: stri
   const { session } = await getSession();
   const currentUserId = session?.user?.id;
 
-  const post = await getPostById(db, id, currentUserId);
+  const [post, viewer] = await Promise.all([
+    getPostById(db, id, currentUserId),
+    currentUserId
+      ? db.query.users.findFirst({
+          where: eq(schema.users.id, currentUserId),
+          columns: { role: true },
+        })
+      : Promise.resolve(undefined),
+  ]);
 
   if (!post) {
     return (
@@ -21,5 +31,5 @@ export default async function PostRoute({ params }: { params: Promise<{ id: stri
     );
   }
 
-  return <PostDetailPage post={post} currentUserId={currentUserId} />;
+  return <PostDetailPage post={post} currentUserId={currentUserId} viewerRole={viewer?.role} />;
 }

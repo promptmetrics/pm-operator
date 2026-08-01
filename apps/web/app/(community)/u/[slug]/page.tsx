@@ -7,6 +7,7 @@ import {
   listAcceptedSolutionsByAuthor,
   listCommentsByAuthor,
 } from '@/lib/services/community';
+import { getUserBadges } from '@/lib/services/badges';
 import { ProfileTabs } from '../../components/ProfileTabs';
 
 export default async function UserRoute({ params }: { params: Promise<{ slug: string }> }) {
@@ -18,10 +19,11 @@ export default async function UserRoute({ params }: { params: Promise<{ slug: st
   const user = await getUserProfile(db, slug);
   if (!user) notFound();
 
-  const [posts, solutions, comments] = await Promise.all([
+  const [posts, solutions, comments, badges] = await Promise.all([
     listPostsByAuthor(db, user.id, currentUserId, 20),
     listAcceptedSolutionsByAuthor(db, user.id, currentUserId, 20),
     listCommentsByAuthor(db, user.id, currentUserId, 20),
+    getUserBadges(db, user.id),
   ]);
 
   return (
@@ -31,6 +33,7 @@ export default async function UserRoute({ params }: { params: Promise<{ slug: st
       posts={posts}
       solutions={solutions}
       comments={comments}
+      badges={badges}
     />
   );
 }

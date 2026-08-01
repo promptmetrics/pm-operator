@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Trophy, TrendingUp, Users } from 'lucide-react';
+import { Plus, Trophy, TrendingUp, Users, Pin, Star } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Card, CardContent, CardTitle } from '@pm-operator/ui/components/Card';
 import { Badge } from '@pm-operator/ui/components/Badge';
@@ -21,6 +21,8 @@ interface FeedPageProps {
   writableGroups: Group[];
   leaderboard: LeaderboardEntry[];
   groupSlug?: string;
+  featuredPost?: PostListItem | null;
+  pinnedPosts?: PostListItem[];
 }
 
 const FILTERS: { label: string; value: FeedFilter; icon?: React.ReactNode }[] = [
@@ -39,6 +41,8 @@ export function FeedPage({
   writableGroups,
   leaderboard,
   groupSlug,
+  featuredPost,
+  pinnedPosts,
 }: FeedPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -96,6 +100,20 @@ export function FeedPage({
       setLoading(false);
     }
   };
+
+  // Featured/pinned highlights only decorate the unfiltered global feed;
+  // dedupe them from the regular list below.
+  const showHighlights =
+    filter === 'all' &&
+    !groupSlug &&
+    (Boolean(featuredPost) || (pinnedPosts ?? []).length > 0);
+  const highlightIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    if (featuredPost) ids.add(featuredPost.id);
+    for (const post of pinnedPosts ?? []) ids.add(post.id);
+    return ids;
+  }, [featuredPost, pinnedPosts]);
+  const visiblePosts = showHighlights ? posts.filter((p) => !highlightIds.has(p.id)) : posts;
 
   useRealtimeGroup(
     async (postId) => {
@@ -176,12 +194,37 @@ export function FeedPage({
         </div>
 
         <div role="feed" aria-label={groupSlug ? 'Circle discussion' : 'Community feed'} className="flex flex-col gap-4">
-          {posts.map((post) => (
+          {showHighlights && featuredPost ? (
+            <div
+              className="relative overflow-hidden rounded-xl"
+              style={{ borderLeft: '3px solid var(--pm-cat-sales)' }}
+            >
+              <Badge variant="coral" className="absolute right-4 top-4 z-10 gap-1">
+                <Star className="h-3 w-3" aria-hidden="true" />
+                {featuredPost.featuredLabel ?? 'Featured'}
+              </Badge>
+              <FeedCard post={featuredPost} currentUserId={currentUserId} />
+            </div>
+          ) : null}
+          {showHighlights
+            ? (pinnedPosts ?? [])
+                .filter((post) => post.id !== featuredPost?.id)
+                .map((post) => (
+                <div key={`pinned-${post.id}`} className="relative">
+                  <Badge variant="coral" className="absolute right-4 top-4 z-10 gap-1">
+                    <Pin className="h-3 w-3" aria-hidden="true" />
+                    Pinned
+                  </Badge>
+                  <FeedCard post={post} currentUserId={currentUserId} />
+                </div>
+              ))
+            : null}
+          {visiblePosts.map((post) => (
             <FeedCard key={post.id} post={post} currentUserId={currentUserId} />
           ))}
         </div>
 
-        {posts.length === 0 ? (
+        {visiblePosts.length === 0 && !showHighlights ? (
           <div className="mt-8 rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 text-center">
             <p className="font-serif text-lg font-medium text-[var(--pm-ink)]">{emptyTitle(filter, !!groupSlug)}</p>
             <p className="mt-1 text-sm text-[var(--pm-muted)]">{emptyBody(filter)}</p>

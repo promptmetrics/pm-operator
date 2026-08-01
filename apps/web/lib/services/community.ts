@@ -5,6 +5,8 @@ import type {
   Group,
   PostListItem,
   LeaderboardEntry,
+  LeaderboardPeriod,
+  LeaderboardType,
   CommentDetail,
   PublicUserProfile,
   UserRole,
@@ -207,45 +209,144 @@ export type LeaderboardWindow = 'all_time' | 'weekly' | 'monthly';
 
 // Matches the period_start windows written by the apply_point_event trigger
 // (migration 0010): all_time rows use the 1970-01-01 sentinel.
-function currentPeriodStartSql(period: LeaderboardWindow) {
+function currentPeriodStartSql(period: LeaderboardPeriod) {
   switch (period) {
     case 'weekly':
       return sql`date_trunc('week', now())::date`;
     case 'monthly':
       return sql`date_trunc('month', now())::date`;
+    case 'quarterly':
+      return sql`date_trunc('quarter', now())::date`;
     default:
       return sql`'1970-01-01'::date`;
   }
 }
 
-function leaderboardQuery(
-  db: DrizzleClient,
+// Ranking variants: points = windowed score; solutions = accepted-solutions
+// count, ties by score; streaks = users.streak_days, ties by score.
+function leaderboardOrderSql(type: LeaderboardType) {
+  switch (type) {
+    case 'solutions':
+      return sql`coalesce(as_count.count, 0) desc, ${schema.userScores.score} desc`;
+    case 'streaks':
+      return sql`${schema.users.streakDays} desc, ${schema.userScores.score} desc`;
+    default:
+      return sql`${schema.userScores.score} desc`;
+  }
+}
+
+interface LeaderboardRow {
+  rank: number | string;
+  userslug: string;
+  username: string;
+  score: number | string;
+  accepted_solutions: number | string;
+  role: string;
+  streak_days: number | string;
+  reputation_score: number | string;
+}
+
+function toLeaderboardEntry(row: LeaderboardRow): LeaderboardEntry {
+  return {
+    rank: Number(row.rank),
+    userslug: row.userslug,
+    username: row.username,
+    score: toNumber(row.score),
+    acceptedSolutions: Number(row.accepted_solutions ?? 0),
+    level: levelForScore(toNumber(row.reputation_score)).level,
+    streakDays: Number(row.streak_days ?? 0),
+    role: row.role,
+  };
+}
+
+// Ranked board CTE shared by list + viewer queries. solutions/streaks boards
+// are global-only and period-independent: they rank over the all_time window
+// so the score column always shows the all-time score.
+function leaderboardBoardSql(
   groupId: string,
-  period: LeaderboardWindow,
-  limit: number
+  period: LeaderboardPeriod,
+  type: LeaderboardType
 ) {
-  return db.execute(sql`
+  const window: LeaderboardPeriod = type === 'points' ? period : 'all_time';
+  const boardGroupId = type === 'points' ? groupId : schema.GLOBAL_GROUP_ID;
+  const order = leaderboardOrderSql(type);
+  return sql`
     with as_count as (
       select ${schema.comments.authorId} as user_id, count(*)::int as count
       from ${schema.comments}
       inner join ${schema.posts} on ${schema.posts.acceptedCommentId} = ${schema.comments.id}
       group by ${schema.comments.authorId}
+    ),
+    board as (
+      select
+        rank() over (order by ${order}) as rank,
+        ${schema.users.id} as user_id,
+        ${schema.users.userslug} as userslug,
+        ${schema.users.username} as username,
+        ${schema.userScores.score} as score,
+        coalesce(as_count.count, 0) as accepted_solutions,
+        ${schema.users.role} as role,
+        ${schema.users.streakDays} as streak_days,
+        ${schema.users.reputationScore} as reputation_score
+      from ${schema.userScores}
+      inner join ${schema.users} on ${schema.users.id} = ${schema.userScores.userId}
+      left join as_count on as_count.user_id = ${schema.users.id}
+      where ${schema.userScores.groupId} = ${boardGroupId}
+        and ${schema.userScores.period} = ${window}
+        and ${schema.userScores.periodStart} = ${currentPeriodStartSql(window)}
     )
-    select
-      rank() over (order by ${schema.userScores.score} desc) as rank,
-      ${schema.users.userslug} as userslug,
-      ${schema.users.username} as username,
-      ${schema.userScores.score} as score,
-      coalesce(as_count.count, 0) as accepted_solutions
-    from ${schema.userScores}
-    inner join ${schema.users} on ${schema.users.id} = ${schema.userScores.userId}
-    left join as_count on as_count.user_id = ${schema.users.id}
-    where ${schema.userScores.groupId} = ${groupId}
-      and ${schema.userScores.period} = ${period}
-      and ${schema.userScores.periodStart} = ${currentPeriodStartSql(period)}
-    order by ${schema.userScores.score} desc
+  `;
+}
+
+export interface LeaderboardOptions {
+  groupId?: string;
+  period?: LeaderboardPeriod;
+  type?: LeaderboardType;
+}
+
+export async function listLeaderboard(
+  db: DrizzleClient,
+  opts: LeaderboardOptions & { limit: number; offset?: number }
+): Promise<LeaderboardEntry[]> {
+  const {
+    groupId = schema.GLOBAL_GROUP_ID,
+    period = 'all_time',
+    type = 'points',
+    limit,
+    offset = 0,
+  } = opts;
+  const rows = (await db.execute(sql`
+    ${leaderboardBoardSql(groupId, period, type)}
+    select rank, userslug, username, score, accepted_solutions, role, streak_days, reputation_score
+    from board
+    order by rank, userslug
     limit ${limit}
-  `);
+    offset ${offset}
+  `)) as unknown as LeaderboardRow[];
+  return rows.map(toLeaderboardEntry);
+}
+
+// The session user's row on the same board: rank() over the full board is
+// count of users strictly ahead + 1. Returns null when the user has no score
+// row in the board's window.
+export async function getLeaderboardViewer(
+  db: DrizzleClient,
+  userId: string,
+  opts: LeaderboardOptions = {}
+): Promise<LeaderboardEntry | null> {
+  const {
+    groupId = schema.GLOBAL_GROUP_ID,
+    period = 'all_time',
+    type = 'points',
+  } = opts;
+  const rows = (await db.execute(sql`
+    ${leaderboardBoardSql(groupId, period, type)}
+    select rank, userslug, username, score, accepted_solutions, role, streak_days, reputation_score
+    from board
+    where user_id = ${userId}
+    limit 1
+  `)) as unknown as LeaderboardRow[];
+  return rows[0] ? toLeaderboardEntry(rows[0]) : null;
 }
 
 export async function listGlobalLeaderboard(
@@ -253,20 +354,7 @@ export async function listGlobalLeaderboard(
   period: LeaderboardWindow,
   limit = 5
 ): Promise<LeaderboardEntry[]> {
-  const rows = (await leaderboardQuery(db, schema.GLOBAL_GROUP_ID, period, limit)) as unknown as Array<{
-    rank: number | string;
-    userslug: string;
-    username: string;
-    score: number | string;
-    accepted_solutions: number | string;
-  }>;
-  return rows.map((row) => ({
-    rank: Number(row.rank),
-    userslug: row.userslug,
-    username: row.username,
-    score: toNumber(row.score),
-    acceptedSolutions: Number(row.accepted_solutions ?? 0),
-  }));
+  return listLeaderboard(db, { groupId: schema.GLOBAL_GROUP_ID, period, limit });
 }
 
 export async function listGroupLeaderboard(
@@ -275,20 +363,7 @@ export async function listGroupLeaderboard(
   period: LeaderboardWindow,
   limit = 5
 ): Promise<LeaderboardEntry[]> {
-  const rows = (await leaderboardQuery(db, groupId, period, limit)) as unknown as Array<{
-    rank: number | string;
-    userslug: string;
-    username: string;
-    score: number | string;
-    accepted_solutions: number | string;
-  }>;
-  return rows.map((row) => ({
-    rank: Number(row.rank),
-    userslug: row.userslug,
-    username: row.username,
-    score: toNumber(row.score),
-    acceptedSolutions: Number(row.accepted_solutions ?? 0),
-  }));
+  return listLeaderboard(db, { groupId, period, limit });
 }
 
 export async function listPostsByAuthor(
