@@ -15,9 +15,22 @@ export const compoundBadgeCriteriaSchema = countBadgeCriteriaSchema.extend({
 
 export type CompoundBadgeCriteria = z.infer<typeof compoundBadgeCriteriaSchema>;
 
+// Consecutive-days criterion (WS7/T7.1): earned against users.longest_streak_days,
+// progress displayed against the current users.streak_days.
+export const streakBadgeCriteriaSchema = z.object({
+  type: z.literal('streak'),
+  days: z.number().int().positive(),
+});
+
+export type StreakBadgeCriteria = z.infer<typeof streakBadgeCriteriaSchema>;
+
+// compound before count: zod unions return the first successful parse and
+// z.object strips unknown keys, so count-first would silently drop
+// postType/groupSlug from compound criteria.
 export const badgeCriteriaSchema = z.union([
-  countBadgeCriteriaSchema,
+  streakBadgeCriteriaSchema,
   compoundBadgeCriteriaSchema,
+  countBadgeCriteriaSchema,
 ]);
 
 export type BadgeCriteria = z.infer<typeof badgeCriteriaSchema>;
@@ -76,3 +89,31 @@ export const awardBadgeRequestSchema = z.object({
 });
 
 export type AwardBadgeRequest = z.infer<typeof awardBadgeRequestSchema>;
+
+// Public badge shape (WS7/T7.1): criteria omitted so manually awarded badges
+// with free-form criteria jsonb still serialize.
+export const publicBadgeSchema = badgeSchema.omit({ criteria: true });
+
+export type PublicBadge = z.infer<typeof publicBadgeSchema>;
+
+export const earnedBadgeItemSchema = z.object({
+  badge: publicBadgeSchema,
+  awardedAt: z.string().datetime(),
+});
+
+export type EarnedBadgeItem = z.infer<typeof earnedBadgeItemSchema>;
+
+export const badgeProgressItemSchema = z.object({
+  badge: publicBadgeSchema,
+  current: z.number().int().nonnegative(),
+  threshold: z.number().int().positive(),
+});
+
+export type BadgeProgressItem = z.infer<typeof badgeProgressItemSchema>;
+
+export const userBadgesResponseSchema = z.object({
+  earned: z.array(earnedBadgeItemSchema),
+  progress: z.array(badgeProgressItemSchema),
+});
+
+export type UserBadgesResponse = z.infer<typeof userBadgesResponseSchema>;

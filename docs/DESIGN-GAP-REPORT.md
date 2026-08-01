@@ -19,6 +19,47 @@ Scale estimate: ~6 schema migrations, ~10 new/changed API surfaces, ~2 new backg
 
 ---
 
+## Implementation status — updated 2026-08-01 (end of day)
+
+Read this section first when resuming in a new session. Everything below it is the original analysis; task lists in Part 2 carry the ground truth per item.
+
+### Done (committed)
+| Commit | Scope |
+|---|---|
+| `0efd4a7` | Kickoff slice: Phase 0 decisions recorded; T5.1 reaction hydration (`viewerHasLiked` end-to-end); T8.1 `/moderation` route (moderator+admin) + comment Flag control; T1.1 canonical Paper v3 tokens in `packages/ui/src/styles/tokens.css` incl. previously-missing `--pm-radius/space/text/rhythm` families; T1.2/T1.3 ui components (Chip, Toast+provider, Tabs, Progress, Select, DropdownMenu, ConfirmDialog, LevelBadge + Avatar badge slot, StatCard, StreakGrid, DateTile, PodiumCard); T1.4 all 19 `alert()`/`confirm()` → Toast/ConfirmDialog. Also carries the prior session's Paper v3 migration + ESLint flat config. |
+| `cabfa7a` | WS2 complete: T2.1 `POINT_WEIGHTS`/`DAILY_CAPS` centralized at 10/5/25 (+ removed dead duplicate comment award); T2.2 `OPERATOR_LEVELS` + `levelForScore()` + required `level` on every profile/author payload; T2.5 `user_scores.period_start` windows + rewritten trigger + history backfill; T2.3/T2.4 streak pipeline (`advanceStreak` on post/comment, +2/day `streak_bonus` capped 30, `longest_streak_days`, `GET /api/v1/me/streak`, daily-visit wired in Header); INVITE-3 fix (`invite_accepted` now awarded to the inviter in `acceptInvite` — was never awarded anywhere). |
+| this commit | WS3: leaderboards API `type=points\|solutions\|streaks` + `viewer` rank + entries carry level/streakDays/role; LeaderboardTabs rebuilt (chip row, PodiumCard top-3, Operator-of-the-week on weekly points board, six-column table, You-row incl. off-page). WS7: `services/badges.ts` + public `GET /api/v1/users/[slug]/badges` (earned + progress), streak badge criterion (earn on `longest_streak_days`), profile badge chips + Achievements card, GAME-7 progress bar in header dropdown, `posts.featured_label` + admin Pin/Feature controls on post page + featured/pinned cards on the global feed. |
+
+### Database migrations — ALL APPLIED to the project database
+- `0008`/`0009` (RLS): had been applied out-of-band and never recorded; 0009 used invalid `CREATE POLICY IF NOT EXISTS` syntax. Both repaired (idempotent `DROP POLICY IF EXISTS` + valid `CREATE POLICY`) and are now applied + recorded via the migrator.
+- `0010` streak_bonus enum value, `users.longest_streak_days`, `users.streak_last_date`, `user_scores.period_start` + widened unique key, rewritten `apply_point_event` trigger (all_time+weekly+monthly), weekly/monthly backfill from `point_events`.
+- `0011` streak-bonus partial unique index (split from 0010: Postgres can't reference a new enum value in the transaction that adds it, and **the drizzle migrator batches ALL pending migrations into one transaction** — remember this for future enum migrations).
+- `0012` `posts.featured_label`.
+
+### Decisions in force (full text in `specs/SPEC_LOG.md` § "2026-08-01 — Community-portal redesign decisions")
+- **D1** point economy: displayed 10/5/25 is canonical; engine retuned; no backfill of historical `point_events` (drift accepted).
+- **D2/D3** streaks: advance on post/comment activity; +2/day `streak_bonus`, **cap 30 consecutive days (PM-confirmed)**; `longest_streak_days` tracked; supersedes 07-ux-spec:681-684.
+- **D4/D6/D8/D9** plan-wins on design omissions: Flag control kept (posts AND comments), notification bell kept, circle-page pinned resources/leaderboard/invite buttons kept, TipTap + @mentions composer kept (restyle as pill in WS5).
+- **D5 + scope**: ALL optional domains in v1 — Share, weekly digest, events, **Follow + DMs (WS9; overrules PRD DM deferral; needs T9.0 spec addendum before build)**.
+- **D7** comps are desktop spec; mobile derived from existing Tailwind breakpoints. **D10** Share ships (navigator.share + copy-link).
+- Level ladder: Lv1 Newcomer 0 / Lv2 Builder 100 / Lv3 Contributor 400 / Lv4 Operator 900 / Lv5 Senior operator 1500 / Lv6 Legend 3000, derived from `reputationScore` (never the windowed score).
+
+### Remaining work (Part 2 has the task detail)
+1. **WS4 — Bookmarks** (T4.1–T4.3): `saved_posts` table + contract + service + routes + UI (post action bar, feed rows, rail shortcut, profile tab). Independent; can run parallel with WS5.
+2. **WS5 — Feed & post detail rebuild** (T5.2–T5.8): 3-column feed layout + circles rail (needs groups-with-post-counts query + `/g` directory page), compact FeedCard row variant, sort dropdown + Questions chip, composer strip with intent buttons (`CreatePostModal` needs a `defaultType` prop), comment sort + paging, accepted-solution hoisted card, post-page right rail (circle card, More-from-this-circle), Share + Flag in "…" overflow, post edit/delete UI.
+3. **WS6 — Circle & profile pages** (T6.1–T6.4): circle aggregates (posts/mo, solved rate — member count + created date are spec'd and still unrendered), circle page rebuild retaining D8 surfaces, profile rebuild (stat cards, level progress via `levelForScore()` fields, per-circle contributions, Bookmarks tab after WS4), header points/level/streak cluster (data already served by `/api/v1/me` + `/api/v1/me/streak`).
+4. **WS8 — carry-forwards**: T8.2 analytics ingestion (all `trackEvent` beacons still 404), T8.3 weekly digest (needs T8.2; one new cron), T8.4 Loops transactional email (NOTIF-5), T8.5 events domain, T8.6 avatar upload (backend helper is dead code), T8.7 DevCard decision, T8.8 live-updates indicator (mind the existing sr-only region in RealtimeProvider), T8.9 invite redemption UI (`/invite/[code]` — codes still can't be redeemed via UI), T8.10 onboarding steps 2–3, T8.11 derive designs for six undesigned screens, T8.12 admin agent-actions page.
+5. **WS9 — Social** (T9.0 spec addendum FIRST, then T9.1–T9.3): follow graph + DMs.
+
+### Known loose ends / gotchas for the next session
+- Moderation queue "View" link is wrong for comment targets (`/p/{comment.id}` 404s) — needs the parent post id in the flag queue contract.
+- `getUserBadges` runs one count query per unearned badge — fine at current catalog size, consolidate if it grows.
+- Leaderboard `streaks`/`solutions` boards are global-only by design; group boards remain points-based.
+- `PromptMetrics Paper v3-handoff.zip` and a stray `memory/` dir sit untracked at the repo root (intentionally uncommitted — user to relocate/delete).
+- E2E: check for a running dev server before starting one (port 3000); suites live in `apps/web/e2e/`, run against a `next start` production server with env from `apps/web/.env.local`.
+
+---
+
 ## Part 1 — Gap report
 
 Severity: **[P]** parity-blocker · **[E]** enhancement · **[C]** design↔plan conflict needing a product decision. Verdicts are from the adversarial verification pass.
@@ -116,22 +157,22 @@ Ordering inside each workstream: schema → contracts (`packages/api`) → servi
 - [x] **T0.1** Resolve D1–D10 (§1 above). ~~Record outcomes in `specs/SPEC_LOG.md`.~~ **Done 2026-08-01** — outcomes in the DECIDED block in §1 and in `specs/SPEC_LOG.md` ("Community-portal redesign decisions"). Note scope expansion: Follow/DM, Events, and Digest are all committed to v1 (WS8/WS9).
 
 ### WS1 — Design-system foundation (blocks all UI work)
-- [ ] **T1.1 (M)** Token consolidation: rewrite `packages/ui/src/styles/tokens.css` as the canonical Paper v3 token sheet (move `--pm-*` from `apps/web/app/globals.css`; delete slate/indigo scales and the dark-mode block; keep `globals.css` for app-level layers). **Add the missing `--pm-radius-xs/sm/md/lg/xl/pill`, `--pm-space-*`, `--pm-text-*`, `--pm-rhythm*` families** — values from the DS bundle README (`_ds/promptmetrics-paper-v3-…/README.md` token table). Files: `packages/ui/src/styles/tokens.css`, `apps/web/app/globals.css`, `apps/web/app/layout.tsx:3-4`.
-- [ ] **T1.2 (L)** Port required primitives into `packages/ui` (decision D-ds: port, don't import the browser-global bundle): `Chip` (active + swatch props, from V3Chip), `Toast` (+ provider; replaces 19 `alert()`/`confirm()` sites — enumerated in §4 G-TOAST), `Tabs`, `Progress`, `DropdownMenu` (Radix, exists as one-off in Header), `Select`. Match V3 props documented in the DS project's `components/general/<Name>/<Name>.d.ts`.
-- [ ] **T1.3 (M)** New composite components: `LevelBadge` (avatar overlay, sizes) + `Avatar` badge slot; `StatCard`; `StreakGrid` (7-day tiles); `DateTile`; `PodiumCard`. Files: `packages/ui/src/components/*`, export from `index.ts`.
-- [ ] **T1.4 (S)** Replace all `alert()`/`confirm()` with Toast/confirm-dialog (sites listed in §4).
+- [x] **T1.1 (M)** Token consolidation: rewrite `packages/ui/src/styles/tokens.css` as the canonical Paper v3 token sheet (move `--pm-*` from `apps/web/app/globals.css`; delete slate/indigo scales and the dark-mode block; keep `globals.css` for app-level layers). **Add the missing `--pm-radius-xs/sm/md/lg/xl/pill`, `--pm-space-*`, `--pm-text-*`, `--pm-rhythm*` families** — values from the DS bundle README (`_ds/promptmetrics-paper-v3-…/README.md` token table). Files: `packages/ui/src/styles/tokens.css`, `apps/web/app/globals.css`, `apps/web/app/layout.tsx:3-4`.
+- [x] **T1.2 (L)** Port required primitives into `packages/ui` (decision D-ds: port, don't import the browser-global bundle): `Chip` (active + swatch props, from V3Chip), `Toast` (+ provider; replaces 19 `alert()`/`confirm()` sites — enumerated in §4 G-TOAST), `Tabs`, `Progress`, `DropdownMenu` (Radix, exists as one-off in Header), `Select`. Match V3 props documented in the DS project's `components/general/<Name>/<Name>.d.ts`.
+- [x] **T1.3 (M)** New composite components: `LevelBadge` (avatar overlay, sizes) + `Avatar` badge slot; `StatCard`; `StreakGrid` (7-day tiles); `DateTile`; `PodiumCard`. Files: `packages/ui/src/components/*`, export from `index.ts`.
+- [x] **T1.4 (S)** Replace all `alert()`/`confirm()` with Toast/confirm-dialog (sites listed in §4).
 
 ### WS2 — Points, levels, streaks (after D1–D3)
-- [ ] **T2.1 (M)** Centralize point weights: create `apps/web/lib/services/point-weights.ts` (or extend `points.ts`) with the chosen economy; replace inline literals at `apps/web/app/api/v1/posts/route.ts:34`, `services/comments.ts:181,327`, `services/reactions.ts:86-96,129`. Update `specs/06-technical-spec.md` §9 table + the sidebar copy component to render from the same constant.
-- [ ] **T2.2 (M)** Levels: add `LEVELS` config (name + threshold; D1-dependent), `levelForScore()` util, `level`/`nextLevel`/`pointsToNext` in `publicUserProfileSchema` + `/api/v1/me` + leaderboard entries + post/comment author payloads (`contracts/users.ts`, `contracts/points.ts`, `services/users.ts`, `services/posts.ts`, `services/comments.ts`). No schema migration needed (derived from `reputationScore`).
-- [ ] **T2.3 (L)** Streak pipeline: migration adding `users.longest_streak_days`; implement advancement/reset (extend `awardDailyVisit` — and per D3 possibly post/comment events — to upsert `user_daily_stats` and update `streak_days`/`longest_streak_days` transactionally); wire a frontend daily-visit call (layout effect or middleware-adjacent); add `GET /api/v1/me/streak` (current, best, last-7-days array for `StreakGrid`). Files: `packages/db/src/schema.ts` + migration, `services/points.ts`, new route, `contracts/users.ts`.
-- [ ] **T2.4 (S, if D2=yes)** `streak_bonus` point event: enum value migration + capped award in the daily-visit path.
-- [ ] **T2.5 (M)** Fix `user_scores` period population: replace the `apply_point_event` trigger (migration `0001:97-120`) so it upserts weekly/monthly/all_time rows (period start via `date_trunc`) — this alone fixes the shipped-but-empty "This week" tab. Backfill from `point_events`.
+- [x] **T2.1 (M)** Centralize point weights: create `apps/web/lib/services/point-weights.ts` (or extend `points.ts`) with the chosen economy; replace inline literals at `apps/web/app/api/v1/posts/route.ts:34`, `services/comments.ts:181,327`, `services/reactions.ts:86-96,129`. Update `specs/06-technical-spec.md` §9 table + the sidebar copy component to render from the same constant.
+- [x] **T2.2 (M)** Levels: add `LEVELS` config (name + threshold; D1-dependent), `levelForScore()` util, `level`/`nextLevel`/`pointsToNext` in `publicUserProfileSchema` + `/api/v1/me` + leaderboard entries + post/comment author payloads (`contracts/users.ts`, `contracts/points.ts`, `services/users.ts`, `services/posts.ts`, `services/comments.ts`). No schema migration needed (derived from `reputationScore`).
+- [x] **T2.3 (L)** Streak pipeline: migration adding `users.longest_streak_days`; implement advancement/reset (extend `awardDailyVisit` — and per D3 possibly post/comment events — to upsert `user_daily_stats` and update `streak_days`/`longest_streak_days` transactionally); wire a frontend daily-visit call (layout effect or middleware-adjacent); add `GET /api/v1/me/streak` (current, best, last-7-days array for `StreakGrid`). Files: `packages/db/src/schema.ts` + migration, `services/points.ts`, new route, `contracts/users.ts`.
+- [x] **T2.4 (S, if D2=yes)** `streak_bonus` point event: enum value migration + capped award in the daily-visit path.
+- [x] **T2.5 (M)** Fix `user_scores` period population: replace the `apply_point_event` trigger (migration `0001:97-120`) so it upserts weekly/monthly/all_time rows (period start via `date_trunc`) — this alone fixes the shipped-but-empty "This week" tab. Backfill from `point_events`.
 
 ### WS3 — Leaderboards (after T2.2/T2.5)
-- [ ] **T3.1 (M)** Boards API: extend `/api/v1/leaderboards` to honor `type` (points | solutions | streaks) with real ORDER BY variants; join `users.role` (Mod chip), `streakDays`, level; add `viewerRank` to the response (rank query for the session user even off-page). Files: `leaderboards/route.ts`, `services/community.ts`, `contracts/points.ts`.
-- [ ] **T3.2 (M)** Leaderboards UI: rebuild `LeaderboardTabs.tsx` per design — period/type chips (This week / This month / All time / Most solutions / Longest streaks), `PodiumCard` top-3 with Operator-of-the-week chip, table with Level/Streak/Points columns, highlighted "You" row.
-- [ ] **T3.3 (S)** Operator of the week: derive from weekly board rank 1 at render (no new table) + profile badge chip; revisit persistence only if editorial override is wanted (D-OOTW).
+- [x] **T3.1 (M)** Boards API: extend `/api/v1/leaderboards` to honor `type` (points | solutions | streaks) with real ORDER BY variants; join `users.role` (Mod chip), `streakDays`, level; add `viewerRank` to the response (rank query for the session user even off-page). Files: `leaderboards/route.ts`, `services/community.ts`, `contracts/points.ts`.
+- [x] **T3.2 (M)** Leaderboards UI: rebuild `LeaderboardTabs.tsx` per design — period/type chips (This week / This month / All time / Most solutions / Longest streaks), `PodiumCard` top-3 with Operator-of-the-week chip, table with Level/Streak/Points columns, highlighted "You" row.
+- [x] **T3.3 (S)** Operator of the week: derive from weekly board rank 1 at render (no new table) + profile badge chip; revisit persistence only if editorial override is wanted (D-OOTW).
 
 ### WS4 — Bookmarks (independent; any time after WS1)
 - [ ] **T4.1 (M)** Schema migration `saved_posts` (userId, postId, createdAt, unique pair, RLS self-only) + `contracts/bookmarks.ts` + `services/bookmarks.ts` (toggle, listForUser with post join) + routes `POST/DELETE /api/v1/bookmarks`, `GET /api/v1/me/bookmarks`.
@@ -139,7 +180,7 @@ Ordering inside each workstream: schema → contracts (`packages/api`) → servi
 - [ ] **T4.3 (M)** UI: bookmark button on post action bar + feed rows; "Bookmarks" rail shortcut; profile Bookmarks tab (self-only).
 
 ### WS5 — Feed & post detail (after WS1; T5.1 early — it's a shipped-bug fix)
-- [ ] **T5.1 (M)** Reaction hydration (fixes AC-REACT-3): add `viewerReaction`/`viewerHasLiked` to post list/detail/comment payloads via LEFT JOIN on `reactions` for the session user (`services/posts.ts`, `services/comments.ts`, contracts); initialize component state from it (`FeedCard.tsx:42`, `PostDetailPage.tsx:26`, `CommentThread.tsx:73`). Switch heart→▲ per design; show per-comment upvote counts (data already in `comments.upvotes`).
+- [x] **T5.1 (M)** Reaction hydration (fixes AC-REACT-3): add `viewerReaction`/`viewerHasLiked` to post list/detail/comment payloads via LEFT JOIN on `reactions` for the session user (`services/posts.ts`, `services/comments.ts`, contracts); initialize component state from it (`FeedCard.tsx:42`, `PostDetailPage.tsx:26`, `CommentThread.tsx:73`). Switch heart→▲ per design; show per-comment upvote counts (data already in `comments.upvotes`).
 - [ ] **T5.2 (L)** Feed layout: 3-column grid; left rail with circles nav (needs `listGroupsWithPostCounts` — groups LEFT JOIN posts count, +`GET /api/v1/groups?includeCounts=1`), Shortcuts block, per D8 relocated surfaces; keep right rail (profile/level card from T2.2/T2.3 data, top operators, points card). Create `/g` circles-directory page (consumes `listGroups` — currently UI-orphaned).
 - [ ] **T5.3 (M)** FeedCard variants: `compact` row (▲ column, chips incl. Unanswered, `Lv N` meta, bookmark) + `featured`/`pinned` large cards; render pinned posts in `/feed` (fetch `listPinnedPosts` in `feed/page.tsx`); Build-of-the-week placement (needs T7.2).
 - [ ] **T5.4 (S)** Sort dropdown + Questions chip: add sort `Select` to FeedPage (send `sort` from server pages instead of hardcoding; fix loadMore param leak); add Questions to FILTERS; hide "My circles" chip on circle pages. Consider time-window for `top` per `07-ux-spec.md:472`.
@@ -155,11 +196,11 @@ Ordering inside each workstream: schema → contracts (`packages/api`) → servi
 - [ ] **T6.4 (S)** Header: points + level badge + streak pill (data from `/api/v1/me` extensions), keep bell (D6), logged-out "Create account" button, moderation link fix (T8.1).
 
 ### WS7 — Achievements & spotlights (after WS2)
-- [ ] **T7.1 (M)** Badge progress + display: public `GET /api/v1/users/[slug]/badges` (earned + progress: reuse grant-job counting queries from `admin/jobs/grant-badges/route.ts:19-98`); add consecutive-days criterion type to `badgeCriteriaSchema` (needed for streak badges incl. spec'd "Circle Regular"); render achievements card + profile badge chips; badge-progress in user dropdown (GAME-7).
-- [ ] **T7.2 (M)** Featured posts: migration `posts.featured_label` (or `featured_posts` table if history wanted — don't reuse `isPinned`, it's GROUP-7 Lessons); admin control (extend `PATCH /api/v1/posts/[id]` admin path + admin UI) — also add the missing GROUP-7 pin/unpin control for circle admins while in there; feed placement (T5.3).
+- [x] **T7.1 (M)** Badge progress + display: public `GET /api/v1/users/[slug]/badges` (earned + progress: reuse grant-job counting queries from `admin/jobs/grant-badges/route.ts:19-98`); add consecutive-days criterion type to `badgeCriteriaSchema` (needed for streak badges incl. spec'd "Circle Regular"); render achievements card + profile badge chips; badge-progress in user dropdown (GAME-7).
+- [x] **T7.2 (M)** Featured posts: migration `posts.featured_label` (or `featured_posts` table if history wanted — don't reuse `isPinned`, it's GROUP-7 Lessons); admin control (extend `PATCH /api/v1/posts/[id]` admin path + admin UI) — also add the missing GROUP-7 pin/unpin control for circle admins while in there; feed placement (T5.3).
 
 ### WS8 — Carry-forward fixes & infra (parallel, mostly small)
-- [ ] **T8.1 (S)** Moderation access: create `/moderation` route (PRD MOD-3 path; `middleware.ts:7` already protects it) rendering the existing queue for moderator+admin, or relax `admin/layout.tsx:25-27` per-page; fix Header link. Add the missing comment-flag control per D4 (backend already supports `targetType: 'comment'`).
+- [x] **T8.1 (S)** Moderation access: create `/moderation` route (PRD MOD-3 path; `middleware.ts:7` already protects it) rendering the existing queue for moderator+admin, or relax `admin/layout.tsx:25-27` per-page; fix Header link. Add the missing comment-flag control per D4 (backend already supports `targetType: 'comment'`).
 - [ ] **T8.2 (M)** Analytics ingestion: either implement `POST /api/v1/analytics/events` (schema-validated, table or forwarding) or switch `lib/analytics.ts` to the roadmap's Plausible/PostHog — today every event 404s.
 - [ ] **T8.3 (M)** Weekly digest (after D-digest scope): aggregation query (posts/solutions/top-topic per week — needs T8.2 data for "hot topic"), feed banner, digest page or Loops campaign send honoring `weeklyDigest` pref; **one new weekly cron** in `vercel.json` (job route under `/api/v1/admin/jobs/`, CRON_SECRET-protected). *Not scheduled as part of this report per guardrails.*
 - [ ] **T8.4 (M)** Loops transactional email (NOTIF-5): Loops client in `lib/email.ts`, send on solution-accepted + invite-accepted honoring prefs.

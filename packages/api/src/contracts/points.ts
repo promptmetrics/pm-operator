@@ -110,8 +110,17 @@ export const userDailyStatSchema = z.object({
 
 export type UserDailyStat = z.infer<typeof userDailyStatSchema>;
 
+/**
+ * Board variants — 'points' is the windowed score board; 'solutions' and
+ * 'streaks' are global, period-independent rankings (score column shows the
+ * all-time score).
+ */
+export const leaderboardTypeSchema = z.enum(['points', 'solutions', 'streaks']);
+
+export type LeaderboardType = z.infer<typeof leaderboardTypeSchema>;
+
 export const leaderboardQuerySchema = z.object({
-  type: z.string(),
+  type: leaderboardTypeSchema.default('points'),
   groupSlug: z.string().optional(),
   period: leaderboardPeriodSchema.default(LeaderboardPeriod.ALL_TIME),
   page: z.coerce.number().int().positive().default(1),
@@ -126,12 +135,24 @@ export const leaderboardEntrySchema = z.object({
   username: z.string(),
   score: z.number(),
   acceptedSolutions: z.number().int().nonnegative(),
+  level: z.number().int().min(1),
+  streakDays: z.number().int().nonnegative(),
+  role: z.string(),
 });
 
 export type LeaderboardEntry = z.infer<typeof leaderboardEntrySchema>;
 
+/**
+ * The session user's row on the same board — null when anonymous or
+ * scoreless. rank is computed as count of users strictly ahead + 1.
+ */
+export const leaderboardViewerSchema = leaderboardEntrySchema.nullable();
+
+export type LeaderboardViewer = z.infer<typeof leaderboardViewerSchema>;
+
 export const leaderboardResponseSchema = z.object({
   leaderboard: z.array(leaderboardEntrySchema),
+  viewer: leaderboardViewerSchema.optional(),
 });
 
 export type LeaderboardResponse = z.infer<typeof leaderboardResponseSchema>;

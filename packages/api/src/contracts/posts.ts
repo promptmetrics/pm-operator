@@ -70,6 +70,7 @@ export const postSchema = z.object({
   commentCount: z.number().int().nonnegative(),
   viewCount: z.number().int().nonnegative(),
   isPinned: z.boolean(),
+  featuredLabel: z.string().nullable(),
   acceptedCommentId: z.string().uuid().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -101,6 +102,7 @@ export const postListItemSchema = z.object({
   tags: z.array(z.string()),
   createdAt: z.string().datetime(),
   viewerHasLiked: z.boolean().optional(),
+  featuredLabel: z.string().nullable().optional(),
 });
 
 export type PostListItem = z.infer<typeof postListItemSchema>;
@@ -121,6 +123,10 @@ export const patchPostRequestSchema = z.object({
   type: postTypeSchema.optional(),
   tags: z.array(z.string()).optional(),
   status: postStatusSchema.optional(),
+  // Global admins or group admins/moderators only (GROUP-7).
+  isPinned: z.boolean().optional(),
+  // Global admins only (WS7/T7.2); null clears the feature.
+  featuredLabel: z.string().max(40).nullable().optional(),
 });
 
 export type PatchPostRequest = z.infer<typeof patchPostRequestSchema>;

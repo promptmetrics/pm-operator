@@ -208,6 +208,8 @@ export const posts = pgTable(
     commentCount: integer('comment_count').default(0).notNull(),
     viewCount: integer('view_count').default(0).notNull(),
     isPinned: boolean('is_pinned').default(false).notNull(),
+    // Admin-set feature label (WS7/T7.2, migration 0012); null = not featured.
+    featuredLabel: text('featured_label'),
     // FK added in migration 0001_numerous_killer_shrike.sql to avoid circular module load.
     acceptedCommentId: uuid('accepted_comment_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

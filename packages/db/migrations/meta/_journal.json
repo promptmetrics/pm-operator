@@ -85,6 +85,13 @@
       "when": 1785585100000,
       "tag": "0011_streak_bonus_index",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785585200000,
+      "tag": "0012_featured_posts",
+      "breakpoints": true
     }
   ]
 }
