@@ -69,6 +69,10 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # The serverless-safe default pool (3) makes the 100-concurrent
+          # reactions test exceed its 60s timeout from the US runner to the
+          # EU database; CI is a single client, so a larger pool is safe.
+          DB_POOL_SIZE: "10"
         run: pnpm test:unit
 
   production-smoke-e2e:
