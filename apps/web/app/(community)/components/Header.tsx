@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Search, Menu, X, ChevronDown, LogOut, User, Settings, Award, Bell, Shield } from 'lucide-react';
 import { createAuthClient } from '@/lib/auth/client';
@@ -12,8 +12,15 @@ import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { NotificationBell } from './NotificationBell';
 import type { UserPublicProfile } from '@pm-operator/api';
 
+const NAV = [
+  { href: '/feed', label: 'Feed' },
+  { href: '/leaderboards', label: 'Leaderboards' },
+  { href: '/search', label: 'Search' },
+];
+
 export function Header() {
   const router = useRouter();
+  const pathname = usePathname();
   const [profile, setProfile] = React.useState<UserPublicProfile | null>(null);
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -40,22 +47,30 @@ export function Header() {
   };
 
   return (
-    <header className="border-b border-border bg-surface px-4 py-3">
-      <nav className="mx-auto flex max-w-5xl items-center justify-between" aria-label="Main">
+    <header className="sticky top-0 z-40 border-b border-[var(--pm-line)] bg-[var(--pm-paper)]/95 px-4 py-3 backdrop-blur-sm">
+      <nav className="mx-auto flex max-w-6xl items-center justify-between" aria-label="Main">
         <div className="flex items-center gap-4 md:gap-6">
-          <Link href="/feed" className="font-semibold text-foreground">
-            operator
+          <Link href="/feed" className="flex items-baseline gap-1.5">
+            <span className="font-serif text-xl font-semibold text-[var(--pm-ink)]">operator</span>
+            <span className="hidden text-xs font-medium text-[var(--pm-coral)] sm:inline">.promptmetrics</span>
           </Link>
-          <div className="hidden items-center gap-4 md:flex">
-            <Link href="/feed" className="text-sm text-muted-foreground hover:text-foreground">
-              Feed
-            </Link>
-            <Link href="/leaderboards" className="text-sm text-muted-foreground hover:text-foreground">
-              Leaderboards
-            </Link>
-            <Link href="/search" className="text-sm text-muted-foreground hover:text-foreground">
-              Search
-            </Link>
+          <div className="hidden items-center gap-1 md:flex">
+            {NAV.map((item) => {
+              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                    active
+                      ? 'bg-[var(--pm-paper-2)] text-[var(--pm-ink)]'
+                      : 'text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
           </div>
         </div>
 
@@ -111,7 +126,7 @@ export function Header() {
       </nav>
 
       {searchOpen ? (
-        <form onSubmit={onSearch} className="mx-auto mt-2 flex max-w-5xl items-center px-4 md:hidden">
+        <form onSubmit={onSearch} className="mx-auto mt-2 flex max-w-6xl items-center px-4 md:hidden">
           <Input
             placeholder="Search..."
             value={query}
@@ -126,24 +141,37 @@ export function Header() {
       ) : null}
 
       {menuOpen ? (
-        <div className="mx-auto max-w-5xl px-4 pb-3 md:hidden">
-          <div className="flex flex-col gap-2">
-            <Link href="/feed" className="text-sm text-muted-foreground hover:text-foreground">
-              Feed
-            </Link>
-            <Link href="/leaderboards" className="text-sm text-muted-foreground hover:text-foreground">
-              Leaderboards
-            </Link>
-            <Link href="/search" className="text-sm text-muted-foreground hover:text-foreground">
-              Search
-            </Link>
+        <div className="mx-auto max-w-6xl px-4 pb-3 md:hidden">
+          <div className="flex flex-col gap-1">
+            {NAV.map((item) => {
+              const active = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`rounded-lg px-3 py-2 text-sm ${
+                    active
+                      ? 'bg-[var(--pm-paper-2)] text-[var(--pm-ink)]'
+                      : 'text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
             {profile ? (
-              <Link href="/notifications" className="text-sm text-muted-foreground hover:text-foreground">
+              <Link
+                href="/notifications"
+                className="rounded-lg px-3 py-2 text-sm text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]"
+              >
                 Notifications
               </Link>
             ) : null}
             {profile && isModeratorOrAdmin(profile.role) ? (
-              <Link href="/admin/moderation" className="text-sm text-muted-foreground hover:text-foreground">
+              <Link
+                href="/moderation"
+                className="rounded-lg px-3 py-2 text-sm text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]"
+              >
                 Moderation
               </Link>
             ) : null}
@@ -182,14 +210,14 @@ function UserDropdown({
 
       <DropdownMenu.Portal>
         <DropdownMenu.Content
-          className="z-50 min-w-[200px] rounded-xl border border-border bg-surface p-1 shadow-lg"
+          className="z-50 min-w-[200px] rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-1 shadow-[var(--pm-shadow-lg)]"
           sideOffset={8}
           align="end"
         >
           <DropdownMenu.Item asChild>
             <Link
               href={`/u/${profile.userslug}`}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none hover:bg-muted"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--pm-ink)] outline-none hover:bg-[var(--pm-paper-2)]"
             >
               <User className="h-4 w-4" aria-hidden="true" />
               Profile
@@ -198,7 +226,7 @@ function UserDropdown({
           <DropdownMenu.Item asChild>
             <Link
               href="/notifications"
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none hover:bg-muted"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--pm-ink)] outline-none hover:bg-[var(--pm-paper-2)]"
             >
               <Bell className="h-4 w-4" aria-hidden="true" />
               Notifications
@@ -207,8 +235,8 @@ function UserDropdown({
           {isModeratorOrAdmin(profile.role) ? (
             <DropdownMenu.Item asChild>
               <Link
-                href="/admin/moderation"
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none hover:bg-muted"
+                href="/moderation"
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--pm-ink)] outline-none hover:bg-[var(--pm-paper-2)]"
               >
                 <Shield className="h-4 w-4" aria-hidden="true" />
                 Moderation
@@ -218,7 +246,7 @@ function UserDropdown({
           <DropdownMenu.Item asChild>
             <Link
               href="/settings"
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none hover:bg-muted"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--pm-ink)] outline-none hover:bg-[var(--pm-paper-2)]"
             >
               <Settings className="h-4 w-4" aria-hidden="true" />
               Settings
@@ -227,18 +255,18 @@ function UserDropdown({
           <DropdownMenu.Item asChild>
             <Link
               href={`/u/${profile.userslug}/devcard`}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none hover:bg-muted"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--pm-ink)] outline-none hover:bg-[var(--pm-paper-2)]"
             >
               <Award className="h-4 w-4" aria-hidden="true" />
               DevCard
             </Link>
           </DropdownMenu.Item>
-          <DropdownMenu.Separator className="my-1 h-px bg-border" />
+          <DropdownMenu.Separator className="my-1 h-px bg-[var(--pm-line)]" />
           <DropdownMenu.Item asChild>
             <button
               type="button"
               onClick={onSignOut}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm outline-none hover:bg-muted"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--pm-ink)] outline-none hover:bg-[var(--pm-paper-2)]"
             >
               <LogOut className="h-4 w-4" aria-hidden="true" />
               Log out

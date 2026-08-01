@@ -2,8 +2,11 @@
 
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus } from 'lucide-react';
+import { Plus, Trophy, TrendingUp, Users } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
+import { Card, CardContent, CardTitle } from '@pm-operator/ui/components/Card';
+import { Badge } from '@pm-operator/ui/components/Badge';
+import { useToast } from '@pm-operator/ui/components/Toast';
 import { FeedCard } from './FeedCard';
 import { CreatePostModal } from './CreatePostModal';
 import { useRealtimeGroup } from './RealtimeProvider';
@@ -19,12 +22,12 @@ interface FeedPageProps {
   groupSlug?: string;
 }
 
-const FILTERS: { label: string; value: FeedFilter }[] = [
+const FILTERS: { label: string; value: FeedFilter; icon?: React.ReactNode }[] = [
+  { label: 'All', value: 'all' },
   { label: 'My circles', value: 'my-circles' },
   { label: 'Show your build', value: 'builds' },
   { label: 'Solutions', value: 'solutions' },
   { label: 'Unanswered', value: 'unanswered' },
-  { label: 'All', value: 'all' },
 ];
 
 export function FeedPage({
@@ -47,6 +50,7 @@ export function FeedPage({
   });
   const [loading, setLoading] = React.useState(false);
   const [createOpen, setCreateOpen] = React.useState(false);
+  const { toast } = useToast();
 
   React.useEffect(() => {
     setPosts(initialPosts);
@@ -86,7 +90,7 @@ export function FeedPage({
       setPage(nextPage);
       setCursor(json.meta?.hasMore ? next[next.length - 1]?.createdAt : undefined);
     } catch (err: any) {
-      alert(err.message || 'Failed to load more');
+      toast({ title: err.message || 'Failed to load more', variant: 'error' });
     } finally {
       setLoading(false);
     }
@@ -106,7 +110,7 @@ export function FeedPage({
           type: detail.type,
           status: detail.status,
           isSolved: detail.acceptedCommentId !== null,
-          group: { slug: detail.group.slug, name: detail.group.name },
+          group: { slug: detail.group.slug, name: detail.group.name, color: detail.group.color },
           author: {
             userslug: detail.author.userslug,
             username: detail.author.username,
@@ -131,63 +135,133 @@ export function FeedPage({
   );
 
   return (
-    <div className="mx-auto max-w-5xl">
-      {leaderboard.length > 0 ? (
-        <div className="mb-6 rounded-xl border border-border bg-surface p-4">
-          <p className="mb-2 text-sm font-semibold">Top operators this week</p>
-          <div className="flex flex-wrap items-center gap-3">
-            {leaderboard.slice(0, 5).map((entry) => (
-              <span key={entry.userslug} className="text-sm text-muted-foreground">
-                {entry.rank}. {entry.username} ({entry.score})
-              </span>
-            ))}
+    <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1fr_320px]">
+      <div>
+        <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="font-serif text-2xl font-semibold text-[var(--pm-ink)]">
+              {groupSlug ? 'Discussion' : 'Community feed'}
+            </h1>
+            <p className="text-sm text-[var(--pm-muted)]">
+              {groupSlug ? 'Posts from this circle' : 'Questions, builds, and solutions from operators'}
+            </p>
           </div>
+          {currentUserId && writableGroups.length > 0 ? (
+            <Button onClick={() => setCreateOpen(true)} className="gap-1">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              New post
+            </Button>
+          ) : null}
         </div>
-      ) : null}
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        {FILTERS.map((f) => (
-          <Button
-            key={f.value}
-            variant={filter === f.value ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={() => changeFilter(f.value)}
-          >
-            {f.label}
-          </Button>
-        ))}
-      </div>
+        <div className="mb-4 flex flex-wrap gap-2">
+          {FILTERS.map((f) => {
+            const active = filter === f.value;
+            return (
+              <button
+                key={f.value}
+                onClick={() => changeFilter(f.value)}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  active
+                    ? 'bg-[var(--pm-coral)] text-[var(--pm-on-ink)] shadow-[var(--pm-shadow)]'
+                    : 'bg-[var(--pm-paper-inset)] text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]'
+                }`}
+              >
+                {f.label}
+              </button>
+            );
+          })}
+        </div>
 
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">{groupSlug ? 'Discussion' : 'Feed'}</h1>
-        {currentUserId && writableGroups.length > 0 ? (
-          <Button onClick={() => setCreateOpen(true)} className="gap-1">
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            New post
-          </Button>
+        <div role="feed" aria-label={groupSlug ? 'Circle discussion' : 'Community feed'} className="flex flex-col gap-4">
+          {posts.map((post) => (
+            <FeedCard key={post.id} post={post} currentUserId={currentUserId} />
+          ))}
+        </div>
+
+        {posts.length === 0 ? (
+          <div className="mt-8 rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 text-center">
+            <p className="font-serif text-lg font-medium text-[var(--pm-ink)]">{emptyTitle(filter, !!groupSlug)}</p>
+            <p className="mt-1 text-sm text-[var(--pm-muted)]">{emptyBody(filter)}</p>
+          </div>
+        ) : null}
+
+        {cursor ? (
+          <div className="mt-6 flex justify-center">
+            <Button onClick={loadMore} disabled={loading} variant="secondary">
+              {loading ? 'Loading...' : 'Load more'}
+            </Button>
+          </div>
         ) : null}
       </div>
 
-      <div role="feed" aria-label={groupSlug ? 'Circle discussion' : 'Community feed'} className="flex flex-col gap-4">
-        {posts.map((post) => (
-          <FeedCard key={post.id} post={post} currentUserId={currentUserId} />
-        ))}
-      </div>
+      <aside className="flex flex-col gap-4">
+        <Card>
+          <CardContent className="space-y-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Trophy className="h-4 w-4 text-[var(--pm-coral)]" aria-hidden="true" />
+              Top operators this week
+            </CardTitle>
+            {leaderboard.length > 0 ? (
+              <ol className="space-y-2">
+                {leaderboard.map((entry, index) => (
+                  <li key={entry.userslug} className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-[var(--pm-ink)]">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--pm-paper-2)] text-xs font-medium text-[var(--pm-muted)]">
+                        {index + 1}
+                      </span>
+                      {entry.username}
+                    </span>
+                    <span className="font-medium text-[var(--pm-coral)]">{entry.score}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-sm text-[var(--pm-muted)]">No leaderboard data yet.</p>
+            )}
+          </CardContent>
+        </Card>
 
-      {posts.length === 0 ? (
-        <div className="mt-8 rounded-xl border border-border bg-surface p-8 text-center">
-          <p className="text-lg font-medium">{emptyTitle(filter, !!groupSlug)}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{emptyBody(filter)}</p>
-        </div>
-      ) : null}
+        <Card>
+          <CardContent className="space-y-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingUp className="h-4 w-4 text-[var(--pm-coral)]" aria-hidden="true" />
+              How to level up
+            </CardTitle>
+            <ul className="space-y-2 text-sm text-[var(--pm-muted)]">
+              <li className="flex items-start gap-2">
+                <span className="text-[var(--pm-green)]">+10</span>
+                <span>Share a build or ask a question</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[var(--pm-green)]">+5</span>
+                <span>Leave a helpful comment</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[var(--pm-green)]">+25</span>
+                <span>Have your answer accepted as a solution</span>
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
 
-      {cursor ? (
-        <div className="mt-6 flex justify-center">
-          <Button onClick={loadMore} disabled={loading} variant="secondary">
-            {loading ? 'Loading...' : 'Load more'}
-          </Button>
-        </div>
-      ) : null}
+        {!currentUserId ? (
+          <Card className="bg-[var(--pm-coral)] text-[var(--pm-on-ink)]">
+            <CardContent className="space-y-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Users className="h-4 w-4" aria-hidden="true" />
+                Join the community
+              </CardTitle>
+              <p className="text-sm opacity-90">
+                Sign in to post, join circles, and climb the operator leaderboard.
+              </p>
+              <Button variant="secondary" className="w-full" asChild>
+                <a href="/login">Create account</a>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
+      </aside>
 
       <CreatePostModal
         open={createOpen}
@@ -195,7 +269,6 @@ export function FeedPage({
         groups={writableGroups}
         defaultGroupSlug={groupSlug}
         onCreated={() => {
-          // Optimistic local refresh is handled by realtime; also bump page to first page.
           router.refresh();
         }}
       />

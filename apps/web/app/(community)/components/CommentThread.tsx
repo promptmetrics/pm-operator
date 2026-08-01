@@ -2,14 +2,17 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Heart, MessageSquare, CheckCircle2, Pencil, Trash2, MoreHorizontal } from 'lucide-react';
+import { Heart, MessageSquare, CheckCircle2, Pencil, Trash2, MoreHorizontal, Flag } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { Badge } from '@pm-operator/ui/components/Badge';
+import { ConfirmDialog } from '@pm-operator/ui/components/ConfirmDialog';
+import { useToast } from '@pm-operator/ui/components/Toast';
 import { RichTextEditor } from '@pm-operator/ui/editor/RichTextEditor';
 import { timeAgo } from '@/lib/format';
 import { trackEvent } from '@/lib/analytics';
+import { FlagDialog } from './FlagDialog';
 import type { CommentDetail } from '@pm-operator/api';
 
 interface CommentThreadProps {
@@ -70,9 +73,12 @@ function SingleComment({
   const [editing, setEditing] = React.useState(false);
   const [replyBody, setReplyBody] = React.useState('');
   const [editBody, setEditBody] = React.useState(comment.content);
-  const [liked, setLiked] = React.useState(false);
+  const [liked, setLiked] = React.useState(Boolean(comment.viewerHasLiked));
   const [likeCount, setLikeCount] = React.useState(comment.upvotes);
   const [submitting, setSubmitting] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [confirmAccept, setConfirmAccept] = React.useState(false);
+  const { toast } = useToast();
 
   const isAuthor = currentUserId === comment.authorId;
   const isDeleted = comment.status === 'deleted';
@@ -120,7 +126,7 @@ function SingleComment({
       setReplyOpen(false);
       onChange();
     } catch (err: any) {
-      alert(err.message || 'Reply failed');
+      toast({ title: err.message || 'Reply failed', variant: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -140,25 +146,23 @@ function SingleComment({
       setEditing(false);
       onChange();
     } catch (err: any) {
-      alert(err.message || 'Edit failed');
+      toast({ title: err.message || 'Edit failed', variant: 'error' });
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm('Delete this comment? Replies will remain with a placeholder.')) return;
     try {
       const res = await fetch(`/api/v1/comments/${comment.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
       onChange();
     } catch (err: any) {
-      alert(err.message || 'Delete failed');
+      toast({ title: err.message || 'Delete failed', variant: 'error' });
     }
   };
 
   const acceptSolution = async () => {
-    if (!confirm('Mark this as the accepted solution? The author will receive reputation points.')) return;
     try {
       const res = await fetch(`/api/v1/posts/${postId}/accept`, {
         method: 'POST',
@@ -168,12 +172,12 @@ function SingleComment({
       if (!res.ok) throw new Error('Accept failed');
       onChange();
     } catch (err: any) {
-      alert(err.message || 'Accept failed');
+      toast({ title: err.message || 'Accept failed', variant: 'error' });
     }
   };
 
   const inner = isDeleted ? (
-    <p className="text-sm italic text-muted-foreground">[deleted]</p>
+    <p className="text-sm italic text-[var(--pm-muted)]">[deleted]</p>
   ) : editing ? (
     <form onSubmit={submitEdit} className="flex flex-col gap-2">
       <RichTextEditor
@@ -190,13 +194,13 @@ function SingleComment({
     </form>
   ) : (
     <div
-      className="prose prose-sm max-w-none text-foreground"
+      className="prose prose-sm max-w-none text-[var(--pm-ink)]"
       dangerouslySetInnerHTML={{ __html: comment.content }}
     />
   );
 
   return (
-    <li className={`flex gap-3 ${depth > 0 ? 'ml-8 border-l-2 border-border pl-3' : ''}`} role="listitem">
+    <li className={`flex gap-3 ${depth > 0 ? 'ml-8 border-l-2 border-[var(--pm-line)] pl-3' : ''}`} role="listitem">
       <Link href={`/u/${comment.author.userslug}`}>
         <Avatar
           src={comment.author.pictureUrl ?? undefined}
@@ -207,17 +211,17 @@ function SingleComment({
       </Link>
 
       <div className="flex-1">
-        <div className={`rounded-xl border p-4 ${isAccepted ? 'border-emerald-500 bg-emerald-50/50' : 'border-border bg-surface'}`}>
+        <div className={`rounded-xl border p-4 ${isAccepted ? 'border-[var(--pm-green)] bg-[var(--pm-green-bg)]/50' : 'border-[var(--pm-line)] bg-[var(--pm-paper-inset)]'}`}>
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm">
-              <Link href={`/u/${comment.author.userslug}`} className="font-medium hover:text-primary">
+              <Link href={`/u/${comment.author.userslug}`} className="font-medium hover:text-[var(--pm-coral-dark)]">
                 {comment.author.username}
               </Link>
-              <span className="text-muted-foreground">
+              <span className="text-[var(--pm-muted)]">
                 {comment.author.reputationScore} pts · {timeAgo(comment.createdAt)}
               </span>
               {isAccepted ? (
-                <Badge variant="emerald" className="gap-1">
+                <Badge variant="green" className="gap-1">
                   <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
                   Accepted solution
                 </Badge>
@@ -232,15 +236,15 @@ function SingleComment({
                   </Button>
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Portal>
-                  <DropdownMenu.Content className="z-50 min-w-[160px] rounded-xl border border-border bg-surface p-1 shadow-lg">
+                  <DropdownMenu.Content className="z-50 min-w-[160px] rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-1 shadow-lg">
                     {canAccept ? (
                       <DropdownMenu.Item asChild>
                         <button
                           type="button"
-                          onClick={acceptSolution}
-                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm outline-none hover:bg-muted"
+                          onClick={() => setConfirmAccept(true)}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm outline-none hover:bg-[var(--pm-paper-2)]"
                         >
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                          <CheckCircle2 className="h-4 w-4 text-[var(--pm-green)]" aria-hidden="true" />
                           Accept solution
                         </button>
                       </DropdownMenu.Item>
@@ -250,7 +254,7 @@ function SingleComment({
                         <button
                           type="button"
                           onClick={() => setEditing(true)}
-                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm outline-none hover:bg-muted"
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm outline-none hover:bg-[var(--pm-paper-2)]"
                         >
                           <Pencil className="h-4 w-4" aria-hidden="true" />
                           Edit
@@ -261,8 +265,8 @@ function SingleComment({
                       <DropdownMenu.Item asChild>
                         <button
                           type="button"
-                          onClick={handleDelete}
-                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-error outline-none hover:bg-muted"
+                          onClick={() => setConfirmDelete(true)}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--pm-danger)] outline-none hover:bg-[var(--pm-paper-2)]"
                         >
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
                           Delete
@@ -288,7 +292,7 @@ function SingleComment({
                 disabled={!currentUserId}
                 className="gap-1"
               >
-                <Heart className={`h-4 w-4 ${liked ? 'fill-rose-500 text-rose-500' : ''}`} aria-hidden="true" />
+                <Heart className={`h-4 w-4 ${liked ? 'fill-[var(--pm-coral)] text-[var(--pm-coral)]' : ''}`} aria-hidden="true" />
                 <span className="text-xs">{likeCount}</span>
               </Button>
 
@@ -303,6 +307,15 @@ function SingleComment({
                   <MessageSquare className="h-4 w-4" aria-hidden="true" />
                   <span className="text-xs">Reply</span>
                 </Button>
+              ) : null}
+
+              {currentUserId && !isAuthor ? (
+                <FlagDialog targetType="comment" targetId={comment.id}>
+                  <Button variant="ghost" size="sm" className="gap-1" aria-label="Flag comment">
+                    <Flag className="h-4 w-4" aria-hidden="true" />
+                    <span className="text-xs">Flag</span>
+                  </Button>
+                </FlagDialog>
               ) : null}
             </div>
           ) : null}
@@ -340,6 +353,24 @@ function SingleComment({
             ))}
           </ul>
         ) : null}
+
+        <ConfirmDialog
+          destructive
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title="Delete this comment?"
+          description="Replies will remain with a placeholder."
+          confirmLabel="Delete"
+          onConfirm={handleDelete}
+        />
+        <ConfirmDialog
+          open={confirmAccept}
+          onOpenChange={setConfirmAccept}
+          title="Mark this as the accepted solution?"
+          description="The author will receive reputation points."
+          confirmLabel="Accept"
+          onConfirm={acceptSolution}
+        />
       </div>
     </li>
   );

@@ -121,6 +121,7 @@ The following packages are now wired into the workspace:
 - Added `dotenv` loading to `e2e/helpers.ts` so `.env.local` and `.env` are read before validating `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `DATABASE_URL`.
 - Added `apps/web/.env.local.example` documenting every variable required for dev, build, and tests.
 - Fixed the TypeScript narrowing issue in `e2e/helpers.ts` (`databaseUrl: databaseUrl!`) so the E2E helpers build cleanly alongside the Next.js app.
+- Added `NEXT_PUBLIC_SITE_URL` to `docs/ENV-CHECKLIST.md` and wired OAuth/email/password-reset redirects in `apps/web/lib/site-url.ts`, `LoginForm.tsx`, and `ForgotPasswordForm.tsx` to use the canonical public URL instead of defaulting to `localhost` in production.
 - Created `docs/TESTING.md` describing the Playwright and Vitest harnesses, required env vars, and test conventions.
 - Updated `docs/ENV-CHECKLIST.md` to reference the new `.env.local.example` template.
 - Created `README.md` with quick-start, stack, workspace layout, scripts, and links to runbooks.
@@ -146,3 +147,52 @@ The following packages are now wired into the workspace:
 - `pnpm --filter @pm-operator/db db:seed` completes successfully and populates the dev database with groups, users, posts, comments, reactions, badges, tiers, and watched phrases.
 - `pnpm typecheck` passes for all workspace packages.
 - `pnpm build` produces a production Next.js 16 bundle for `apps/web`.
+
+## Phase 1 MVP — OAuth redirect fix and Paper v3 design system
+
+### OAuth / email redirect fix
+
+- Created `apps/web/lib/site-url.ts` with `getSiteUrl()` and `getAuthCallbackUrl(returnUrl)` helpers.
+- Updated `apps/web/app/login/LoginForm.tsx` and `apps/web/app/forgot-password/ForgotPasswordForm.tsx` to construct `redirectTo` from `NEXT_PUBLIC_SITE_URL` instead of defaulting to `window.location.origin`.
+- `apps/web/app/auth/callback/route.ts` already exchanges the code and redirects to the original `returnUrl`.
+- Added the production OAuth redirect checklist to `docs/ENV-CHECKLIST.md`.
+
+### Paper v3 design system rollout
+
+- Extracted tokens from `PromptMetrics Paper v3-handoff.zip` and defined `--pm-*` custom properties in `apps/web/app/globals.css`, with Tailwind v4 `@theme` aliases so existing semantic classes keep working.
+- Applied Paper v3 styling across auth surfaces (`login`, `forgot-password`), community surfaces (`feed`, `group`, `post detail`, `leaderboards`, `notifications`, `search`, `settings`, `comments`, `profile`), and admin surfaces (`admin`, `users`, `moderation`, `badges`, `groups`, `watched-phrases`).
+- Updated shared UI primitives in `packages/ui/src/components` (`Button`, `Card`, `Input`, `Badge`, `Avatar`) and added `Tag` for color-tinted group/category chips.
+- Replaced remaining hard-coded Tailwind colors (`rose-500`, `amber-500`, `black/50`, `indigo-*`) with Paper v3 `--pm-*` tokens.
+- Added `data-theme="paper"` / `pm-v3` class wiring in `apps/web/app/layout.tsx`.
+
+### Build / test resilience
+
+- Made `apps/web/lib/db.ts` and `apps/web/e2e/helpers.ts` resilient to a missing or malformed `DATABASE_URL`, so builds and module load do not crash; instead they surface a clear error when a query is actually attempted.
+- Set `turbopack.root` in `apps/web/next.config.ts` to `/Users/izzy/Documents/pm-operator`, silencing the Next.js lockfile-inference warning.
+
+### Phase 1 status
+
+- `pnpm turbo typecheck --filter=@pm-operator/web` passes.
+- `pnpm --filter @pm-operator/web build` passes and produces the production route tree.
+- `pnpm turbo typecheck build --force` passes for all 11 workspace tasks.
+- `pnpm --filter @pm-operator/web test:unit` passes after the user fixed the malformed `DATABASE_URL` in `apps/web/.env.local`.
+- `pnpm turbo lint --filter=@pm-operator/web` still fails. In Next.js 16 the `next lint` command no longer exists; the repo needs to migrate to a direct `eslint` invocation with either a flat `eslint.config.*` or an `.eslintrc` plus `ESLINT_USE_FLAT_CONFIG=false`. This is a separate tooling setup task and is not blocking `next build`.
+- The subagent worktree at `.claude/worktrees/agent-ace9a4cee72e114c8` has been removed; its uncommitted Paper v3 edits were duplicates of changes already in the main tree.
+- Production deploy completed: `https://operator.promptmetrics.dev` (Vercel project `pm-operator`, alias of deployment `dpl_8pu7U8hHEY1e9NtjdiRN9K2qB3vA`).
+
+### Production deploy
+
+- Vercel project: `izzys-projects-a549ecbc/pm-operator`
+- Production URL: `https://operator.promptmetrics.dev`
+- Deployed at: 2026-07-31 via `npx vercel --prod`
+- `NEXT_PUBLIC_SITE_URL=https://operator.promptmetrics.dev` added to the Vercel Production environment and baked into the build.
+- Smoke test: `GET /` → `307` → `200` at `/feed`.
+
+### Required user actions
+
+1. ✅ Fix `DATABASE_URL` in `apps/web/.env.local` — completed by user; unit tests now pass.
+2. ✅ Set `NEXT_PUBLIC_SITE_URL=https://operator.promptmetrics.dev` in Vercel — completed.
+3. In the Supabase Auth dashboard, set **Site URL** to `https://operator.promptmetrics.dev` and add `https://operator.promptmetrics.dev/auth/callback` to **Redirect URLs**.
+4. Update the Google Cloud Console and GitHub OAuth apps so the redirect URI is `https://operator.promptmetrics.dev/auth/callback`.
+5. ✅ Review/remove the subagent worktree — completed.
+6. Run `pnpm --filter @pm-operator/web test:unit` and `pnpm --filter @pm-operator/web test:e2e` against the production build to confirm OAuth and community flows.

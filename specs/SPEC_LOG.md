@@ -160,3 +160,32 @@
 
 ### Early docs (01-04)
 - Added historical-context banners and updated the most misleading stale assumptions (free tier, timeline, email, MCP SDK, access model).
+
+## 2026-08-01 — Community-portal redesign decisions (D1–D10)
+
+Source: `docs/DESIGN-GAP-REPORT.md` (gap analysis of Claude Design project `55d76da1-9a60-4a26-bf65-2490c4f2dda6` vs repo + specs). Decisions made by Izzy 2026-08-01.
+
+### Point economy (D1)
+- **The displayed economy is canonical: topic_created 10, comment_created 5, solution_accepted 25.** The technical-spec §9 table (5/3/8) and the shipped engine (5/2/25, weights inline at call sites) are both superseded; engine weights will be centralized and retuned.
+- Existing `point_events` rows keep their historical values — **no backfill**; reputation drift between old and new rates is accepted.
+
+### Streaks (D2/D3) — supersedes 07-ux-spec.md "Streaks" rules
+- Streaks advance on **post or comment activity** (not only daily visits), pay a **+2/day streak bonus** (capped, idempotent per UTC day, new `streak_bonus` point event), and track `users.longest_streak_days` (new column).
+- Overrides: "Streaks do not award extra points" (07-ux-spec:684) and "derived only from daily_visit events" (07-ux-spec:681).
+
+### Design drops spec'd features — plan wins, relocate (D4/D6/D8/D9)
+- Flag control stays, moved to a "…" overflow menu on posts **and comments** (comment flagging UI was missing pre-redesign — MOD-1 violation to fix).
+- Notification bell stays in the header alongside the design's points/level/streak cluster.
+- Circle page keeps pinned resources/Lessons, group leaderboard, and invite/manage buttons within the new layout.
+- TipTap rich-text composer with @mentions stays, restyled as the design's pill composer.
+
+### Scope additions (D5, D10 + v1 scope call)
+- **All four optional domains are IN for v1:** Share button (navigator.share + copy-link), weekly digest, community events (Upcoming widget + events domain), and **Follow + Message (user following + DMs)** — explicitly overruling the PRD §2/§10 post-MVP deferral of DMs. DMs require a spec addendum (tables/contracts not yet designed).
+
+### Responsive (D7)
+- The five comps are the **desktop** spec (min-width 1100px); mobile/tablet layouts are derived from the existing Tailwind breakpoints. No regression of current responsive behavior.
+
+### Open questions raised
+- Level ladder confirmed as designed (Lv1 Newcomer 0 / Lv2 Builder 100 / Lv3 Contributor 400 / Lv4 Operator 900 / Lv5 Senior operator 1,500 / Lv6 Legend 3,000) against the 10/5/25 economy; revisit thresholds if inflation observed.
+- Streak-bonus cap value (default proposal: bonus stops counting past 30 consecutive days) — confirm with PM before WS2.
+- DM data model (tables, retention, GDPR erasure path) — spec addendum required before WS9 build.

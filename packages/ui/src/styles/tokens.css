@@ -1,159 +1,175 @@
 @import "tailwindcss";
 
+/*
+ * PromptMetrics Paper v3 — canonical token sheet.
+ * Single source of truth for the --pm-* custom properties and the Tailwind
+ * theme scales. App-level layers (font loading, base element styles) live in
+ * apps/web/app/globals.css, whose semantic aliases resolve to the --pm-*
+ * values defined here. Light-mode only by design (SPEC_LOG 2026-08-01).
+ */
+
 @theme {
-  /* Paper surfaces: warm slate scale for backgrounds, borders, and text. */
+  /* Paper v3 primitives — warm cream palette */
   --color-paper-50: #f8fafc;
-  --color-paper-100: #f1f5f9;
-  --color-paper-200: #e2e8f0;
-  --color-paper-300: #cbd5e1;
-  --color-paper-400: #94a3b8;
-  --color-paper-500: #64748b;
-  --color-paper-600: #475569;
-  --color-paper-700: #334155;
-  --color-paper-800: #1e293b;
+  --color-paper-100: #efe8db;
+  --color-paper-200: #e9e0cf;
+  --color-paper-300: #ddd3c4;
+  --color-paper-400: #cabfac;
+  --color-paper-500: #8c8275;
+  --color-paper-600: #6f665a;
+  --color-paper-700: #43403a;
+  --color-paper-800: #1c1c1c;
   --color-paper-900: #0f172a;
-  --color-paper-950: #020617;
 
-  /* Indigo accent for primary actions, links, and focus rings. */
-  --color-indigo-50: #eef2ff;
-  --color-indigo-100: #e0e7ff;
-  --color-indigo-200: #c7d2fe;
-  --color-indigo-300: #a5b4fc;
-  --color-indigo-400: #818cf8;
-  --color-indigo-500: #6366f1;
-  --color-indigo-600: #4f46e5;
-  --color-indigo-700: #4338ca;
-  --color-indigo-800: #3730a3;
-  --color-indigo-900: #312e81;
-  --color-indigo-950: #1e1b4b;
+  --color-coral-50: #f3ddd6;
+  --color-coral-100: #f3ddd6;
+  --color-coral-200: #e08a6c;
+  --color-coral-300: #d97757;
+  --color-coral-400: #a94d30;
+  --color-coral-500: #a1482a;
+  --color-coral-600: #8f3324;
+  --color-coral-700: #2a160e;
 
-  /* Rose for errors and destructive actions. */
-  --color-rose-50: #fff1f2;
-  --color-rose-100: #ffe4e6;
-  --color-rose-200: #fecdd3;
-  --color-rose-300: #fda4af;
-  --color-rose-400: #fb7185;
-  --color-rose-500: #f43f5e;
-  --color-rose-600: #e11d48;
-  --color-rose-700: #be123c;
-  --color-rose-800: #9f1239;
-  --color-rose-900: #881337;
-  --color-rose-950: #4c0519;
+  --color-green-50: #e4ece2;
+  --color-green-100: #cdd9c8;
+  --color-green-200: #8fb89a;
+  --color-green-500: #3a6447;
 
-  /* Emerald for success states and positive signals. */
-  --color-emerald-50: #ecfdf5;
-  --color-emerald-100: #d1fae5;
-  --color-emerald-200: #a7f3d0;
-  --color-emerald-300: #6ee7b7;
-  --color-emerald-400: #34d399;
-  --color-emerald-500: #10b981;
-  --color-emerald-600: #059669;
-  --color-emerald-700: #047857;
-  --color-emerald-800: #065f46;
-  --color-emerald-900: #064e3b;
-  --color-emerald-950: #022c22;
+  --color-amber-50: #f1e4cf;
+  --color-amber-100: #e0d0b0;
+  --color-amber-200: #d4a564;
+  --color-amber-500: #7a4d18;
 
-  /* Semantic aliases */
-  --color-background: var(--color-paper-50);
-  --color-foreground: var(--color-paper-900);
-  --color-surface: #ffffff;
-  --color-surface-elevated: #ffffff;
-  --color-border: var(--color-paper-200);
-  --color-border-strong: var(--color-paper-300);
-  --color-muted: var(--color-paper-100);
-  --color-muted-foreground: var(--color-paper-500);
-  --color-accent: var(--color-indigo-600);
-  --color-accent-hover: var(--color-indigo-700);
-  --color-accent-foreground: #ffffff;
-  --color-error: var(--color-rose-600);
-  --color-error-background: var(--color-rose-50);
-  --color-success: var(--color-emerald-600);
-  --color-success-background: var(--color-emerald-50);
-  --color-ring: var(--color-indigo-500);
+  --color-blue-50: #dde7ee;
+  --color-blue-100: #c7d2fe;
+  --color-blue-200: #82a8c4;
+  --color-blue-500: #2f5675;
 
-  /* Typography */
-  --font-sans:
-    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono:
-    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
-    monospace;
+  /* Semantic aliases mapped to Paper v3 primitives */
+  --color-background: var(--pm-paper);
+  --color-foreground: var(--pm-ink);
+  --color-primary: var(--pm-coral);
+  --color-primary-foreground: var(--pm-on-ink);
+  --color-secondary: var(--pm-paper-2);
+  --color-secondary-foreground: var(--pm-ink);
+  --color-muted: var(--pm-paper-2);
+  --color-muted-foreground: var(--pm-muted);
+  --color-accent: var(--pm-coral);
+  --color-accent-hover: var(--pm-coral-dark);
+  --color-accent-foreground: var(--pm-on-ink);
+  --color-surface: var(--pm-paper-2);
+  --color-surface-elevated: var(--pm-paper-inset);
+  --color-border: var(--pm-line);
+  --color-border-strong: var(--pm-line-2);
+  --color-ring: var(--pm-coral);
+  --color-error: var(--pm-danger);
+  --color-error-background: var(--pm-danger-bg);
+  --color-success: var(--pm-green);
+  --color-success-background: var(--pm-green-bg);
 
-  --text-xs: 0.75rem;
-  --text-xs--line-height: 1rem;
-  --text-sm: 0.875rem;
-  --text-sm--line-height: 1.25rem;
-  --text-base: 1rem;
-  --text-base--line-height: 1.5rem;
-  --text-lg: 1.125rem;
-  --text-lg--line-height: 1.75rem;
-  --text-xl: 1.25rem;
-  --text-xl--line-height: 1.75rem;
-  --text-2xl: 1.5rem;
-  --text-2xl--line-height: 2rem;
-  --text-3xl: 1.875rem;
-  --text-3xl--line-height: 2.25rem;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Fraunces', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
 
-  /* Spacing scale */
-  --spacing-px: 1px;
-  --spacing-0: 0px;
-  --spacing-0\.5: 0.125rem;
-  --spacing-1: 0.25rem;
-  --spacing-1\.5: 0.375rem;
-  --spacing-2: 0.5rem;
-  --spacing-2\.5: 0.625rem;
-  --spacing-3: 0.75rem;
-  --spacing-3\.5: 0.875rem;
-  --spacing-4: 1rem;
-  --spacing-5: 1.25rem;
-  --spacing-6: 1.5rem;
-  --spacing-7: 1.75rem;
-  --spacing-8: 2rem;
-  --spacing-9: 2.25rem;
-  --spacing-10: 2.5rem;
-  --spacing-11: 2.75rem;
-  --spacing-12: 3rem;
-  --spacing-14: 3.5rem;
-  --spacing-16: 4rem;
-
-  /* Radii */
-  --radius-none: 0px;
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
-  --radius-full: 9999px;
-
-  /* Shadows */
-  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --radius: 0.75rem;
 }
 
 :root {
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --color-background: var(--color-paper-950);
-    --color-foreground: var(--color-paper-50);
-    --color-surface: var(--color-paper-900);
-    --color-surface-elevated: var(--color-paper-800);
-    --color-border: var(--color-paper-800);
-    --color-border-strong: var(--color-paper-700);
-    --color-muted: var(--color-paper-900);
-    --color-muted-foreground: var(--color-paper-400);
-    --color-accent: var(--color-indigo-500);
-    --color-accent-hover: var(--color-indigo-400);
-    --color-accent-foreground: #ffffff;
-    --color-error: var(--color-rose-500);
-    --color-error-background: var(--color-rose-950);
-    --color-success: var(--color-emerald-500);
-    --color-success-background: var(--color-emerald-950);
-    --color-ring: var(--color-indigo-400);
-  }
+[data-theme='paper'] {
+  color-scheme: light;
+
+  /* Surfaces */
+  --pm-paper: #f4efe7;
+  --pm-paper-2: #efe8db;
+  --pm-paper-3: #e9e0cf;
+  --pm-paper-inset: #fbfaf6;
+  --pm-bg: var(--pm-paper);
+
+  /* Text */
+  --pm-ink: #1c1c1c;
+  --pm-ink-2: #43403a;
+  --pm-muted: #6f665a;
+  --pm-muted-soft: #8c8275;
+  --pm-on-ink: #f4efe7;
+  --pm-link: #a94d30;
+
+  /* Brand / accents */
+  --pm-coral: #d97757;
+  --pm-coral-dark: #a1482a;
+  --pm-coral-ink: #2a160e;
+  --pm-coral-tint: color-mix(in srgb, #d97757 12%, transparent);
+  --pm-coral-tint-10: color-mix(in srgb, #d97757 10%, transparent);
+  --pm-brand: var(--pm-coral);
+  --pm-green: #3a6447;
+  --pm-green-bg: #e4ece2;
+  --pm-green-line: #cdd9c8;
+  --pm-amber: #7a4d18;
+  --pm-amber-bg: #f1e4cf;
+  --pm-amber-line: #e0d0b0;
+  --pm-blue: #2f5675;
+  --pm-blue-bg: #dde7ee;
+  --pm-danger: #8f3324;
+  --pm-danger-bg: #f3ddd6;
+
+  /* Lines */
+  --pm-line: #ddd3c4;
+  --pm-line-2: #cabfac;
+
+  /* Category hues */
+  --pm-cat-finance: #2f5675;
+  --pm-cat-education: #3a6349;
+  --pm-cat-sales: #6f5012;
+  --pm-cat-marketing: #6f4675;
+  --pm-cat-professional: #465777;
+
+  /* Radius */
+  --pm-radius-xs: 0.25rem;
+  --pm-radius-sm: 0.375rem;
+  --pm-radius-md: 0.5rem;
+  --pm-radius-lg: 0.75rem;
+  --pm-radius-xl: 1rem;
+  --pm-radius-pill: 9999px;
+
+  /* Spacing (4px scale) */
+  --pm-space-1: 0.25rem;
+  --pm-space-2: 0.5rem;
+  --pm-space-3: 0.75rem;
+  --pm-space-4: 1rem;
+  --pm-space-5: 1.25rem;
+  --pm-space-6: 1.5rem;
+  --pm-space-8: 2rem;
+  --pm-space-10: 2.5rem;
+  --pm-space-12: 3rem;
+  --pm-space-16: 4rem;
+  --pm-space-20: 5rem;
+
+  /* Vertical rhythm for section bands */
+  --pm-rhythm-sm: 2.5rem;
+  --pm-rhythm: 4rem;
+  --pm-rhythm-lg: 6rem;
+
+  /* Type scale */
+  --pm-text-xs: 0.75rem;
+  --pm-text-sm: 0.875rem;
+  --pm-text-base: 1rem;
+  --pm-text-lg: 1.125rem;
+  --pm-text-xl: 1.25rem;
+  --pm-text-2xl: 1.5rem;
+  --pm-text-3xl: 1.875rem;
+  --pm-text-4xl: 2.25rem;
+  --pm-text-5xl: 3rem;
+  --pm-text-6xl: 3.75rem;
+
+  /* Elevation & focus */
+  --pm-shadow: 0 1px 2px rgba(28, 28, 28, 0.04), 0 8px 24px rgba(28, 28, 28, 0.06);
+  --pm-shadow-lg: 0 4px 12px rgba(28, 28, 28, 0.08), 0 24px 60px rgba(28, 28, 28, 0.16);
+  --pm-focus: 0 0 0 2px var(--pm-paper), 0 0 0 4px var(--pm-coral);
+
+  /* Fonts */
+  --pm-font-serif: 'Fraunces', Georgia, serif;
+  --pm-font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --pm-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
 }

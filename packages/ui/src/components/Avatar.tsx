@@ -21,6 +21,7 @@ export interface AvatarProps extends React.ComponentPropsWithoutRef<typeof Avata
   alt: string;
   fallback?: string;
   size?: AvatarSize;
+  badge?: React.ReactNode;
 }
 
 const sizeClasses: Record<AvatarSize, string> = {
@@ -34,12 +35,12 @@ const sizeClasses: Record<AvatarSize, string> = {
 export const Avatar = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Root>,
   AvatarProps
->(({ className, src, alt, fallback, size = "md", ...props }, ref) => {
-  return (
+>(({ className, src, alt, fallback, size = "md", badge, ...props }, ref) => {
+  const avatar = (
     <AvatarPrimitive.Root
       ref={ref}
       className={cn(
-        "relative inline-flex shrink-0 overflow-hidden rounded-full bg-muted",
+        "relative inline-flex shrink-0 overflow-hidden rounded-full bg-[var(--pm-paper-2)]",
         sizeClasses[size],
         className
       )}
@@ -52,12 +53,21 @@ export const Avatar = React.forwardRef<
       />
       <AvatarPrimitive.Fallback
         delayMs={src ? 600 : 0}
-        className="flex h-full w-full items-center justify-center bg-paper-300 font-medium text-paper-800"
+        className="flex h-full w-full items-center justify-center bg-[var(--pm-paper-3)] font-medium text-[var(--pm-ink)]"
         aria-label={fallback ? `${fallback} avatar` : alt}
       >
         {fallback ? initialsFromName(fallback) : alt.slice(0, 2).toUpperCase()}
       </AvatarPrimitive.Fallback>
     </AvatarPrimitive.Root>
+  );
+
+  if (!badge) return avatar;
+
+  return (
+    <span className="relative inline-flex shrink-0">
+      {avatar}
+      <span className="absolute -bottom-1 -right-1">{badge}</span>
+    </span>
   );
 });
 Avatar.displayName = "Avatar";

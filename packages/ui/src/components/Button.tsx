@@ -3,7 +3,7 @@ import { Slot } from "@radix-ui/react-slot";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonVariant = "primary" | "coral" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -14,17 +14,19 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 export function buttonVariants(variant: ButtonVariant = "primary", size: ButtonSize = "md"): string {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50";
+    "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus:outline-none focus-visible:shadow-[var(--pm-focus)] disabled:pointer-events-none disabled:opacity-60";
 
   const variants: Record<ButtonVariant, string> = {
     primary:
-      "bg-accent text-accent-foreground hover:bg-accent-hover shadow-sm",
+      "bg-[var(--pm-coral)] text-[var(--pm-on-ink)] hover:bg-[var(--pm-coral-dark)] shadow-[var(--pm-shadow)]",
+    coral:
+      "bg-[var(--pm-coral)] text-[var(--pm-on-ink)] hover:bg-[var(--pm-coral-dark)] shadow-[var(--pm-shadow)]",
     secondary:
-      "bg-surface text-foreground border border-border hover:bg-muted",
+      "bg-[var(--pm-paper-2)] text-[var(--pm-ink)] border border-[var(--pm-line)] hover:bg-[var(--pm-paper-3)] hover:border-[var(--pm-line-2)]",
     ghost:
-      "text-foreground hover:bg-muted",
+      "text-[var(--pm-ink)] hover:bg-[var(--pm-paper-2)]",
     danger:
-      "bg-error text-white hover:bg-rose-700 shadow-sm",
+      "bg-[var(--pm-danger)] text-[var(--pm-on-ink)] hover:bg-[var(--pm-danger)]/90 shadow-[var(--pm-shadow)]",
   };
 
   const sizes: Record<ButtonSize, string> = {

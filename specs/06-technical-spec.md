@@ -1641,14 +1641,17 @@ CREATE INDEX notifications_user_created_idx ON notifications (user_id, created_a
 
 | Event | Points | Idempotency |
 |---|---|---|
-| `topic_created` | 5 | unique `(user_id, event_type, source_id)` where `source_id = post_id` |
-| `comment_created` | 3 | unique `(user_id, event_type, source_id)` where `source_id = comment_id` |
-| `solution_accepted` | 8 | one per `post.accepted_comment_id`; awarded to comment author |
+| `topic_created` | 10 | unique `(user_id, event_type, source_id)` where `source_id = post_id` |
+| `comment_created` | 5 | unique `(user_id, event_type, source_id)` where `source_id = comment_id` |
+| `solution_accepted` | 25 | one per `post.accepted_comment_id`; awarded to comment author |
 | `like_received` | 2 | enforced by `reactions` unique constraint; trigger awards on insert |
 | `like_given` | 1 | enforced by `reactions` unique constraint; capped via `user_daily_stats` |
 | `invite_accepted` | 5 | one per `group_invites.id`; awarded to inviter |
 | `posts_read` | 0.5 | capped per UTC day via `user_daily_stats` |
 | `daily_visit` | 0.5 | one per UTC day via partial unique index on `point_events` |
+| `streak_bonus` | 2 | one per UTC day (partial unique index); only on days the streak advances via post/comment activity; bonus capped at 30 consecutive days |
+
+> **2026-08-01 (SPEC_LOG "Community-portal redesign decisions"):** weights retuned to the displayed economy (10/5/25) — the previous 5/3/8 table is superseded; `streak_bonus` added per decision D2/D3. Historical `point_events` keep their original values (no backfill).
 
 ### 9.2 Atomic point award service
 

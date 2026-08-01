@@ -86,12 +86,23 @@ function orderByClause(sort: SortValue) {
   }
 }
 
+function viewerHasLikedPostSql(currentUserId: string | undefined) {
+  if (!currentUserId) return sql<boolean>`false`;
+  return sql<boolean>`exists (
+    select 1 from ${schema.reactions}
+    where ${schema.reactions.userId} = ${currentUserId}
+      and ${schema.reactions.targetType} = 'post'
+      and ${schema.reactions.targetId} = ${schema.posts.id}
+  )`;
+}
+
 async function toPostListItem(
   row: {
     post: typeof schema.posts.$inferSelect;
     group: typeof schema.groups.$inferSelect;
     author: typeof schema.users.$inferSelect;
     acceptedSolutions: string | number | null;
+    viewerHasLiked?: boolean | null;
   }
 ): Promise<PostListItem> {
   return {
@@ -103,6 +114,7 @@ async function toPostListItem(
     group: {
       slug: row.group.slug,
       name: row.group.name,
+      color: row.group.color,
     },
     author: {
       userslug: row.author.userslug,
@@ -115,6 +127,7 @@ async function toPostListItem(
     viewCount: row.post.viewCount,
     tags: row.post.tags,
     createdAt: toISO(row.post.createdAt),
+    viewerHasLiked: Boolean(row.viewerHasLiked),
   };
 }
 
@@ -149,6 +162,7 @@ export async function listFeed(
       group: schema.groups,
       author: schema.users,
       acceptedSolutions: asCount.count,
+      viewerHasLiked: viewerHasLikedPostSql(currentUserId),
     })
     .from(schema.posts)
     .innerJoin(schema.groups, eq(schema.posts.groupId, schema.groups.id))
@@ -202,6 +216,7 @@ export async function getPostById(
       group: schema.groups,
       author: schema.users,
       acceptedSolutions: asCount.count,
+      viewerHasLiked: viewerHasLikedPostSql(currentUserId),
     })
     .from(schema.posts)
     .innerJoin(schema.groups, eq(schema.posts.groupId, schema.groups.id))
@@ -216,7 +231,7 @@ export async function getPostById(
     .limit(1);
 
   if (!row[0]) return null;
-  const { post, group, author, acceptedSolutions } = row[0];
+  const { post, group, author, acceptedSolutions, viewerHasLiked } = row[0];
 
   return {
     id: post.id,
@@ -235,6 +250,7 @@ export async function getPostById(
     acceptedCommentId: post.acceptedCommentId,
     createdAt: toISO(post.createdAt),
     updatedAt: toISO(post.updatedAt),
+    viewerHasLiked: Boolean(viewerHasLiked),
     group: {
       id: group.id,
       slug: group.slug,

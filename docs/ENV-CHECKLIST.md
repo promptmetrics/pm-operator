@@ -27,6 +27,7 @@ This checklist documents every environment variable used by `operator.promptmetr
 |----------|-------|---------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Public | Supabase project URL used by browser, middleware, and server SSR clients. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public | Supabase anon key used by browser, middleware, and server SSR clients. |
+| `NEXT_PUBLIC_SITE_URL` | Public | Canonical public site URL used for OAuth/email redirects and callback construction. Must match the production domain (e.g., `https://operator.promptmetrics.dev`). |
 
 ## Feature flags
 
@@ -68,3 +69,18 @@ Copy `apps/web/.env.local.example` to `apps/web/.env.local` and fill in real val
 - Server-only secrets (`SUPABASE_SERVICE_ROLE_KEY`, `LOOPS_API_KEY`, `MCP_TOKEN_SECRET`, `OPENAI_API_KEY`) must never be referenced in client bundles or logs.
 - `MCP_ENABLED` is the source-of-truth feature flag for the MCP route. `NEXT_PUBLIC_MCP_ENABLED` is a legacy name and should not be used in new configuration.
 - The web app reads all Supabase values from `NEXT_PUBLIC_SUPABASE_*`; `SUPABASE_URL` / `SUPABASE_ANON_KEY` are tolerated as aliases but are not required.
+
+## Production OAuth redirect checklist
+
+For Google/GitHub/email sign-in to redirect to the right origin, configure both Vercel and the Supabase Auth dashboard:
+
+1. **Vercel / deployment environment**
+   - Set `NEXT_PUBLIC_SITE_URL=https://operator.promptmetrics.dev` (no trailing slash).
+2. **Supabase Auth → URL configuration**
+   - **Site URL:** `https://operator.promptmetrics.dev`
+   - **Redirect URLs:** add `https://operator.promptmetrics.dev/auth/callback`
+3. **OAuth provider consoles**
+   - **Google Cloud Console:** Authorized redirect URI must be `https://operator.promptmetrics.dev/auth/callback`.
+   - **GitHub OAuth app:** Authorization callback URL must be `https://operator.promptmetrics.dev/auth/callback`.
+
+The app constructs the callback URL in `apps/web/lib/site-url.ts` using `NEXT_PUBLIC_SITE_URL`, and `apps/web/app/auth/callback/route.ts` exchanges the code and sends the user to the original `returnUrl`.

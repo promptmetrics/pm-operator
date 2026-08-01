@@ -127,13 +127,13 @@ export function CreatePostModal({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-in" />
+        <Dialog.Overlay className="fixed inset-0 bg-[var(--pm-ink)]/50 data-[state=open]:animate-in" />
         <Dialog.Content
-          className="fixed left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-6 shadow-lg focus:outline-none md:w-full"
+          className="fixed left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-6 shadow-[var(--pm-shadow-lg)] focus:outline-none md:w-full"
           aria-describedby="create-post-desc"
         >
           <div className="flex items-center justify-between pb-4">
-            <Dialog.Title className="text-lg font-semibold">New post</Dialog.Title>
+            <Dialog.Title className="font-serif text-lg font-semibold text-[var(--pm-ink)]">New post</Dialog.Title>
             <Dialog.Close asChild>
               <Button variant="ghost" size="sm" aria-label="Close">
                 <X className="h-4 w-4" aria-hidden="true" />
@@ -155,14 +155,14 @@ export function CreatePostModal({
             />
 
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="circle-select" className="text-sm font-medium text-foreground">
+              <label htmlFor="circle-select" className="text-sm font-medium text-[var(--pm-ink)]">
                 Circle
               </label>
               <select
                 id="circle-select"
                 value={groupSlug}
                 onChange={(e) => setGroupSlug(e.target.value)}
-                className="h-10 rounded-lg border border-border bg-surface px-3 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-10 rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-3 text-[var(--pm-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pm-coral)]"
               >
                 {groups.map((g) => (
                   <option key={g.slug} value={g.slug}>
@@ -173,13 +173,13 @@ export function CreatePostModal({
             </div>
 
             <fieldset className="flex flex-col gap-2">
-              <legend className="text-sm font-medium text-foreground">Type</legend>
+              <legend className="text-sm font-medium text-[var(--pm-ink)]">Type</legend>
               <div className="flex flex-wrap gap-2">
                 {(['question', 'build', 'discussion'] as PostType[]).map((t) => (
                   <label
                     key={t}
                     className={`flex cursor-pointer items-center gap-1 rounded-full border px-3 py-1 text-sm ${
-                      type === t ? 'border-primary bg-primary/10' : 'border-border'
+                      type === t ? 'border-[var(--pm-coral)] bg-[var(--pm-coral-tint-10)]' : 'border-[var(--pm-line)]'
                     }`}
                   >
                     <input
@@ -206,8 +206,8 @@ export function CreatePostModal({
             ) : null}
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-foreground">Tags</label>
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-2 py-1">
+              <label className="text-sm font-medium text-[var(--pm-ink)]">Tags</label>
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-2 py-1">
                 {tags.map((t) => (
                   <Badge key={t} variant="default" className="gap-1">
                     #{t}
@@ -236,11 +236,11 @@ export function CreatePostModal({
                   className="flex-1 bg-transparent px-2 py-1 text-sm outline-none"
                 />
               </div>
-              {tags.length >= 5 ? <p className="text-xs text-error">Use up to 5 tags.</p> : null}
+              {tags.length >= 5 ? <p className="text-xs text-[var(--pm-danger)]">Use up to 5 tags.</p> : null}
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-foreground">Body</label>
+              <label className="text-sm font-medium text-[var(--pm-ink)]">Body</label>
               <RichTextEditor
                 value={body}
                 onChange={(html, text) => {
@@ -250,12 +250,12 @@ export function CreatePostModal({
                 placeholder="Add details..."
               />
               {error && body.trim().length === 0 ? (
-                <p className="text-sm text-error">{error}</p>
+                <p className="text-sm text-[var(--pm-danger)]">{error}</p>
               ) : null}
             </div>
 
             {error && !error.includes('Title') && !error.includes('body') && !error.includes('Circle') ? (
-              <p className="text-sm text-error" role="alert">
+              <p className="text-sm text-[var(--pm-danger)]" role="alert">
                 {error}
               </p>
             ) : null}

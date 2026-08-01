@@ -1,0 +1,201 @@
+# Design Gap Report & Action Plan — Community Portal
+
+**Date:** 2026-08-01
+**Design source:** Claude Design project `55d76da1-9a60-4a26-bf65-2490c4f2dda6` — pages `Feed.dc.html`, `Post.dc.html`, `Circle.dc.html`, `Profile.dc.html`, `Leaderboards.dc.html` + Paper v3 DS bundle (`promptmetric-next@0.1.0`, 57 components, 308 tokens). Skool × daily.dev hybrid in the PromptMetrics Paper v3 system.
+**Compared against:** this repo (commit `6e8ebae`) and the original plan (`specs/05-prd.md`, `specs/06-technical-spec.md`, `specs/07-ux-spec.md`, `specs/08-roadmap.md`, `specs/SPEC_LOG.md`, `docs/*`).
+**Method:** design import via DesignSync; 36 gap candidates compiled with evidence triples; every candidate adversarially verified by a 13-agent workflow against the actual repo and spec text (35 CONFIRMED / 5 PARTIAL / 0 REFUTED), plus a completeness pass that surfaced 11 additional items. Independent spot-checks re-ran 5 claims. Every gap below cites: the design element, the repo location or verified absence, and the plan reference.
+
+---
+
+## Executive summary
+
+The design is buildable on the current architecture — same Paper v3 tokens, same header shell, same data domains — but it is **not a reskin**. It introduces four net-new feature domains (bookmarks, operator levels, events, weekly digest), upgrades three existing domains (streaks, leaderboards, spotlights) beyond what the schema supports, and restructures every page. Three findings matter most:
+
+1. **The point economy is in three-way conflict.** The design (and today's live sidebar copy) promises +10 post / +5 comment / +25 solution / +2-per-day streak bonus. The technical spec says 5 / 3 / 8 / no streak points (`specs/06-technical-spec.md:1642-1651`, `specs/07-ux-spec.md:684`). The shipped engine awards 5 / 2 / 25 / nothing (`apps/web/app/api/v1/posts/route.ts:34`, `apps/web/lib/services/comments.ts:181,327`). The design's level thresholds (100/400/900/1500/3000) only make sense against one chosen economy. **Decision D1 blocks levels, streaks, and leaderboard work.**
+2. **The design silently drops spec'd, partly-shipped features.** No Flag control, no notification bell, no rich-text comment composer, no pinned-resources/leaderboard/invite surfaces on the circle page. Implementing the comps literally would regress PRD Must requirements (MOD-1, NOTIF-1..5, GROUP-6/7, GAME-6, INVITE-1/4) and drop @mentions. Each needs a keep-and-relocate decision, not a code task.
+3. **The streak feature is fiction end-to-end.** `users.streak_days` is never written by any code path; the daily-visit endpoint has no frontend caller; the UX spec's own streak rules are unimplemented. The design's streak pill, week grid, best-streak, and +2 bonus all sit on a pipeline that doesn't exist.
+
+Scale estimate: ~6 schema migrations, ~10 new/changed API surfaces, ~2 new background jobs, a component-library build-out (Chip/Toast/Tabs/Progress/LevelBadge…), and a page-by-page frontend rebuild. Workstream detail in Part 2.
+
+---
+
+## Part 1 — Gap report
+
+Severity: **[P]** parity-blocker · **[E]** enhancement · **[C]** design↔plan conflict needing a product decision. Verdicts are from the adversarial verification pass.
+
+### 1. Conflicts requiring decisions before any build (all [C])
+
+| ID | Conflict | Design evidence | Repo evidence | Plan evidence |
+|---|---|---|---|---|
+| D1 `G-POINTS-COPY` | Point economy diverges 3 ways: design/live copy +10/+5/+25/+2-streak vs spec 5/3/8/none vs engine 5/2/25/none. Note +25 already matches shipped behavior users see. | "How points work" cards (Feed, Leaderboards); live copy already at `FeedPage.tsx:231-239` | `posts/route.ts:34` (5), `services/comments.ts:181` (2), `:327` (25); weights inline at call sites, not centralized | `specs/06-technical-spec.md:1642-1651` |
+| D2 `G-STREAK-BONUS` | "+2 daily streak bonus per consecutive day" vs spec "Streaks do not award extra points; visibility signal only" | Feed + Leaderboards points cards; Leaderboards subtitle "…and streak bonuses" | no streak value in `point_event_type` enum (`schema.ts:34-45`); `awardDailyVisit` flat 0.5 (`services/points.ts:149-159`) | `specs/07-ux-spec.md:684` |
+| D3 `G-STREAK-UX` (semantics half) | Design streak advances on "post or comment today"; spec derives streaks only from `daily_visit` in `user_daily_stats` | Header pill title "Posting streak"; profile copy "post or comment today to keep it alive" | no code writes `streak_days` at all (write-never; grep: schema default + seed only); daily-visit route uncalled by app | `specs/07-ux-spec.md:681` |
+| D4 `G-FLAG-GONE` | Design's post action bar = upvote/Bookmark/Share, **no Flag**; PRD requires user flagging of posts AND comments | `Post.dc.html` action bar | Flag exists on posts (`FeedCard.tsx:166-175`, `PostDetailPage.tsx:180-185`) but **already missing on comments** (`CommentThread.tsx` has none — pre-existing MOD-1 violation) | `specs/05-prd.md:200` (MOD-1), `specs/07-ux-spec.md:306-307,424` |
+| D5 `G-FOLLOW-DM` | Profile "Follow" + "Message" buttons | no follows/messages tables, contracts, routes, or UI anywhere | PRD defers DMs post-MVP (`specs/05-prd.md:43,490`); user-following spec'd nowhere ("follow" in specs = circles only, `07-ux-spec.md:143`) |
+| D6 `G-HEADER` (bell half) | Design header has points + level avatar + streak pill, **no notification bell** | bell shipped at `Header.tsx:117` | PRD NOTIF-1..5 (`05-prd.md:220-224`); UX-spec header wireframe includes `[🔔 N]` (`07-ux-spec.md:50,57`) |
+| D7 `G-RESPONSIVE` | All five comps are `min-width: 1100px` desktop-only | current app is already responsive (`FeedPage.tsx:136,138`; 11 responsive prefixes in `Header.tsx`) — literal implementation regresses it | UX spec §6 breakpoints + mobile adaptations (`07-ux-spec.md:562-593`); A11Y-1 WCAG 2.1 AA (`05-prd.md:288`) |
+| D8 (critic) | Design's circle page drops pinned resources/Lessons, group leaderboard, and invite/manage buttons — all shipped today at `g/[slug]/page.tsx:51-93` | `Circle.dc.html` has banner/filters/rows/sidebar only | PRD GROUP-6/7 (`05-prd.md:149-150`), GAME-6 (`:183`), INVITE-1/4 (`:191,194`) |
+| D9 (critic) | Design's comment composer is a plain pill — no rich text, no @mentions; repo ships TipTap + mentions service + `mention` notification type | `Post.dc.html` composer pill | `packages/ui/src/editor/RichTextEditor.tsx`, `apps/web/lib/services/mentions.ts` | `specs/07-ux-spec.md:303,495-497` |
+| D10 (critic) | "Share" pill: design includes it, UX spec explicitly defers Share post-MVP | `Post.dc.html` action bar | no share UI on post page beyond none (copy-link absent) | `specs/07-ux-spec.md:307` |
+
+**DECIDED 2026-08-01 (recorded in `specs/SPEC_LOG.md`):** D1 — **displayed economy 10/5/25 is canonical**; retune engine centrally, no backfill (drift accepted); level ladder as designed. D2/D3 — **design streak model**: post/comment-driven, +2/day capped `streak_bonus` event, `longest_streak_days` tracked; supersedes 07-ux-spec:681-684. D4/D6/D8/D9 — **keep all, relocate**: Flag in "…" overflow on posts AND comments, bell stays, circle surfaces stay, TipTap+mentions composer restyled as the pill. D5 — **Follow + Message are IN for v1** (overrules PRD DM deferral; DM spec addendum required → WS9). D7 — comps are the desktop spec; mobile derived from existing breakpoints. D10 — **Share ships**. Digest and Events are also **IN for v1** (see WS8/WS9).
+
+### 2. Net-new feature domains
+
+| ID | Verdict | Gap | Evidence (design → repo → plan) |
+|---|---|---|---|
+| `G-BOOKMARKS` [P] | CONFIRMED | Saved posts: Bookmark on post action bar, bookmark icon per feed row, "Bookmarks" rail shortcut, profile Bookmarks tab. Needs table + contract + service + routes + UI. | Design: Post/Feed/Profile pages → Repo: zero hits for bookmark/saved_post/favorite across schema, contracts, routes, UI → Plan: deferred post-MVP `specs/05-prd.md:51` (§2 non-goals), `07-ux-spec.md:207`, `SPEC_LOG.md:146` |
+| `G-LEVELS` [P] | CONFIRMED | Operator levels: badge on every avatar, "Lv N" meta, named ladder Lv1 Newcomer 0 → Lv6 Legend 3,000, progress bars ("260 to Level 5"), Level column on leaderboard. Nothing exists: no column/util/contract field; `Avatar` has no badge slot (`packages/ui/src/components/Avatar.tsx:19-24`). | Design: all 5 pages → Repo: `users` has only `reputationScore`/`streakDays` (`schema.ts:76-77`); zero level hits in contracts/lib → Plan: not in GAME-1..8 (`05-prd.md:174-186`); nearest cousin GAME-7 badge-progress bar |
+| `G-EVENTS` [E] | CONFIRMED | Community events: "Upcoming" rail widget (date tile, title, time, "live call") + "Events" shortcut. Whole domain absent (table, contract, service, route, admin CRUD, UI). | Design: Feed left rail → Repo: no events anything (full table/route inventory verified) → Plan: absent from all specs; office hours appear only as a launch tactic `08-roadmap.md:402` |
+| `G-DIGEST` [E] | CONFIRMED | Weekly digest banner ("48 posts · 12 solutions accepted · hot topic" + digest link). `weeklyDigest` preference is stored but consumed by nothing; no aggregation, page, or Loops send path; no cron. | Design: Feed banner → Repo: pref dead-ends (`SettingsPage.tsx:111-113`, `contracts/users.ts:17`, zero backend consumers); only 2 crons in `vercel.json` → Plan: only anchor is a settings example `06-technical-spec.md:984`; NOTIF-5 covers transactional email, not digests |
+| `G-STREAK-UX` [P] | CONFIRMED | Entire streak pipeline: advancement/reset logic, longest-streak, Mon–Sun week grid, header pill. Stronger than candidate: `streak_days` is **write-never** (display-only, permanently 0); `awardDailyVisit` writes `point_events`, not `user_daily_stats` as spec prescribes; `/api/v1/daily-visit` has no frontend caller (e2e only). | Design: header, profile sidebar → Repo: `schema.ts:77`, `services/points.ts:149-159`, `daily-visit/route.ts:11-20` → Plan: `07-ux-spec.md:681-683` (its own rules also unmet) |
+| `G-ACHIEVEMENTS` [E] | PARTIAL | Achievement progress ("30-day streak (18/30)") + member-facing badge display. More exists than expected: typed criteria (`contracts/badges.ts:4-23`) and an auto-grant cron (`admin/jobs/grant-badges/route.ts:19-140`) already count thresholds — but there's no public read endpoint, no UI, no partial-progress exposure, and **no consecutive-days criterion type** (even spec'd "Circle Regular: 7 days in a row" can't be computed). | Design: Profile sidebar → Repo: binary `user_badges` (`schema.ts:372-400`); profile page never fetches badges (`u/[slug]/page.tsx:18-25`) → Plan: GAME-7/8 (`05-prd.md:184-185`) — progress display is already spec'd (in dropdown), badges-on-profile spec'd at `07-ux-spec.md:677` and unmet |
+| `G-OOTW` [E] | CONFIRMED | "Operator of the week" (podium chip + profile badge). Weekly ranking infra exists (weekly `user_scores` period + `listGlobalLeaderboard`) but nothing designates/persists/displays a winner. Note: roadmap frames spotlights as *editorial content*, not product surface — this is a scope conversion, not just a pull-forward. | Design: Leaderboards, Profile → Repo: zero spotlight/OOTW hits; seed badges are first-build/gatekeeper/open-registry-contributor only (`seed.ts:173-177`) → Plan: `08-roadmap.md:222` (Phase 3 month 2) |
+| `G-BOTW` [E] | CONFIRMED | "Build of the week" featured card + chip. `isPinned` can't be repurposed — it's spec'd as group-scoped Lessons (GROUP-7) and is **read-only end-to-end** (no pin mutation route or admin UI exists — itself an unmet MVP requirement, `05-prd.md:150`). Needs a new featured flag/table + admin control + feed placement. | Design: Feed, Profile → Repo: `schema.ts:206`, no pin/feature mutation anywhere → Plan: `08-roadmap.md:222` |
+
+### 3. Backend / API gaps
+
+| ID | Verdict | Gap | Evidence |
+|---|---|---|---|
+| `G-LB-BOARDS` [P] | CONFIRMED | Leaderboard periods & board types. Critical finding: **only `all_time` rows are ever written** — the sole `user_scores` writer is the `apply_point_event` trigger hardcoding `'all_time'` (`packages/db/migrations/0001_numerous_killer_shrike.sql:106-108`), so the shipped "This week" tab is empty by construction. "Most solutions" / "Longest streaks" boards have no ranking queries (`leaderboards/route.ts:46` ranks by score only; `type` param parsed but ignored). | Design: Leaderboards chips → Repo: as cited; service typed to `'all_time'|'weekly'` only (`community.ts:207-257`) → Plan: `06-technical-spec.md:158-163` ("launch only populates all_time"), GAME-5 `05-prd.md:182` |
+| `G-COMMENT-SORT` [P] | CONFIRMED | Comment sort ("Top ▾") + pagination ("Show 20 more"). `listCommentsForPost` takes no sort/limit/cursor, orders by `createdAt` asc, loads everything (`services/comments.ts:88-123`); route parses zero params; no list-query schema in `contracts/comments.ts`. | Design: Post page → Repo: as cited → Plan: spec contract is bare (`06-technical-spec.md:1133`); but `07-ux-spec.md:301` requires accepted-solution sort-to-top — also unmet |
+| `G-RELATED` [E] | CONFIRMED | "More from this circle" widget. No related-posts endpoint; `listGroupPosts` (`services/posts.ts:174-181`) accepts full FeedQuery and could power it with an exclude-current param; post page is single-column with no rail. | Design: Post right rail → Repo: as cited → Plan: net-new (no spec hit) |
+| `G-CIRCLE-STATS` [P] | CONFIRMED | Circle aggregates: "Posts / mo" and "71% Solved rate". Also: **member count and created date are spec'd for the banner (`07-ux-spec.md:225`) and not rendered today** — banner shows only name/visibility/description (`g/[slug]/page.tsx:70-101`); memberCount renders only in admin. | Design: Circle banner, Post rail card → Repo: no aggregates in services/contracts (`groups.ts`, `contracts/groups.ts:79`) → Plan: posts/mo + solved rate net-new; members+created spec'd |
+| `G-CIRCLE-CARD` [E] | CONFIRMED | Post-page circle card is half UI-only: PostDetail payload already ships the full group object incl. memberCount (`contracts/posts.ts:149-152`, `services/posts.ts:239-251`); missing are posts-this-month (see above) and a viewer-membership flag for the "Joined ✓" state. | Design: Post right rail → Repo: as cited → Plan: net-new |
+| `G-FEED-LAYOUT` (data half) [P] | CONFIRMED | Groups-with-post-counts query for the circles rail ("MCP Servers 38 · All circles 142"); no `/g` circles-directory route exists (`g/` contains only `[slug]`). | Design: Feed left rail → Repo: group services return memberCount only (`community.ts:86-161`); zero postCount hits → Plan: UX spec feed is 2-col (`07-ux-spec.md:581`) — rail is design-new |
+| `G-UPVOTE` [P] | CONFIRMED | Viewer reaction state is never delivered: no `viewerHasLiked` in any contract; no GET reactions endpoint (`reactions/route.ts` is POST-only); all three components hardcode `liked=false` (`FeedCard.tsx:42`, `PostDetailPage.tsx:26`, `CommentThread.tsx:73`). **AC-REACT-3 (`05-prd.md:340`) makes hydration a spec'd Should — unmet today.** Design also switches heart→▲ upvote with per-comment counts (comment upvotes exist in schema, never shown). | Design: all pages → Repo: as cited → Plan: REACT-1..3 `05-prd.md:170-172` (note: PRD says `like` only; `celebrate` exists only in code) |
+| `G-CURSOR-PAGING` [E] | CONFIRMED | Offset paging with decorative `nextCursor`. Correction from verification: **the spec itself defines it this way** (`06-technical-spec.md:1076-1108` — page param, cursor in response, no cursor request param); repo faithfully implements the inconsistency. Fix = amend contract+spec, then service/UI. | Design: "Load more" everywhere → Repo: `services/posts.ts:160-166`, `FeedPage.tsx:73-89` → Plan: spec-origin flaw |
+| `G-ANALYTICS` [P-plan] | CONFIRMED | `/api/v1/analytics/events` doesn't exist; `lib/analytics.ts:11,27-38` beacons there with silent catch — first_post/first_comment/search_click all 404 today. Roadmap day 13 spec'd third-party Plausible/PostHog, not a first-party route: repo built neither. Digest "hot topic" stats need this data. | Repo: route inventory verified → Plan: `08-roadmap.md:149-154` |
+| `G-AVATARS` [E→P-plan] | CONFIRMED | Avatar upload: **no upload route at all** — `getAvatarUploadUrl` (`lib/storage.ts:31-45`) is dead code with zero callers; Settings has no file input; `AVATAR_*` env vars provisioned but never read (storage.ts hardcodes 2 MB/300 s/3600 s). PRD AUTH-4 (`05-prd.md:136`) makes avatar update a Must → plan gap, not enhancement. | Design: avatars everywhere → Repo: as cited → Plan: AUTH-4 |
+| Critic: REST user profile | — | No public `GET /api/v1/users/[slug]` (only `/users/search` + `/me`); MCP `get_user_profile` exists but REST parity (PRD §10 in-scope, `05-prd.md:476`) doesn't. Profile redesign adds level/streak/badge data agents can't fetch. | Repo: `apps/web/app/api/v1/users/` contents → Plan: `05-prd.md:104,476` |
+| Critic: Loops transactional email | — | NOTIF-5 (accepted solution / invite accepted emails, opt-in) unimplemented; no Loops client anywhere; Settings shows email prefs that do nothing. | Repo: grep verified → Plan: `05-prd.md:224` |
+
+### 4. Frontend gaps (pages & components)
+
+| ID | Verdict | Gap | Evidence |
+|---|---|---|---|
+| `G-FEED-ROWS` [P] | CONFIRMED | Compact daily.dev-style row variant (left ▲ column, bookmark, "Lv N", Unanswered chip) + mixed large cards; pinned posts render only on circle pages, never in `/feed` (`feed/page.tsx:24-28` fetches no pinned). | Design: Feed → Repo: single `FeedCard.tsx` layout → Plan: single-card anatomy `07-ux-spec.md:206,450` |
+| `G-FEED-SORT` [E] | CONFIRMED | Sort UI. Backend fully wired (`?sort=top` works over API; `services/posts.ts:78-87`) but no UI control and both server pages hardcode `sort:'new'` (`feed/page.tsx:25`, `g/[slug]/page.tsx:52`); loadMore leaks searchParams → inconsistent pages. Feed sorting is UX-spec'd (`07-ux-spec.md:472`) — plan gap too. `top` lacks the spec's time-window scoping. | |
+| `G-FEED-QFILTER` [E] | CONFIRMED | "Questions" chip missing from shared FILTERS array (`FeedPage.tsx:24-30`) though filter works end-to-end if typed; UX spec requires it on circle pages (`07-ux-spec.md:235`). | |
+| `G-COMPOSER` [E] | CONFIRMED | Composer strip with intent buttons; `CreatePostModal` has no `defaultType` prop (hardcoded reset to 'question', `CreatePostModal.tsx:30,43`) and is only reachable from one button (`FeedPage.tsx:147-152`). | |
+| `G-SOLUTION-CARD` [E/P-plan] | CONFIRMED | Accepted solution hoisted above thread + "earned +25 pts". Half is already a spec requirement: `07-ux-spec.md:301` says accepted solution "sorts to the top of comments" — repo highlights inline but never reorders (`CommentThread.tsx:42-56,210`). (Plan cite corrected: FEED-6/AC-FEED-4, not FEED-8.) | |
+| `G-OP-BADGE` [E] | CONFIRMED | "OP" chip: pure UI — `postAuthorId` already flows into `SingleComment` (`CommentThread.tsx:18,27,49`) and is used only for permissions. | |
+| `G-CIRCLE-FILTERS` [E] | PARTIAL | Narrowed by verification: circle filter chips already work end-to-end (FeedPage FILTERS render on `/g/:slug`, `listGroupPosts` accepts filters). Remaining: Questions chip, sort dropdown, and the nonsensical "My circles" chip on single-circle pages. | |
+| `G-CIRCLE-SIDEBAR` [E] | PARTIAL | "Top contributors" mostly exists (per-circle weekly leaderboard renders in the sidebar; data carries acceptedSolutions — but the count is **site-wide, not circle-scoped**, `community.ts:211-216`). Missing: "About this circle" card (createdAt exists `schema.ts:137`; moderators queryable via `group_memberships.role`), "Other circles" rail (`listGroups` has no UI consumer). | |
+| `G-PROFILE` [P] | CONFIRMED | Profile rebuild: stat cards, level progress, joined date, badge chips (member-facing badge display absent everywhere — admin UI only), Bookmarks tab (design-only; spec's tab set is Posts/Comments/Solutions/**Badges**, `07-ux-spec.md:~327`), per-circle contributions (substrate exists: group-scoped `user_scores`, no query). `publicUserProfileSchema` lacks postsCount/level/joinedAt/badges (`contracts/users.ts:61-72`). | |
+| `G-LB-UI` [P] | CONFIRMED | Podium top-3, "You" row (needs own-rank in API response), Level/Streak columns, Mod chip (role never joined into leaderboard queries). Current table matches old spec column set (`LeaderboardTabs.tsx:42-59`). | |
+| `G-HEADER` [P] | CONFIRMED | Points total, level avatar badge, streak pill, logged-out "Create account" (today: Log in only, `Header.tsx:120-124`). UX spec also wants a Circles ▼ nav dropdown + streak/badge-progress in the user dropdown (`07-ux-spec.md:50,682`; GAME-7) — none exist. Keep bell per D6. | |
+| `G-TOAST` [E→P-plan] | CONFIRMED | Toast system: 19 `alert()`/`confirm()` call sites enumerated across community + admin components; **Toast is UX-spec-required** (`07-ux-spec.md:442` + 5 mandated toast moments). No toast lib installed. | |
+| `G-LIVE-DOT` [E] | PARTIAL | Visible "Live updates enabled" indicator. Surprise: exact copy already ships as a **static sr-only region** (`RealtimeProvider.tsx:164-166`). Naive visible duplicate would double screen-reader announcements; and `CHANNEL_ERROR` silently kills channels (`lib/realtime.ts:144-148`) so an honest indicator needs real connection state. | |
+
+### 5. Design system / infrastructure
+
+| ID | Verdict | Gap | Evidence |
+|---|---|---|---|
+| `G-DS-COMPONENTS` [P] | CONFIRMED | `packages/ui` has exactly Avatar/Badge/Button/Card/Input/Tag + TipTap editor. Missing and **UX-spec-required** (`07-ux-spec.md:426-446`): Tabs, Toast, ProgressBar, Dialog, DropdownMenu, IconButton, Tooltip, Skeleton. Design additionally needs: Chip (filter chips), LevelBadge avatar overlay, StatCard, Podium, DateTile, StreakGrid. Decision: port into `packages/ui` (recommended — spec says "Paper-v3 reuse, not shadcn"; app already has Radix) vs. depending on `promptmetric-next` (`window.PaperV3` browser-global bundle is not consumable in Next.js SSR as-is). |
+| `G-DS-TOKENS` [P] | CONFIRMED | Two token problems. (a) Stale `packages/ui/src/styles/tokens.css` (slate/indigo + dark-mode `:root` block) imported before globals (`app/layout.tsx:3-4`) — mostly overridden but the dark block is a live hazard; spec assigns Paper-v3 tokens to `packages/ui` (`06-technical-spec.md:75`), the opposite of reality. (b) **`--pm-radius-*` is used by the design without fallbacks and defined nowhere in the repo** (grep: zero hits) — cards/pills would render square today; `--pm-space-*`/`--pm-text-*`/`--pm-rhythm*` families also absent. Present and verified: `--pm-coral-ink`, `--pm-muted-soft`, `--pm-green-bg`, `--pm-amber(-bg)`, `--pm-blue`, all 5 `--pm-cat-*`, shadows (`globals.css:69-109`). |
+| `G-MOD-ACCESS` [P-plan] | CONFIRMED | Moderators are linked to `/admin/moderation` (`Header.tsx:170-172,235-238`) but bounced by the admin-only layout (`admin/layout.tsx:25-27`). PRD MOD-3 puts the queue at `/moderation` — a route that **doesn't exist at all**, though `middleware.ts:7` already protects the dead path. Service layer already admits moderators (`services/moderation.ts:33`) — UI-layer fix only. |
+| `G-DEVCARD` [P-plan] | CONFIRMED | `/u/[slug]/devcard` 404s from a shipped dropdown link (`Header.tsx:257`). Spec phase is ambiguous (PRD defers post-MVP `05-prd.md:481,491`; roadmap says Phase 1 at `08-roadmap.md:271` and Phase 2 at `:283`). Either build (UX spec §3.7: public, OG tags, server-generated image) or remove the link. |
+
+### 6. Additional plan gaps from the completeness pass (not visible in the 5 comps)
+
+1. **Onboarding steps 2–3 missing** — live form is literally "Step 1 of 3" (`register/complete/onboarding-form.tsx:161`) then redirects; circle-recommendation + join-2-circles gate + reputation primer (`07-ux-spec.md:105-169`, AC-AUTH-4) unbuilt. Feeds the 70% onboarding-completion target; new users land on an empty feed with no circles.
+2. **Invite codes cannot be redeemed via UI** — accept API exists, codes can be created, but there's no `/invite/:code` route or code-entry field anywhere (`07-ux-spec.md:521`, GROUP-4, INVITE-2). The invite_only tier is dead-ended in product.
+3. **Post edit/delete has no UI** — PATCH/DELETE `/api/v1/posts/[id]` exist (`route.ts:40,61`) but neither the app nor the design renders author edit/delete controls (`07-ux-spec.md:306`).
+4. **Six spec'd screens have no design**: Login, Onboarding, Search results, Notifications inbox, Settings, Moderation queue (three-pane, `07-ux-spec.md` §3.1/3.2/3.8/3.9). They inherit the new shell/tokens with no target comps — needs an explicit derive-designs work item.
+5. **Admin agent-actions audit view** (ADMIN-5, `05-prd.md:234`, Must) — `agent_actions` table exists (`schema.ts:432`), no admin page.
+6. **First-contribution nudge** (24h lurker banner, `07-ux-spec.md:796`) — no implementation.
+
+---
+
+## Part 2 — Action plan
+
+Ordering inside each workstream: schema → contracts (`packages/api`) → services (`apps/web/lib/services`) → routes (`apps/web/app/api/v1`) → UI. Sizes: S ≤ ½ day · M ≈ 1–2 days · L ≈ 3–5 days.
+
+### Phase 0 — Decisions (product, ~1 session, blocks everything below)
+- [x] **T0.1** Resolve D1–D10 (§1 above). ~~Record outcomes in `specs/SPEC_LOG.md`.~~ **Done 2026-08-01** — outcomes in the DECIDED block in §1 and in `specs/SPEC_LOG.md` ("Community-portal redesign decisions"). Note scope expansion: Follow/DM, Events, and Digest are all committed to v1 (WS8/WS9).
+
+### WS1 — Design-system foundation (blocks all UI work)
+- [ ] **T1.1 (M)** Token consolidation: rewrite `packages/ui/src/styles/tokens.css` as the canonical Paper v3 token sheet (move `--pm-*` from `apps/web/app/globals.css`; delete slate/indigo scales and the dark-mode block; keep `globals.css` for app-level layers). **Add the missing `--pm-radius-xs/sm/md/lg/xl/pill`, `--pm-space-*`, `--pm-text-*`, `--pm-rhythm*` families** — values from the DS bundle README (`_ds/promptmetrics-paper-v3-…/README.md` token table). Files: `packages/ui/src/styles/tokens.css`, `apps/web/app/globals.css`, `apps/web/app/layout.tsx:3-4`.
+- [ ] **T1.2 (L)** Port required primitives into `packages/ui` (decision D-ds: port, don't import the browser-global bundle): `Chip` (active + swatch props, from V3Chip), `Toast` (+ provider; replaces 19 `alert()`/`confirm()` sites — enumerated in §4 G-TOAST), `Tabs`, `Progress`, `DropdownMenu` (Radix, exists as one-off in Header), `Select`. Match V3 props documented in the DS project's `components/general/<Name>/<Name>.d.ts`.
+- [ ] **T1.3 (M)** New composite components: `LevelBadge` (avatar overlay, sizes) + `Avatar` badge slot; `StatCard`; `StreakGrid` (7-day tiles); `DateTile`; `PodiumCard`. Files: `packages/ui/src/components/*`, export from `index.ts`.
+- [ ] **T1.4 (S)** Replace all `alert()`/`confirm()` with Toast/confirm-dialog (sites listed in §4).
+
+### WS2 — Points, levels, streaks (after D1–D3)
+- [ ] **T2.1 (M)** Centralize point weights: create `apps/web/lib/services/point-weights.ts` (or extend `points.ts`) with the chosen economy; replace inline literals at `apps/web/app/api/v1/posts/route.ts:34`, `services/comments.ts:181,327`, `services/reactions.ts:86-96,129`. Update `specs/06-technical-spec.md` §9 table + the sidebar copy component to render from the same constant.
+- [ ] **T2.2 (M)** Levels: add `LEVELS` config (name + threshold; D1-dependent), `levelForScore()` util, `level`/`nextLevel`/`pointsToNext` in `publicUserProfileSchema` + `/api/v1/me` + leaderboard entries + post/comment author payloads (`contracts/users.ts`, `contracts/points.ts`, `services/users.ts`, `services/posts.ts`, `services/comments.ts`). No schema migration needed (derived from `reputationScore`).
+- [ ] **T2.3 (L)** Streak pipeline: migration adding `users.longest_streak_days`; implement advancement/reset (extend `awardDailyVisit` — and per D3 possibly post/comment events — to upsert `user_daily_stats` and update `streak_days`/`longest_streak_days` transactionally); wire a frontend daily-visit call (layout effect or middleware-adjacent); add `GET /api/v1/me/streak` (current, best, last-7-days array for `StreakGrid`). Files: `packages/db/src/schema.ts` + migration, `services/points.ts`, new route, `contracts/users.ts`.
+- [ ] **T2.4 (S, if D2=yes)** `streak_bonus` point event: enum value migration + capped award in the daily-visit path.
+- [ ] **T2.5 (M)** Fix `user_scores` period population: replace the `apply_point_event` trigger (migration `0001:97-120`) so it upserts weekly/monthly/all_time rows (period start via `date_trunc`) — this alone fixes the shipped-but-empty "This week" tab. Backfill from `point_events`.
+
+### WS3 — Leaderboards (after T2.2/T2.5)
+- [ ] **T3.1 (M)** Boards API: extend `/api/v1/leaderboards` to honor `type` (points | solutions | streaks) with real ORDER BY variants; join `users.role` (Mod chip), `streakDays`, level; add `viewerRank` to the response (rank query for the session user even off-page). Files: `leaderboards/route.ts`, `services/community.ts`, `contracts/points.ts`.
+- [ ] **T3.2 (M)** Leaderboards UI: rebuild `LeaderboardTabs.tsx` per design — period/type chips (This week / This month / All time / Most solutions / Longest streaks), `PodiumCard` top-3 with Operator-of-the-week chip, table with Level/Streak/Points columns, highlighted "You" row.
+- [ ] **T3.3 (S)** Operator of the week: derive from weekly board rank 1 at render (no new table) + profile badge chip; revisit persistence only if editorial override is wanted (D-OOTW).
+
+### WS4 — Bookmarks (independent; any time after WS1)
+- [ ] **T4.1 (M)** Schema migration `saved_posts` (userId, postId, createdAt, unique pair, RLS self-only) + `contracts/bookmarks.ts` + `services/bookmarks.ts` (toggle, listForUser with post join) + routes `POST/DELETE /api/v1/bookmarks`, `GET /api/v1/me/bookmarks`.
+- [ ] **T4.2 (S)** Include `viewerHasBookmarked` in feed/post payloads (same join pattern as T5.1).
+- [ ] **T4.3 (M)** UI: bookmark button on post action bar + feed rows; "Bookmarks" rail shortcut; profile Bookmarks tab (self-only).
+
+### WS5 — Feed & post detail (after WS1; T5.1 early — it's a shipped-bug fix)
+- [ ] **T5.1 (M)** Reaction hydration (fixes AC-REACT-3): add `viewerReaction`/`viewerHasLiked` to post list/detail/comment payloads via LEFT JOIN on `reactions` for the session user (`services/posts.ts`, `services/comments.ts`, contracts); initialize component state from it (`FeedCard.tsx:42`, `PostDetailPage.tsx:26`, `CommentThread.tsx:73`). Switch heart→▲ per design; show per-comment upvote counts (data already in `comments.upvotes`).
+- [ ] **T5.2 (L)** Feed layout: 3-column grid; left rail with circles nav (needs `listGroupsWithPostCounts` — groups LEFT JOIN posts count, +`GET /api/v1/groups?includeCounts=1`), Shortcuts block, per D8 relocated surfaces; keep right rail (profile/level card from T2.2/T2.3 data, top operators, points card). Create `/g` circles-directory page (consumes `listGroups` — currently UI-orphaned).
+- [ ] **T5.3 (M)** FeedCard variants: `compact` row (▲ column, chips incl. Unanswered, `Lv N` meta, bookmark) + `featured`/`pinned` large cards; render pinned posts in `/feed` (fetch `listPinnedPosts` in `feed/page.tsx`); Build-of-the-week placement (needs T7.2).
+- [ ] **T5.4 (S)** Sort dropdown + Questions chip: add sort `Select` to FeedPage (send `sort` from server pages instead of hardcoding; fix loadMore param leak); add Questions to FILTERS; hide "My circles" chip on circle pages. Consider time-window for `top` per `07-ux-spec.md:472`.
+- [ ] **T5.5 (S)** Composer strip: avatar + pill + "Question"/"Show a build" buttons; add `defaultType` prop to `CreatePostModal` (`CreatePostModal.tsx:13-19,43`).
+- [ ] **T5.6 (M)** Comment sort + paging: add query schema (sort=top|new, limit/offset or cursor) to `contracts/comments.ts`, extend `listCommentsForPost` (top = upvotes desc with replies grouped), parse in route, add "Show N more" + "Top ▾" UI. Enforce accepted-solution sort-to-top (`07-ux-spec.md:301`).
+- [ ] **T5.7 (M)** Post page: hoist accepted solution into standalone card ("earned +N pts" from T2.1 constants); OP chip (`postAuthorId` already available); right rail with circle card (memberCount already in payload; posts-this-month from T6.1; membership state — add `viewerIsMember` to PostDetail or reuse `GroupMembershipButton` fetch); "More from this circle" via `listGroupPosts(limit 3, exclude current)` — add exclude param; Share (navigator.share + copy-link) and Flag in "…" overflow per D4/D10; author edit/delete controls (backend exists — §6.3).
+- [ ] **T5.8 (S)** Keep TipTap composer (D9) restyled as the design pill; verify Mention suggestions get wired (currently empty list).
+
+### WS6 — Circle & profile pages (after WS1/WS2)
+- [ ] **T6.1 (M)** Circle aggregates: `getGroupStats(groupId)` → memberCount, postsThisMonth, solvedRate (accepted/questions); extend group payload + `contracts/groups.ts`; render banner stats (incl. spec'd member count + created date). Circle-scope the contributor solutions count (`community.ts:211-216` is site-wide).
+- [ ] **T6.2 (M)** Circle page rebuild: banner tile, stats, filters (reuse T5.4), compact rows, sidebar (About card w/ createdAt + moderators from `listGroupMembers` role filter; Top contributors from scoped leaderboard; Other circles from `listGroups`) — **retaining pinned resources, group leaderboard, invite/manage buttons per D8**.
+- [ ] **T6.3 (L)** Profile rebuild: extend `publicUserProfileSchema` + `getUserProfile` with postsCount, joinedAt, level (T2.2), badges (public `GET /api/v1/users/[slug]` — also closes the REST-parity gap §3), per-circle contributions (query group-scoped `user_scores`/accepted solutions); UI: banner + badge chips, 4 stat cards, level progress, tabs (Posts/Solutions/Comments/Badges + Bookmarks-if-self), sidebar (StreakGrid from T2.3, circles list, achievements from T7.1). Follow/Message buttons land with WS9 (render disabled/hidden until then).
+- [ ] **T6.4 (S)** Header: points + level badge + streak pill (data from `/api/v1/me` extensions), keep bell (D6), logged-out "Create account" button, moderation link fix (T8.1).
+
+### WS7 — Achievements & spotlights (after WS2)
+- [ ] **T7.1 (M)** Badge progress + display: public `GET /api/v1/users/[slug]/badges` (earned + progress: reuse grant-job counting queries from `admin/jobs/grant-badges/route.ts:19-98`); add consecutive-days criterion type to `badgeCriteriaSchema` (needed for streak badges incl. spec'd "Circle Regular"); render achievements card + profile badge chips; badge-progress in user dropdown (GAME-7).
+- [ ] **T7.2 (M)** Featured posts: migration `posts.featured_label` (or `featured_posts` table if history wanted — don't reuse `isPinned`, it's GROUP-7 Lessons); admin control (extend `PATCH /api/v1/posts/[id]` admin path + admin UI) — also add the missing GROUP-7 pin/unpin control for circle admins while in there; feed placement (T5.3).
+
+### WS8 — Carry-forward fixes & infra (parallel, mostly small)
+- [ ] **T8.1 (S)** Moderation access: create `/moderation` route (PRD MOD-3 path; `middleware.ts:7` already protects it) rendering the existing queue for moderator+admin, or relax `admin/layout.tsx:25-27` per-page; fix Header link. Add the missing comment-flag control per D4 (backend already supports `targetType: 'comment'`).
+- [ ] **T8.2 (M)** Analytics ingestion: either implement `POST /api/v1/analytics/events` (schema-validated, table or forwarding) or switch `lib/analytics.ts` to the roadmap's Plausible/PostHog — today every event 404s.
+- [ ] **T8.3 (M)** Weekly digest (after D-digest scope): aggregation query (posts/solutions/top-topic per week — needs T8.2 data for "hot topic"), feed banner, digest page or Loops campaign send honoring `weeklyDigest` pref; **one new weekly cron** in `vercel.json` (job route under `/api/v1/admin/jobs/`, CRON_SECRET-protected). *Not scheduled as part of this report per guardrails.*
+- [ ] **T8.4 (M)** Loops transactional email (NOTIF-5): Loops client in `lib/email.ts`, send on solution-accepted + invite-accepted honoring prefs.
+- [ ] **T8.5 (L)** Events domain (**committed to v1** per 2026-08-01 decision): `events` table + contract + service + routes + admin CRUD + rail widget.
+- [ ] **T8.6 (S)** Avatar upload: wire `getAvatarUploadUrl` (dead code) into `POST /api/v1/me/avatar` + Settings file input; read `AVATAR_*` env vars instead of hardcoded limits (AUTH-4 Must).
+- [ ] **T8.7 (S)** DevCard decision: build `/u/[slug]/devcard` (UX spec §3.7) or remove `Header.tsx:257` link.
+- [ ] **T8.8 (S)** Live-updates indicator: surface real channel state from `lib/realtime.ts:144-148` (today CHANNEL_ERROR is silent) and convert the existing sr-only region (`RealtimeProvider.tsx:164-166`) into the visible dot — don't duplicate the announcement.
+- [ ] **T8.9 (M)** Invite redemption UI: `/invite/[code]` route + code-entry affordance (accept API exists; `07-ux-spec.md:521`).
+- [ ] **T8.10 (M)** Onboarding steps 2–3 (circle recommendations + join gate) per `07-ux-spec.md:105-169` — biggest activation lever in the missed-items list.
+- [ ] **T8.11 (M)** Derive designs for the six undesigned screens (login, onboarding, search, notifications, settings, moderation) from the new shell + tokens before rebuilding them; otherwise they orphan mid-migration.
+- [ ] **T8.12 (S)** Admin agent-actions audit page (ADMIN-5) — table exists, list UI only.
+
+### WS9 — Social: follow graph + DMs (committed to v1 per 2026-08-01 decision; runs last)
+- [ ] **T9.0 (M)** Spec addendum first (blocks the rest of WS9): data model for `follows` (followerId, followeeId, createdAt, unique pair) and DMs (`conversations`, `conversation_participants`, `messages` — or a simpler two-party `messages` table), RLS policies (participant-only reads), retention + GDPR-erasure path (extend `docs/GDPR-ERASURE-RUNBOOK.md`), notification types (`new_follower`, `new_message` enum additions), rate limits. Record in SPEC_LOG.
+- [ ] **T9.1 (M)** Follow graph: migration + `contracts/follows.ts` + `services/follows.ts` (follow/unfollow/listFollowers/listFollowing/counts) + routes (`POST/DELETE /api/v1/users/[slug]/follow`, lists) + notification on follow.
+- [ ] **T9.2 (L)** DMs: migrations per T9.0 + contracts + `services/messages.ts` + routes (conversations list, messages list/send) + Supabase Realtime channel per conversation (extend `lib/realtime.ts` subscriber pattern) + minimal inbox UI (`/messages`) + profile Message button wiring.
+- [ ] **T9.3 (S)** Profile Follow button wiring + follower/following counts on profile banner.
+
+### Suggested sequence
+
+```
+Phase 0 (D1–D10) → WS1 (tokens/components)
+  → WS2 (points/levels/streaks) → WS3 (leaderboards), WS7 (achievements/spotlights)
+  → WS4 (bookmarks), WS5 (feed/post), WS6 (circle/profile/header)   [parallelizable after WS1+WS2]
+WS8 runs parallel throughout; WS9 (social) runs last, after its T9.0 spec addendum.
+T5.1 (reaction hydration) and T8.1 (mod access) are shipped-bug fixes — do them first regardless.
+```
+
+Rough total (incl. WS9): ~11 L + ~23 M + ~13 S tasks ≈ 7–9 developer-weeks single-threaded, ~4 weeks with two developers after Phase 0.
+
+---
+
+## Appendix — Verification record
+
+- 40 verdicts: 35 CONFIRMED, 5 PARTIAL (G-ACHIEVEMENTS, G-FLAG-GONE, G-CIRCLE-FILTERS, G-CIRCLE-SIDEBAR, G-LIVE-DOT — each narrowed above), 0 REFUTED. Every verdict carries `path:line` repo evidence and spec line citations; corrections from verification are folded into the tables above (e.g. PRD §2-not-§10 for bookmarks, FEED-6-not-FEED-8 for solutions, spec-origin cursor flaw).
+- Completeness pass surfaced 11 additional items; all incorporated (§1 D8–D10, §3, §6).
+- Spot-checks re-run independently: bookmarks absence, analytics route absence, point weights (5/2/25), admin-only layout guard, `--pm-radius-*` absence — all consistent.
+- Full verification transcript: session workflow `wf_86c63c30-80f` (13 agents, 0 errors).
+

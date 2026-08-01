@@ -20,10 +20,10 @@ function ToolbarButton({ active, className, children, ...props }: ToolbarButtonP
     <button
       type="button"
       className={cn(
-        "inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pm-coral)] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
         active
-          ? "bg-accent text-accent-foreground"
-          : "text-foreground hover:bg-muted",
+          ? "bg-[var(--pm-coral)] text-[var(--pm-on-ink)]"
+          : "text-[var(--pm-ink)] hover:bg-[var(--pm-paper-2)]",
         className
       )}
       {...props}
@@ -51,7 +51,7 @@ export function RichTextToolbar({ editor }: RichTextToolbarProps) {
     <div
       role="toolbar"
       aria-label="Text formatting"
-      className="flex items-center gap-1 rounded-t-lg border border-b-0 border-border bg-muted p-2"
+      className="flex items-center gap-1 rounded-t-lg border border-b-0 border-[var(--pm-line)] bg-[var(--pm-paper-2)] p-2"
     >
       <ToolbarButton
         aria-label="Bold"

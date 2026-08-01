@@ -7,6 +7,7 @@ import { FlagDialog } from './FlagDialog';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Badge } from '@pm-operator/ui/components/Badge';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
+import { useToast } from '@pm-operator/ui/components/Toast';
 import { RichTextEditor } from '@pm-operator/ui/editor/RichTextEditor';
 import { CommentThread } from './CommentThread';
 import { useRealtimePost } from './RealtimeProvider';
@@ -23,8 +24,9 @@ export function PostDetailPage({ post, currentUserId }: PostDetailPageProps) {
   const [comments, setComments] = React.useState<CommentDetail[]>([]);
   const [body, setBody] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
-  const [liked, setLiked] = React.useState(false);
+  const [liked, setLiked] = React.useState(Boolean(post.viewerHasLiked));
   const [likeCount, setLikeCount] = React.useState(post.upvotes);
+  const { toast } = useToast();
 
   const loadComments = React.useCallback(async () => {
     try {
@@ -64,7 +66,7 @@ export function PostDetailPage({ post, currentUserId }: PostDetailPageProps) {
       setBody('');
       loadComments();
     } catch (err: any) {
-      alert(err.message || 'Comment failed');
+      toast({ title: err.message || 'Comment failed', variant: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -110,7 +112,7 @@ export function PostDetailPage({ post, currentUserId }: PostDetailPageProps) {
       <div className="mb-4">
         <Link
           href={`/g/${post.group.slug}`}
-          className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1 text-sm hover:bg-muted"
+          className="inline-flex items-center gap-2 rounded-lg border border-[var(--pm-line)] px-3 py-1 text-sm hover:bg-[var(--pm-paper-2)]"
         >
           {post.group.color ? (
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: post.group.color }} aria-hidden="true" />
@@ -119,7 +121,7 @@ export function PostDetailPage({ post, currentUserId }: PostDetailPageProps) {
         </Link>
       </div>
 
-      <div className="mb-6 rounded-xl border border-border bg-surface p-6">
+      <div className="mb-6 rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-6">
         <div className="mb-4 flex items-center gap-3">
           <Link href={`/u/${post.author.userslug}`}>
             <Avatar
@@ -130,10 +132,10 @@ export function PostDetailPage({ post, currentUserId }: PostDetailPageProps) {
             />
           </Link>
           <div className="text-sm">
-            <Link href={`/u/${post.author.userslug}`} className="font-medium hover:text-primary">
+            <Link href={`/u/${post.author.userslug}`} className="font-medium hover:text-[var(--pm-coral-dark)]">
               {post.author.username}
             </Link>
-            <p className="text-muted-foreground">
+            <p className="text-[var(--pm-muted)]">
               {post.author.reputationScore} pts · {timeAgo(post.createdAt)}
             </p>
           </div>
@@ -143,18 +145,18 @@ export function PostDetailPage({ post, currentUserId }: PostDetailPageProps) {
 
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <Badge variant="default">{typeLabel[post.type] ?? post.type}</Badge>
-          {post.acceptedCommentId ? <Badge variant="emerald">Solved</Badge> : null}
+          {post.acceptedCommentId ? <Badge variant="green">Solved</Badge> : null}
           {post.tags.map((tag) => (
             <Badge key={tag} variant="outline">#{tag}</Badge>
           ))}
         </div>
 
         <div
-          className="prose prose-sm max-w-none text-foreground"
+          className="prose prose-sm max-w-none text-[var(--pm-ink)]"
           dangerouslySetInnerHTML={{ __html: post.content }}
         />
 
-        <div className="mt-6 flex items-center gap-1 border-t border-border pt-4">
+        <div className="mt-6 flex items-center gap-1 border-t border-[var(--pm-line)] pt-4">
           <Button
             variant="ghost"
             size="sm"
@@ -162,7 +164,7 @@ export function PostDetailPage({ post, currentUserId }: PostDetailPageProps) {
             disabled={!currentUserId}
             className="gap-1"
           >
-            <Heart className={`h-4 w-4 ${liked ? 'fill-rose-500 text-rose-500' : ''}`} aria-hidden="true" />
+            <Heart className={`h-4 w-4 ${liked ? 'fill-[var(--pm-coral)] text-[var(--pm-coral)]' : ''}`} aria-hidden="true" />
             <span className="text-xs">{likeCount}</span>
           </Button>
 
@@ -213,7 +215,7 @@ export function PostDetailPage({ post, currentUserId }: PostDetailPageProps) {
             onChange={loadComments}
           />
         ) : (
-          <p className="text-center text-muted-foreground">No comments yet. Be the first to share your take.</p>
+          <p className="text-center text-[var(--pm-muted)]">No comments yet. Be the first to share your take.</p>
         )}
       </section>
     </div>

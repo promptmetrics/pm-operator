@@ -3,7 +3,9 @@
 import * as React from 'react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Card, CardContent } from '@pm-operator/ui/components/Card';
+import { ConfirmDialog } from '@pm-operator/ui/components/ConfirmDialog';
 import { Input } from '@pm-operator/ui/components/Input';
+import { useToast } from '@pm-operator/ui/components/Toast';
 import type { WatchedPhrase } from '@pm-operator/api';
 
 export default function WatchedPhrasesPage() {
@@ -11,6 +13,8 @@ export default function WatchedPhrasesPage() {
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [message, setMessage] = React.useState('');
+  const [deletePhraseId, setDeletePhraseId] = React.useState<string | null>(null);
+  const { toast } = useToast();
   const [form, setForm] = React.useState({
     phrase: '',
     sanctionedFraming: '',
@@ -57,7 +61,6 @@ export default function WatchedPhrasesPage() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm('Delete this watched phrase?')) return;
     try {
       const res = await fetch(`/api/v1/admin/watched-phrases?id=${id}`, {
         method: 'DELETE',
@@ -65,7 +68,7 @@ export default function WatchedPhrasesPage() {
       if (!res.ok) throw new Error('Failed to delete watched phrase');
       await load();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete watched phrase');
+      toast({ title: err.message || 'Failed to delete watched phrase', variant: 'error' });
     }
   };
 
@@ -92,7 +95,7 @@ export default function WatchedPhrasesPage() {
               type="checkbox"
               checked={form.isRegex}
               onChange={(e) => setForm((f) => ({ ...f, isRegex: e.target.checked }))}
-              className="h-4 w-4 rounded border-border"
+              className="h-4 w-4 rounded border-[var(--pm-line)]"
             />
             Regex
           </label>
@@ -101,7 +104,7 @@ export default function WatchedPhrasesPage() {
               type="checkbox"
               checked={form.autoFlag}
               onChange={(e) => setForm((f) => ({ ...f, autoFlag: e.target.checked }))}
-              className="h-4 w-4 rounded border-border"
+              className="h-4 w-4 rounded border-[var(--pm-line)]"
             />
             Auto-flag
           </label>
@@ -111,11 +114,11 @@ export default function WatchedPhrasesPage() {
             </Button>
           </div>
         </form>
-        {message ? <p className="mt-4 text-sm text-error">{message}</p> : null}
+        {message ? <p className="mt-4 text-sm text-[var(--pm-danger)]">{message}</p> : null}
       </Card>
 
       {loading && phrases.length === 0 ? (
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-[var(--pm-muted)]">Loading...</p>
       ) : (
         <div className="flex flex-col gap-3">
           {phrases.map((phrase) => (
@@ -123,12 +126,12 @@ export default function WatchedPhrasesPage() {
               <CardContent className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">{phrase.phrase}</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-[var(--pm-muted)]">
                     {phrase.isRegex ? 'Regex' : 'Literal'} · {phrase.autoFlag ? 'Auto-flag' : 'Monitor'}
                     {phrase.sanctionedFraming ? ` · Suggested: "${phrase.sanctionedFraming}"` : null}
                   </p>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => remove(phrase.id)}>
+                <Button variant="ghost" size="sm" onClick={() => setDeletePhraseId(phrase.id)}>
                   Delete
                 </Button>
               </CardContent>
@@ -136,6 +139,19 @@ export default function WatchedPhrasesPage() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        destructive
+        open={deletePhraseId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletePhraseId(null);
+        }}
+        title="Delete this watched phrase?"
+        confirmLabel="Delete"
+        onConfirm={async () => {
+          if (deletePhraseId) await remove(deletePhraseId);
+        }}
+      />
     </div>
   );
 }

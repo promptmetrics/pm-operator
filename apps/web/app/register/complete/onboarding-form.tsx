@@ -111,7 +111,7 @@ export function OnboardingForm({ userId, fullName, returnUrl }: OnboardingFormPr
             />
 
             <div className="space-y-3">
-              <p className="text-sm font-medium text-foreground">Stack tags</p>
+              <p className="text-sm font-medium text-[var(--pm-ink)]">Stack tags</p>
               <div className="flex flex-wrap gap-3">
                 {STACK_OPTIONS.map((tag) => (
                   <Checkbox
@@ -141,14 +141,14 @@ export function OnboardingForm({ userId, fullName, returnUrl }: OnboardingFormPr
                 </Button>
               </div>
               {selectedTags.length > 0 ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-[var(--pm-muted)]">
                   Selected: {selectedTags.join(', ')}
                 </p>
               ) : null}
             </div>
 
             {error && task.trim() ? (
-              <p className="text-sm text-error" role="alert">
+              <p className="text-sm text-[var(--pm-danger)]" role="alert">
                 {error}
               </p>
             ) : null}
@@ -157,7 +157,7 @@ export function OnboardingForm({ userId, fullName, returnUrl }: OnboardingFormPr
               Continue
             </Button>
 
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center text-sm text-[var(--pm-muted)]">
               Step 1 of 3 — tell us your focus
             </p>
           </form>

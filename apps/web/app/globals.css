@@ -1,14 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
 @import 'tailwindcss';
 
+/*
+ * App-level layer only. The canonical Paper v3 tokens (--pm-* and the color
+ * scales) live in @pm-operator/ui/styles/tokens.css, imported first in
+ * app/layout.tsx. The @theme below re-declares the semantic aliases so this
+ * Tailwind root compiles utilities like bg-background and @apply border-border
+ * against the same --pm-* variables.
+ */
+
 @theme {
-  --color-background: var(--color-paper-0);
-  --color-foreground: var(--color-paper-12);
-  --color-primary: var(--color-paper-9);
-  --color-primary-foreground: var(--color-paper-0);
-  --color-muted: var(--color-paper-3);
-  --color-muted-foreground: var(--color-paper-11);
-  --color-border: var(--color-paper-6);
-  --color-ring: var(--color-paper-9);
+  --color-background: var(--pm-paper);
+  --color-foreground: var(--pm-ink);
+  --color-primary: var(--pm-coral);
+  --color-primary-foreground: var(--pm-on-ink);
+  --color-secondary: var(--pm-paper-2);
+  --color-secondary-foreground: var(--pm-ink);
+  --color-muted: var(--pm-paper-2);
+  --color-muted-foreground: var(--pm-muted);
+  --color-accent: var(--pm-coral);
+  --color-accent-hover: var(--pm-coral-dark);
+  --color-accent-foreground: var(--pm-on-ink);
+  --color-surface: var(--pm-paper-2);
+  --color-surface-elevated: var(--pm-paper-inset);
+  --color-border: var(--pm-line);
+  --color-border-strong: var(--pm-line-2);
+  --color-ring: var(--pm-coral);
+  --color-error: var(--pm-danger);
+  --color-error-background: var(--pm-danger-bg);
+  --color-success: var(--pm-green);
+  --color-success-background: var(--pm-green-bg);
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Fraunces', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
   --radius: 0.75rem;
 }
 
@@ -19,5 +45,13 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-serif);
   }
 }

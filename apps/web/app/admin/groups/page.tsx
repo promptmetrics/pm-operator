@@ -95,7 +95,7 @@ export default function AdminGroupsPage() {
               id="visibility"
               value={form.visibility}
               onChange={(e) => setForm((f) => ({ ...f, visibility: e.target.value as GroupVisibility }))}
-              className="h-10 w-full rounded-lg border border-border bg-surface px-3"
+              className="h-10 w-full rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-3"
             >
               {VISIBILITIES.map((v) => (
                 <option key={v} value={v}>
@@ -110,11 +110,11 @@ export default function AdminGroupsPage() {
             </Button>
           </div>
         </form>
-        {message ? <p className="mt-4 text-sm text-error">{message}</p> : null}
+        {message ? <p className="mt-4 text-sm text-[var(--pm-danger)]">{message}</p> : null}
       </Card>
 
       {loading && groups.length === 0 ? (
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-[var(--pm-muted)]">Loading...</p>
       ) : (
         <div className="flex flex-col gap-3">
           {groups.map((group) => (
@@ -130,7 +130,7 @@ export default function AdminGroupsPage() {
                   ) : null}
                   <div>
                     <p className="font-medium">{group.name}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-[var(--pm-muted)]">
                       /g/{group.slug} · {group.visibility} · {group.memberCount} members
                     </p>
                   </div>

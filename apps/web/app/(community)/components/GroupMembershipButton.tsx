@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@pm-operator/ui/components/Button';
+import { useToast } from '@pm-operator/ui/components/Toast';
 
 interface GroupMembershipButtonProps {
   slug: string;
@@ -14,6 +15,7 @@ export function GroupMembershipButton({ slug, initialIsMember, isLoggedIn }: Gro
   const router = useRouter();
   const [isMember, setIsMember] = React.useState(initialIsMember);
   const [loading, setLoading] = React.useState(false);
+  const { toast } = useToast();
 
   const toggle = async () => {
     if (!isLoggedIn) {
@@ -37,7 +39,7 @@ export function GroupMembershipButton({ slug, initialIsMember, isLoggedIn }: Gro
       }
       router.refresh();
     } catch (err: any) {
-      alert(err.message || 'Something went wrong');
+      toast({ title: err.message || 'Something went wrong', variant: 'error' });
     } finally {
       setLoading(false);
     }

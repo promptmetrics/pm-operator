@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
 import { createAuthClient } from '@/auth/client';
+import { getAuthCallbackUrl } from '@/site-url';
 
 type Mode = 'sign-in' | 'sign-up';
 
@@ -63,7 +64,7 @@ export function LoginForm() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback?returnUrl=${encodeURIComponent(returnUrl)}`,
+            emailRedirectTo: getAuthCallbackUrl(returnUrl),
           },
         });
         if (error) {
@@ -85,10 +86,9 @@ export function LoginForm() {
   }
 
   async function handleOAuth(provider: (typeof PROVIDERS)[number]['id']) {
-    const redirectTo = `${window.location.origin}/auth/callback?returnUrl=${encodeURIComponent(returnUrl)}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo },
+      options: { redirectTo: getAuthCallbackUrl(returnUrl) },
     });
     if (error) {
       setErrors((prev) => ({ ...prev, form: error.message }));
@@ -97,11 +97,16 @@ export function LoginForm() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md space-y-8">
+      <div className="w-full max-w-md space-y-6 rounded-2xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 shadow-[var(--pm-shadow-lg)]">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">operator.promptmetrics.dev</h1>
-          <p className="mt-2 text-muted-foreground">
-            A community for AI operators, founders, and teams building with AI.
+          <p className="text-xs font-semibold uppercase tracking-widest text-[var(--pm-coral-dark)]">
+            PromptMetrics Operator
+          </p>
+          <h1 className="mt-2 font-serif text-3xl font-semibold tracking-tight text-[var(--pm-ink)]">
+            {mode === 'sign-in' ? 'Welcome back' : 'Join the community'}
+          </h1>
+          <p className="mt-2 text-[var(--pm-muted)]">
+            A Skool-style space for AI operators, founders, and teams shipping with agents.
           </p>
         </div>
 
@@ -118,17 +123,17 @@ export function LoginForm() {
               {provider.label}
             </Button>
           ))}
-          <p className="text-center text-xs text-muted-foreground">
+          <p className="text-center text-xs text-[var(--pm-muted-soft)]">
             We only read your public profile and email.
           </p>
         </div>
 
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
+            <span className="w-full border-t border-[var(--pm-line)]" />
           </div>
           <div className="relative flex justify-center text-xs">
-            <span className="bg-background px-2 text-muted-foreground">or email</span>
+            <span className="bg-[var(--pm-paper-inset)] px-2 text-[var(--pm-muted)]">or email</span>
           </div>
         </div>
 
@@ -164,7 +169,7 @@ export function LoginForm() {
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-[2.1rem] text-sm text-muted-foreground hover:text-foreground"
+              className="absolute right-3 top-[2.1rem] text-sm text-[var(--pm-muted)] hover:text-[var(--pm-ink)]"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? 'Hide' : 'Show'}
@@ -172,7 +177,7 @@ export function LoginForm() {
           </div>
 
           {errors.form ? (
-            <p className="text-sm text-error" role="alert">
+            <p className="text-sm text-[var(--pm-danger)]" role="alert">
               {errors.form}
             </p>
           ) : null}
@@ -186,20 +191,20 @@ export function LoginForm() {
           <button
             type="button"
             onClick={() => setMode((m) => (m === 'sign-in' ? 'sign-up' : 'sign-in'))}
-            className="text-accent hover:underline"
+            className="text-[var(--pm-link)] hover:underline"
           >
             {mode === 'sign-in' ? 'Create an account' : 'Sign in instead'}
           </button>
-          <span className="text-muted-foreground">·</span>
+          <span className="text-[var(--pm-muted)]">·</span>
           <Link
             href={`/forgot-password${returnUrl ? `?returnUrl=${encodeURIComponent(returnUrl)}` : ''}`}
-            className="text-accent hover:underline"
+            className="text-[var(--pm-link)] hover:underline"
           >
             Forgot password?
           </Link>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground">
+        <p className="text-center text-xs text-[var(--pm-muted-soft)]">
           EU-hosted · Public knowledge · Agent-ready API
         </p>
       </div>

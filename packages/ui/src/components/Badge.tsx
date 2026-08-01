@@ -8,9 +8,10 @@ function cn(...inputs: ClassValue[]) {
 
 export type BadgeVariant =
   | "default"
-  | "indigo"
-  | "rose"
-  | "emerald"
+  | "coral"
+  | "green"
+  | "amber"
+  | "blue"
   | "outline";
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -19,19 +20,21 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 
 export function badgeVariants(variant: BadgeVariant = "default"): string {
   const base =
-    "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+    "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus-visible:shadow-[var(--pm-focus)]";
 
   const variants: Record<BadgeVariant, string> = {
     default:
-      "border-transparent bg-muted text-foreground hover:bg-paper-200",
-    indigo:
-      "border-transparent bg-indigo-100 text-indigo-800 hover:bg-indigo-200",
-    rose:
-      "border-transparent bg-rose-100 text-rose-800 hover:bg-rose-200",
-    emerald:
-      "border-transparent bg-emerald-100 text-emerald-800 hover:bg-emerald-200",
+      "border-transparent bg-[var(--pm-paper-2)] text-[var(--pm-ink)] hover:bg-[var(--pm-paper-3)]",
+    coral:
+      "border-transparent bg-[var(--pm-coral-tint)] text-[var(--pm-coral-dark)] hover:bg-[var(--pm-coral-tint-10)]",
+    green:
+      "border-transparent bg-[var(--pm-green-bg)] text-[var(--pm-green)] hover:bg-[var(--pm-green-line)]",
+    amber:
+      "border-transparent bg-[var(--pm-amber-bg)] text-[var(--pm-amber)] hover:bg-[var(--pm-amber-line)]",
+    blue:
+      "border-transparent bg-[var(--pm-blue-bg)] text-[var(--pm-blue)] hover:bg-[var(--pm-blue-bg)]/80",
     outline:
-      "border-border text-foreground hover:bg-muted",
+      "border-[var(--pm-line)] text-[var(--pm-ink)] hover:bg-[var(--pm-paper-2)]",
   };
 
   return cn(base, variants[variant]);

@@ -78,7 +78,7 @@ export function NotificationsPage({ currentUserId }: NotificationsPageProps) {
         <div>
           <h1 className="text-2xl font-semibold">Notifications</h1>
           {unreadCount > 0 ? (
-            <p className="text-sm text-muted-foreground">{unreadCount} unread</p>
+            <p className="text-sm text-[var(--pm-muted)]">{unreadCount} unread</p>
           ) : null}
         </div>
         {items.some((n) => !n.readAt) ? (
@@ -89,9 +89,9 @@ export function NotificationsPage({ currentUserId }: NotificationsPageProps) {
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-[var(--pm-muted)]">Loading...</p>
       ) : items.length === 0 ? (
-        <div className="rounded-xl border border-border bg-surface p-8 text-center">
+        <div className="rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 text-center">
           <p className="text-lg font-medium">No notifications yet</p>
         </div>
       ) : (
@@ -100,7 +100,7 @@ export function NotificationsPage({ currentUserId }: NotificationsPageProps) {
             <li
               key={n.id}
               className={`flex items-start justify-between gap-4 rounded-xl border p-4 ${
-                n.readAt ? 'border-border bg-surface' : 'border-primary/30 bg-primary/5'
+                n.readAt ? 'border-[var(--pm-line)] bg-[var(--pm-paper-inset)]' : 'border-[var(--pm-coral)]/30 bg-[var(--pm-coral-tint-10)]'
               }`}
             >
               <Link
@@ -111,7 +111,7 @@ export function NotificationsPage({ currentUserId }: NotificationsPageProps) {
                 }}
               >
                 <p className="text-sm font-medium">{notificationText(n)}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 text-xs text-[var(--pm-muted)]">
                   {new Date(n.createdAt).toLocaleDateString(undefined, {
                     month: 'short',
                     day: 'numeric',

@@ -1,6 +1,6 @@
 import { eq, and, or, sql, desc, inArray } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
-import { comments, posts, users, groups, groupMemberships } from '@pm-operator/db';
+import { comments, posts, users, groups, groupMemberships, reactions } from '@pm-operator/db';
 import type {
   Comment,
   CommentDetail,
@@ -54,10 +54,21 @@ function commentVisibilityFilter(currentUserId: string | undefined) {
   );
 }
 
+function viewerHasLikedCommentSql(currentUserId: string | undefined) {
+  if (!currentUserId) return sql<boolean>`false`;
+  return sql<boolean>`exists (
+    select 1 from ${reactions}
+    where ${reactions.userId} = ${currentUserId}
+      and ${reactions.targetType} = 'comment'
+      and ${reactions.targetId} = ${comments.id}
+  )`;
+}
+
 async function toCommentDetail(
   row: typeof comments.$inferSelect,
   author: typeof users.$inferSelect,
-  currentUserId?: string
+  currentUserId?: string,
+  viewerHasLiked?: boolean | null
 ): Promise<CommentDetail> {
   const isHidden = row.status === 'hidden' && row.authorId !== currentUserId && !isAdminOrModerator(author.role);
   return {
@@ -71,6 +82,7 @@ async function toCommentDetail(
     status: row.status,
     createdAt: toISO(row.createdAt),
     updatedAt: toISO(row.updatedAt),
+    viewerHasLiked: viewerHasLiked == null ? undefined : Boolean(viewerHasLiked),
     author: {
       id: author.id,
       username: author.username,
@@ -91,7 +103,11 @@ export async function listCommentsForPost(
   currentUserId?: string
 ): Promise<CommentDetail[]> {
   const rows = await db
-    .select()
+    .select({
+      comment: comments,
+      author: users,
+      viewerHasLiked: viewerHasLikedCommentSql(currentUserId),
+    })
     .from(comments)
     .innerJoin(posts, eq(comments.postId, posts.id))
     .innerJoin(groups, eq(posts.groupId, groups.id))
@@ -107,8 +123,8 @@ export async function listCommentsForPost(
   const byId = new Map<string, CommentDetail>();
   const roots: CommentDetail[] = [];
 
-  for (const { comments: commentRow, users: author } of rows) {
-    const detail = await toCommentDetail(commentRow, author, currentUserId);
+  for (const { comment: commentRow, author, viewerHasLiked } of rows) {
+    const detail = await toCommentDetail(commentRow, author, currentUserId, viewerHasLiked);
     detail.replies = [];
     byId.set(detail.id, detail);
     if (detail.parentCommentId) {

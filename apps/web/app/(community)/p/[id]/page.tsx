@@ -14,9 +14,9 @@ export default async function PostRoute({ params }: { params: Promise<{ id: stri
 
   if (!post) {
     return (
-      <div className="mx-auto max-w-4xl rounded-xl border border-border bg-surface p-12 text-center">
+      <div className="mx-auto max-w-4xl rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-12 text-center">
         <h1 className="text-xl font-semibold">Removed by moderator</h1>
-        <p className="mt-2 text-muted-foreground">This content is no longer available.</p>
+        <p className="mt-2 text-[var(--pm-muted)]">This content is no longer available.</p>
       </div>
     );
   }

@@ -22,7 +22,7 @@ export function LeaderboardTabs({ weekly, allTime }: LeaderboardTabsProps) {
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-6 flex items-center gap-3">
-        <Trophy className="h-6 w-6 text-amber-500" aria-hidden="true" />
+        <Trophy className="h-6 w-6 text-[var(--pm-amber)]" aria-hidden="true" />
         <h1 className="text-2xl font-semibold">Leaderboards</h1>
       </div>
 
@@ -37,7 +37,7 @@ export function LeaderboardTabs({ weekly, allTime }: LeaderboardTabsProps) {
 
       <Card className="overflow-hidden">
         <table className="w-full text-left text-sm">
-          <thead className="bg-muted">
+          <thead className="bg-[var(--pm-paper-2)]">
             <tr>
               <th className="px-4 py-3 font-medium">Rank</th>
               <th className="px-4 py-3 font-medium">Operator</th>
@@ -45,12 +45,12 @@ export function LeaderboardTabs({ weekly, allTime }: LeaderboardTabsProps) {
               <th className="px-4 py-3 font-medium text-right">Solutions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody className="divide-y divide-[var(--pm-line)]">
             {entries.map((entry) => (
-              <tr key={entry.userslug} className="hover:bg-muted/50">
+              <tr key={entry.userslug} className="hover:bg-[var(--pm-paper-2)]/50">
                 <td className="px-4 py-3 font-semibold">{entry.rank}</td>
                 <td className="px-4 py-3">
-                  <Link href={`/u/${entry.userslug}`} className="flex items-center gap-2 hover:text-primary">
+                  <Link href={`/u/${entry.userslug}`} className="flex items-center gap-2 hover:text-[var(--pm-coral-dark)]">
                     <Avatar src={undefined} alt={entry.username} fallback={entry.username} size="sm" />
                     <span className="font-medium">{entry.username}</span>
                   </Link>
@@ -61,7 +61,7 @@ export function LeaderboardTabs({ weekly, allTime }: LeaderboardTabsProps) {
             ))}
             {entries.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">No scores yet.</td>
+                <td colSpan={4} className="px-4 py-8 text-center text-[var(--pm-muted)]">No scores yet.</td>
               </tr>
             ) : null}
           </tbody>

@@ -31,11 +31,13 @@ export type Comment = z.infer<typeof commentSchema>;
 export interface CommentDetail extends z.infer<typeof commentSchema> {
   author: z.infer<typeof publicUserProfileSchema>;
   replies?: CommentDetail[];
+  viewerHasLiked?: boolean;
 }
 
 export const commentDetailSchema: z.ZodType<CommentDetail> = commentSchema.extend({
   author: publicUserProfileSchema,
   replies: z.array(z.lazy(() => commentDetailSchema)).optional(),
+  viewerHasLiked: z.boolean().optional(),
 });
 
 export const createCommentRequestSchema = z.object({

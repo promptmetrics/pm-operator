@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
 import { createAuthClient } from '@/auth/client';
+import { getAuthCallbackUrl } from '@/site-url';
 
 export function ForgotPasswordForm() {
   const searchParams = useSearchParams();
@@ -32,7 +33,7 @@ export function ForgotPasswordForm() {
 
     setIsLoading(true);
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?returnUrl=${encodeURIComponent(returnUrl)}`,
+      redirectTo: getAuthCallbackUrl(returnUrl),
     });
     setIsLoading(false);
 
@@ -47,17 +48,20 @@ export function ForgotPasswordForm() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md space-y-8">
+      <div className="w-full max-w-md space-y-6 rounded-2xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 shadow-[var(--pm-shadow-lg)]">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Reset your password</h1>
-          <p className="mt-2 text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-widest text-[var(--pm-coral-dark)]">
+            PromptMetrics Operator
+          </p>
+          <h1 className="mt-2 font-serif text-3xl font-semibold tracking-tight text-[var(--pm-ink)]">Reset your password</h1>
+          <p className="mt-2 text-[var(--pm-muted)]">
             Enter your email and we will send you a reset link.
           </p>
         </div>
 
         {sent ? (
           <div className="space-y-6 text-center">
-            <p className="text-foreground">
+            <p className="text-[var(--pm-ink)]">
               If an account exists for {email}, you will receive a password reset email shortly.
             </p>
             <Link href={`/login?returnUrl=${encodeURIComponent(returnUrl)}`}>
@@ -87,7 +91,7 @@ export function ForgotPasswordForm() {
         <div className="text-center text-sm">
           <Link
             href={`/login?returnUrl=${encodeURIComponent(returnUrl)}`}
-            className="text-accent hover:underline"
+            className="text-[var(--pm-coral)] hover:underline"
           >
             Back to sign in
           </Link>

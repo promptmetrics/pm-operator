@@ -44,7 +44,7 @@ export function RichTextEditor({
       }),
       Mention.configure({
         HTMLAttributes: {
-          class: "mention bg-indigo-100 text-indigo-800 rounded px-1 py-0.5",
+          class: "mention bg-[var(--pm-blue-bg)] text-[var(--pm-blue)] rounded px-1 py-0.5",
         },
         suggestion: {
           items: () => [],
@@ -80,7 +80,7 @@ export function RichTextEditor({
 
   return (
     <div
-      className={`rounded-lg border border-border bg-surface focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background ${
+      className={`rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] focus-within:shadow-[var(--pm-focus)] ${
         disabled ? "opacity-50" : ""
       } ${className ?? ""}`}
     >

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Card, CardContent } from '@pm-operator/ui/components/Card';
 import { Input } from '@pm-operator/ui/components/Input';
+import { useToast } from '@pm-operator/ui/components/Toast';
 import type { UserListItem, UserRole } from '@pm-operator/api';
 
 const ROLES: UserRole[] = ['member', 'moderator', 'admin'];
@@ -15,6 +16,7 @@ export default function AdminUsersPage() {
   const [role, setRole] = React.useState<UserRole | ''>('');
   const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState('');
+  const { toast } = useToast();
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -49,7 +51,7 @@ export default function AdminUsersPage() {
       if (!res.ok) throw new Error('Failed to update role');
       await load();
     } catch (err: any) {
-      alert(err.message || 'Failed to update role');
+      toast({ title: err.message || 'Failed to update role', variant: 'error' });
     }
   };
 
@@ -71,7 +73,7 @@ export default function AdminUsersPage() {
               id="role"
               value={role}
               onChange={(e) => setRole(e.target.value as UserRole | '')}
-              className="h-10 w-full rounded-lg border border-border bg-surface px-3"
+              className="h-10 w-full rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-3"
             >
               <option value="">All roles</option>
               {ROLES.map((r) => (
@@ -84,12 +86,12 @@ export default function AdminUsersPage() {
         </div>
       </Card>
 
-      {message ? <p className="mb-4 text-error">{message}</p> : null}
+      {message ? <p className="mb-4 text-[var(--pm-danger)]">{message}</p> : null}
 
       {loading && users.length === 0 ? (
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-[var(--pm-muted)]">Loading...</p>
       ) : users.length === 0 ? (
-        <p className="text-muted-foreground">No users match.</p>
+        <p className="text-[var(--pm-muted)]">No users match.</p>
       ) : (
         <div className="flex flex-col gap-3">
           {users.map((user) => (
@@ -98,11 +100,11 @@ export default function AdminUsersPage() {
                 <div>
                   <p className="font-medium">
                     {user.fullName || user.username} ·{' '}
-                    <Link href={`/u/${user.userslug}`} className="text-accent hover:underline">
+                    <Link href={`/u/${user.userslug}`} className="text-[var(--pm-coral)] hover:underline">
                       @{user.userslug}
                     </Link>
                   </p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-[var(--pm-muted)]">
                     {user.email} · {user.reputationScore} reputation · joined {new Date(user.createdAt).toLocaleDateString()}
                   </p>
                 </div>
@@ -110,7 +112,7 @@ export default function AdminUsersPage() {
                   <select
                     value={user.role}
                     onChange={(e) => setUserRole(user.id, e.target.value as UserRole)}
-                    className="h-10 rounded-lg border border-border bg-surface px-3"
+                    className="h-10 rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-3"
                   >
                     {ROLES.map((r) => (
                       <option key={r} value={r}>{r}</option>

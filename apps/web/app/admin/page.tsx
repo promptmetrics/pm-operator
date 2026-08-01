@@ -46,7 +46,7 @@ export default function AdminDashboardPage() {
         {CARDS.map(({ href, title, description, icon: Icon }) => (
           <Card key={href} className="flex flex-col">
             <CardHeader className="flex flex-row items-center gap-3">
-              <Icon className="h-5 w-5 text-accent" aria-hidden="true" />
+              <Icon className="h-5 w-5 text-[var(--pm-coral)]" aria-hidden="true" />
               <div>
                 <CardTitle>{title}</CardTitle>
                 <CardDescription>{description}</CardDescription>

@@ -66,26 +66,26 @@ export default async function GroupRoute({
     currentUser?.role === 'admin';
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="mb-6 rounded-xl border border-border bg-surface p-6">
+    <div className="mx-auto max-w-6xl">
+      <div className="mb-6 rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-6 shadow-[var(--pm-shadow)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             {group.color ? (
               <span
-                className="inline-block h-10 w-10 rounded-full"
+                className="inline-block h-10 w-10 rounded-full ring-2 ring-[var(--pm-line)]"
                 style={{ backgroundColor: group.color }}
                 aria-hidden="true"
               />
             ) : null}
             <div>
               <div className="mb-1 flex items-center gap-2">
-                <h1 className="text-2xl font-semibold">{group.name}</h1>
-                <span className="rounded-full border border-border px-2 py-0.5 text-xs capitalize text-muted-foreground">
+                <h1 className="font-serif text-2xl font-semibold text-[var(--pm-ink)]">{group.name}</h1>
+                <span className="rounded-full border border-[var(--pm-line)] bg-[var(--pm-paper)] px-2 py-0.5 text-xs capitalize text-[var(--pm-muted)]">
                   {group.visibility.replace('_', ' ')}
                 </span>
               </div>
               {group.description ? (
-                <p className="text-sm text-muted-foreground">{group.description}</p>
+                <p className="text-sm text-[var(--pm-muted)]">{group.description}</p>
               ) : null}
             </div>
           </div>

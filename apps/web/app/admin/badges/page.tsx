@@ -159,7 +159,7 @@ export default function AdminBadgesPage() {
               id="eventType"
               value={form.eventType}
               onChange={(e) => setForm((f) => ({ ...f, eventType: e.target.value as PointEventType }))}
-              className="h-10 w-full rounded-lg border border-border bg-surface px-3"
+              className="h-10 w-full rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-3"
             >
               {EVENT_TYPES.map((t) => (
                 <option key={t} value={t}>{t}</option>
@@ -179,7 +179,7 @@ export default function AdminBadgesPage() {
               id="postType"
               value={form.postType}
               onChange={(e) => setForm((f) => ({ ...f, postType: e.target.value as typeof POST_TYPES[number] | '' }))}
-              className="h-10 w-full rounded-lg border border-border bg-surface px-3"
+              className="h-10 w-full rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-3"
             >
               <option value="">Any</option>
               {POST_TYPES.map((t) => (
@@ -204,7 +204,7 @@ export default function AdminBadgesPage() {
             </Button>
           </div>
         </form>
-        {message ? <p className="mt-4 text-sm text-error">{message}</p> : null}
+        {message ? <p className="mt-4 text-sm text-[var(--pm-danger)]">{message}</p> : null}
       </Card>
 
       <Card className="mb-6 p-6">
@@ -216,7 +216,7 @@ export default function AdminBadgesPage() {
               id="badge"
               value={award.badgeId}
               onChange={(e) => setAward((a) => ({ ...a, badgeId: e.target.value }))}
-              className="h-10 w-full rounded-lg border border-border bg-surface px-3"
+              className="h-10 w-full rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-3"
               required
             >
               <option value="">Select badge</option>
@@ -245,7 +245,7 @@ export default function AdminBadgesPage() {
       </Card>
 
       {loading && badges.length === 0 ? (
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-[var(--pm-muted)]">Loading...</p>
       ) : (
         <div className="flex flex-col gap-3">
           {badges.map((badge) => (
@@ -257,7 +257,7 @@ export default function AdminBadgesPage() {
                   ) : null}
                   <div>
                     <p className="font-medium">{badge.name}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-[var(--pm-muted)]">
                       {badge.description || 'No description'} · {badge.criteria.eventType} · threshold {badge.criteria.threshold}
                     </p>
                   </div>

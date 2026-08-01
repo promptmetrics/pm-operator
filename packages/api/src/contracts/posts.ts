@@ -86,6 +86,7 @@ export const postListItemSchema = z.object({
   group: z.object({
     slug: z.string(),
     name: z.string(),
+    color: z.string().nullable().optional(),
   }),
   author: z.object({
     userslug: z.string(),
@@ -98,6 +99,7 @@ export const postListItemSchema = z.object({
   viewCount: z.number().int().nonnegative(),
   tags: z.array(z.string()),
   createdAt: z.string().datetime(),
+  viewerHasLiked: z.boolean().optional(),
 });
 
 export type PostListItem = z.infer<typeof postListItemSchema>;
@@ -148,6 +150,7 @@ export type FeedResponse = z.infer<typeof feedResponseSchema>;
 export const postDetailSchema = postSchema.extend({
   group: groupSchema,
   author: publicUserProfileSchema,
+  viewerHasLiked: z.boolean().optional(),
 });
 
 export type PostDetail = z.infer<typeof postDetailSchema>;

@@ -18,12 +18,12 @@ export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
           ref={ref}
           type="checkbox"
           className={cn(
-            'h-4 w-4 rounded border-border bg-surface text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+            'h-4 w-4 rounded border-[var(--pm-line)] bg-[var(--pm-paper-inset)] text-[var(--pm-coral)] accent-[var(--pm-coral)] focus-visible:outline-none focus-visible:shadow-[var(--pm-focus)]',
             className
           )}
           {...props}
         />
-        {label ? <span className="text-sm text-foreground">{label}</span> : null}
+        {label ? <span className="text-sm text-[var(--pm-ink)]">{label}</span> : null}
       </label>
     );
   }

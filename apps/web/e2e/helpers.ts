@@ -10,7 +10,7 @@ dotenv.config({ path: '.env' });
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = process.env.DATABASE_URL?.trim();
 
 if (!supabaseUrl || !serviceRoleKey || !databaseUrl) {
   throw new Error(
@@ -24,9 +24,22 @@ export const serviceSupabase = createClient(supabaseUrl, serviceRoleKey, {
 
 let _serviceDb: ReturnType<typeof createDrizzleClient>['db'] | null = null;
 
+function missingUrlProxy(): never {
+  throw new Error(
+    'DATABASE_URL is missing or invalid. Check apps/web/.env.local — it should look like postgresql://postgres:[password]@db.<project-ref>.pooler.supabase.com:5432/postgres'
+  );
+}
+
 export function serviceDb() {
   if (!_serviceDb) {
-    _serviceDb = createDrizzleClient({ databaseUrl: databaseUrl! }).db;
+    try {
+      _serviceDb = createDrizzleClient({ databaseUrl: databaseUrl! }).db;
+    } catch {
+      return new Proxy(
+        {} as ReturnType<typeof createDrizzleClient>['db'],
+        { get: () => missingUrlProxy }
+      );
+    }
   }
   return _serviceDb;
 }

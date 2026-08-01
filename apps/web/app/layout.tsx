@@ -1,5 +1,6 @@
 import * as React from 'react';
 import type { Metadata } from 'next';
+import { ToastProvider } from '@pm-operator/ui/components/Toast';
 import '@pm-operator/ui/styles/tokens.css';
 import './globals.css';
 
@@ -16,8 +17,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="bg-background text-foreground antialiased">{children}</body>
+    <html lang="en" data-theme="paper">
+      <body className="pm-v3 bg-[var(--pm-paper)] text-[var(--pm-ink)] antialiased">
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }

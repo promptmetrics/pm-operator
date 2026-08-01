@@ -78,14 +78,14 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       >
         <Bell className="h-5 w-5" aria-hidden="true" />
         {count > 0 ? (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-error px-1 text-[10px] font-medium text-white">
+          <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--pm-danger)] px-1 text-[10px] font-medium text-[var(--pm-on-ink)]">
             {count > 99 ? '99+' : count}
           </span>
         ) : null}
       </Button>
 
       {open ? (
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-border bg-surface p-3 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-3 shadow-lg">
           <div className="flex items-center justify-between pb-2">
             <span className="text-sm font-semibold">Notifications</span>
             <Button variant="ghost" size="sm" onClick={markAllRead}>
@@ -97,27 +97,27 @@ export function NotificationBell({ userId }: NotificationBellProps) {
               <li key={n.id}>
                 <Link
                   href={notificationHref(n)}
-                  className="block rounded-lg p-2 text-sm hover:bg-muted"
+                  className="block rounded-lg p-2 text-sm hover:bg-[var(--pm-paper-2)]"
                   onClick={() => setOpen(false)}
                 >
                   {!n.readAt ? (
                     <span className="mb-1 block h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
                   ) : null}
-                  <span className="text-muted-foreground">{notificationText(n)}</span>
-                  <span className="block text-xs text-muted-foreground">
+                  <span className="text-[var(--pm-muted)]">{notificationText(n)}</span>
+                  <span className="block text-xs text-[var(--pm-muted)]">
                     {new Date(n.createdAt).toLocaleDateString()}
                   </span>
                 </Link>
               </li>
             ))}
             {items.length === 0 ? (
-              <li className="p-2 text-sm text-muted-foreground">No notifications</li>
+              <li className="p-2 text-sm text-[var(--pm-muted)]">No notifications</li>
             ) : null}
           </ul>
-          <div className="border-t border-border pt-2">
+          <div className="border-t border-[var(--pm-line)] pt-2">
             <Link
               href="/notifications"
-              className="block text-center text-sm text-primary hover:underline"
+              className="block text-center text-sm text-[var(--pm-coral)] hover:underline"
               onClick={() => setOpen(false)}
             >
               View all

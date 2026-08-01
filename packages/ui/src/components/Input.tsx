@@ -29,7 +29,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {label ? (
           <LabelPrimitive.Root
             htmlFor={inputId}
-            className="text-sm font-medium text-foreground"
+            className="text-sm font-medium text-[var(--pm-ink)]"
           >
             {label}
           </LabelPrimitive.Root>
@@ -41,23 +41,23 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           aria-invalid={error ? "true" : undefined}
           aria-describedby={ariaDescribedBy}
           className={cn(
-            "flex h-10 w-full rounded-lg border bg-surface px-3 py-2 text-base text-foreground transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50",
+            "flex h-10 w-full rounded-lg border bg-[var(--pm-paper-inset)] px-3 py-2 text-base text-[var(--pm-ink)] transition-colors placeholder:text-[var(--pm-muted-soft)] focus-visible:outline-none focus-visible:shadow-[var(--pm-focus)] disabled:cursor-not-allowed disabled:opacity-60",
             error
-              ? "border-error focus-visible:ring-error"
-              : "border-border",
+              ? "border-[var(--pm-danger)]"
+              : "border-[var(--pm-line)] hover:border-[var(--pm-line-2)]",
             className
           )}
           {...props}
         />
 
         {description ? (
-          <p id={descriptionId} className="text-sm text-muted-foreground">
+          <p id={descriptionId} className="text-sm text-[var(--pm-muted)]">
             {description}
           </p>
         ) : null}
 
         {error ? (
-          <p id={errorId} className="text-sm text-error" role="alert">
+          <p id={errorId} className="text-sm text-[var(--pm-danger)]" role="alert">
             {error}
           </p>
         ) : null}

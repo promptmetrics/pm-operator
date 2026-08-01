@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Search } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
+import { useToast } from '@pm-operator/ui/components/Toast';
 import { FeedCard } from './FeedCard';
 import { trackEvent } from '@/lib/analytics';
 import type { SearchResult, SearchSort } from '@pm-operator/api';
@@ -35,6 +36,7 @@ export function SearchPage({
     return Number.isFinite(initialPage) && initialPage > 0 ? initialPage : 1;
   });
   const [loading, setLoading] = React.useState(false);
+  const { toast } = useToast();
 
   React.useEffect(() => {
     setQuery(initialQuery);
@@ -84,7 +86,7 @@ export function SearchPage({
       setPage(nextPage);
       setCursor(json.meta?.hasMore ? next[next.length - 1]?.createdAt : undefined);
     } catch (err: any) {
-      alert(err.message || 'Search failed');
+      toast({ title: err.message || 'Search failed', variant: 'error' });
     } finally {
       setLoading(false);
     }
@@ -96,7 +98,7 @@ export function SearchPage({
 
       <form onSubmit={submitSearch} className="mb-4 flex gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--pm-muted)]" aria-hidden="true" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -133,9 +135,9 @@ export function SearchPage({
           ))}
         </div>
       ) : query ? (
-        <div className="rounded-xl border border-border bg-surface p-8 text-center">
+        <div className="rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 text-center">
           <p className="text-lg font-medium">No results for “{query}”</p>
-          <p className="text-muted-foreground">Try a different term or tag.</p>
+          <p className="text-[var(--pm-muted)]">Try a different term or tag.</p>
         </div>
       ) : null}
 

@@ -18,10 +18,10 @@ export function AdminNav() {
   const pathname = usePathname();
 
   return (
-    <header className="border-b border-border bg-surface px-4 py-3">
+    <header className="border-b border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-4 py-3">
       <nav className="mx-auto flex max-w-5xl flex-col gap-3 md:flex-row md:items-center md:justify-between" aria-label="Admin">
         <div className="flex items-center gap-2">
-          <Shield className="h-5 w-5 text-accent" aria-hidden="true" />
+          <Shield className="h-5 w-5 text-[var(--pm-coral)]" aria-hidden="true" />
           <span className="font-semibold">Admin</span>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -33,8 +33,8 @@ export function AdminNav() {
                 href={href}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   active
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    ? 'bg-[var(--pm-coral)] text-[var(--pm-on-ink)]'
+                    : 'text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]'
                 }`}
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />

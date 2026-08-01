@@ -87,8 +87,8 @@ export function GroupInviteButton({ slug }: GroupInviteButtonProps) {
       </Dialog.Trigger>
 
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-in" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-6 shadow-lg focus:outline-none">
+        <Dialog.Overlay className="fixed inset-0 bg-[var(--pm-ink)]/50 data-[state=open]:animate-in" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-6 shadow-lg focus:outline-none">
           <div className="flex items-center justify-between pb-4">
             <Dialog.Title className="text-lg font-semibold">Invite to circle</Dialog.Title>
             <Dialog.Close asChild>
@@ -100,10 +100,10 @@ export function GroupInviteButton({ slug }: GroupInviteButtonProps) {
 
           {invite ? (
             <div className="flex flex-col gap-4">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-[var(--pm-muted)]">
                 Share this invite code. It grants the selected role when redeemed.
               </p>
-              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted p-3">
+              <div className="flex items-center gap-2 rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper-2)] p-3">
                 <code className="flex-1 break-all text-sm">{invite.code}</code>
                 <Button variant="ghost" size="sm" onClick={copyCode} className="gap-1">
                   {copied ? (
@@ -124,13 +124,13 @@ export function GroupInviteButton({ slug }: GroupInviteButtonProps) {
           ) : (
             <form onSubmit={submit} className="flex flex-col gap-4">
               <fieldset className="flex flex-col gap-2">
-                <legend className="text-sm font-medium text-foreground">Role</legend>
+                <legend className="text-sm font-medium text-[var(--pm-ink)]">Role</legend>
                 <div className="flex flex-wrap gap-2">
                   {ROLES.map((r) => (
                     <label
                       key={r.value}
                       className={`flex cursor-pointer items-center gap-1 rounded-full border px-3 py-1 text-sm ${
-                        role === r.value ? 'border-primary bg-primary/10' : 'border-border'
+                        role === r.value ? 'border-[var(--pm-coral)] bg-[var(--pm-coral-tint)]' : 'border-[var(--pm-line)]'
                       }`}
                     >
                       <input
@@ -148,7 +148,7 @@ export function GroupInviteButton({ slug }: GroupInviteButtonProps) {
               </fieldset>
 
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="invite-max-uses" className="text-sm font-medium text-foreground">
+                <label htmlFor="invite-max-uses" className="text-sm font-medium text-[var(--pm-ink)]">
                   Max uses
                 </label>
                 <Input
@@ -162,7 +162,7 @@ export function GroupInviteButton({ slug }: GroupInviteButtonProps) {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="invite-expires" className="text-sm font-medium text-foreground">
+                <label htmlFor="invite-expires" className="text-sm font-medium text-[var(--pm-ink)]">
                   Expires (optional)
                 </label>
                 <Input
@@ -173,7 +173,7 @@ export function GroupInviteButton({ slug }: GroupInviteButtonProps) {
                 />
               </div>
 
-              {error ? <p className="text-sm text-error" role="alert">{error}</p> : null}
+              {error ? <p className="text-sm text-[var(--pm-danger)]" role="alert">{error}</p> : null}
 
               <div className="flex justify-end gap-2 pt-2">
                 <Dialog.Close asChild>

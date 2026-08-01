@@ -38,8 +38,8 @@ export function ProfileTabs({ user, currentUserId, posts, solutions, comments }:
           />
           <div className="flex-1">
             <h1 className="text-2xl font-semibold">{user.fullName || user.username}</h1>
-            <p className="text-muted-foreground">@{user.userslug}</p>
-            <div className="mt-2 flex flex-wrap gap-2 text-sm text-muted-foreground">
+            <p className="text-[var(--pm-muted)]">@{user.userslug}</p>
+            <div className="mt-2 flex flex-wrap gap-2 text-sm text-[var(--pm-muted)]">
               <span>{user.reputationScore} reputation</span>
               <span>·</span>
               <span>{user.acceptedSolutions} solutions</span>
@@ -80,15 +80,15 @@ export function ProfileTabs({ user, currentUserId, posts, solutions, comments }:
               <Card key={item.id} className="p-4">
                 <Link
                   href={`/p/${item.post.id}`}
-                  className="mb-2 block font-medium hover:text-primary"
+                  className="mb-2 block font-medium hover:text-[var(--pm-coral-dark)]"
                 >
                   {item.post.title}
                 </Link>
                 <div
-                  className="prose prose-sm max-w-none text-muted-foreground"
+                  className="prose prose-sm max-w-none text-[var(--pm-muted)]"
                   dangerouslySetInnerHTML={{ __html: item.content }}
                 />
-                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="mt-2 flex items-center gap-2 text-xs text-[var(--pm-muted)]">
                   <Badge variant="outline">{item.post.group.name}</Badge>
                   <span>{timeAgo(item.createdAt)}</span>
                 </div>
@@ -107,15 +107,15 @@ export function ProfileTabs({ user, currentUserId, posts, solutions, comments }:
               <Card key={comment.id} className="p-4">
                 <Link
                   href={`/p/${comment.postId}`}
-                  className="mb-2 block text-sm font-medium hover:text-primary"
+                  className="mb-2 block text-sm font-medium hover:text-[var(--pm-coral-dark)]"
                 >
                   Commented on a post
                 </Link>
                 <div
-                  className="prose prose-sm max-w-none text-muted-foreground"
+                  className="prose prose-sm max-w-none text-[var(--pm-muted)]"
                   dangerouslySetInnerHTML={{ __html: comment.content }}
                 />
-                <p className="mt-2 text-xs text-muted-foreground">{timeAgo(comment.createdAt)}</p>
+                <p className="mt-2 text-xs text-[var(--pm-muted)]">{timeAgo(comment.createdAt)}</p>
               </Card>
             ))}
           </div>
@@ -151,15 +151,15 @@ function TabButton({
     >
       <Icon className="h-4 w-4" aria-hidden="true" />
       {label}
-      <span className="ml-1 rounded-full bg-background px-1.5 text-xs">{count}</span>
+      <span className="ml-1 rounded-full bg-[var(--pm-paper)] px-1.5 text-xs">{count}</span>
     </Button>
   );
 }
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-8 text-center">
-      <p className="text-muted-foreground">{message}</p>
+    <div className="rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 text-center">
+      <p className="text-[var(--pm-muted)]">{message}</p>
     </div>
   );
 }

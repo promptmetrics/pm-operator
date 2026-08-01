@@ -1,4 +1,7 @@
 const nextConfig = {
+  turbopack: {
+    root: '/Users/izzy/Documents/pm-operator',
+  },
   transpilePackages: [
     '@pm-operator/ui',
     '@pm-operator/api',

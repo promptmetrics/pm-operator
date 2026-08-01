@@ -5,6 +5,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { Flag, X } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
+import { useToast } from '@pm-operator/ui/components/Toast';
 import type { TargetType } from '@pm-operator/api';
 
 interface FlagDialogProps {
@@ -27,6 +28,7 @@ export function FlagDialog({ targetType, targetId, children }: FlagDialogProps) 
   const [detail, setDetail] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
   const [confirmed, setConfirmed] = React.useState(false);
+  const { toast } = useToast();
 
   const reset = () => {
     setReason('other');
@@ -56,7 +58,7 @@ export function FlagDialog({ targetType, targetId, children }: FlagDialogProps) 
       }
       setConfirmed(true);
     } catch (err: any) {
-      alert(err.message || 'Failed to submit flag');
+      toast({ title: err.message || 'Failed to submit flag', variant: 'error' });
       setSubmitting(false);
     }
   };
@@ -74,8 +76,8 @@ export function FlagDialog({ targetType, targetId, children }: FlagDialogProps) 
       )}
 
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-in" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-6 shadow-lg focus:outline-none">
+        <Dialog.Overlay className="fixed inset-0 bg-[var(--pm-ink)]/50 data-[state=open]:animate-in" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-6 shadow-lg focus:outline-none">
           <div className="flex items-center justify-between pb-4">
             <Dialog.Title className="text-lg font-semibold">Flag content</Dialog.Title>
             <Dialog.Close asChild>
@@ -88,7 +90,7 @@ export function FlagDialog({ targetType, targetId, children }: FlagDialogProps) 
           {confirmed ? (
             <div className="py-4 text-center">
               <p className="font-medium">Flag submitted</p>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-1 text-sm text-[var(--pm-muted)]">
                 Moderators will review this content. Thanks for keeping the community safe.
               </p>
               <Button className="mt-4" onClick={() => setOpen(false)}>
@@ -98,13 +100,13 @@ export function FlagDialog({ targetType, targetId, children }: FlagDialogProps) 
           ) : (
             <form onSubmit={submit} className="flex flex-col gap-4">
               <fieldset className="flex flex-col gap-2">
-                <legend className="text-sm font-medium text-foreground">Reason</legend>
+                <legend className="text-sm font-medium text-[var(--pm-ink)]">Reason</legend>
                 <div className="flex flex-col gap-2">
                   {REASONS.map((r) => (
                     <label
                       key={r.value}
                       className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
-                        reason === r.value ? 'border-primary bg-primary/10' : 'border-border'
+                        reason === r.value ? 'border-[var(--pm-coral)] bg-[var(--pm-coral-tint)]' : 'border-[var(--pm-line)]'
                       }`}
                     >
                       <input
@@ -123,7 +125,7 @@ export function FlagDialog({ targetType, targetId, children }: FlagDialogProps) 
 
               {reason === 'other' ? (
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="flag-detail" className="text-sm font-medium text-foreground">
+                  <label htmlFor="flag-detail" className="text-sm font-medium text-[var(--pm-ink)]">
                     Details
                   </label>
                   <Input
