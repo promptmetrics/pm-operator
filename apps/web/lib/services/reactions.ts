@@ -2,6 +2,7 @@ import { eq, and, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type { CreateReactionRequest, Reaction } from '@pm-operator/api';
+import { POINT_WEIGHTS, DAILY_CAPS } from '@pm-operator/api';
 import { toISO } from './shared';
 import { insertNotification } from './notifications';
 import { awardPoints, trackDailyStat } from './points';
@@ -88,9 +89,9 @@ export async function toggleReaction(
       userId,
       'likes_given',
       {
-        countCap: 50,
-        pointsCap: 50,
-        pointsPerAction: 1,
+        countCap: DAILY_CAPS.likesGivenCount,
+        pointsCap: DAILY_CAPS.likesGivenPoints,
+        pointsPerAction: POINT_WEIGHTS.like_given,
       },
       input.targetId
     );
@@ -126,7 +127,7 @@ export async function toggleReaction(
       await awardPoints(db, {
         userId: targetAuthorId,
         eventType: 'like_received',
-        points: 2,
+        points: POINT_WEIGHTS.like_received,
         sourceId: row.id,
         groupId,
         context: {

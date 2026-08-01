@@ -9,6 +9,9 @@ export const PointEventType = {
   INVITE_ACCEPTED: 'invite_accepted',
   DAILY_VISIT: 'daily_visit',
   POSTS_READ: 'posts_read',
+  // streak_bonus requires the point_event_type enum migration (WS2/T2.3)
+  // before any award may be inserted.
+  STREAK_BONUS: 'streak_bonus',
   MANUAL_AWARD: 'manual_award',
 } as const;
 
@@ -18,6 +21,31 @@ export type PointEventType =
 export const pointEventTypeSchema = z.nativeEnum(
   PointEventType as Record<string, string>
 ) as z.ZodType<PointEventType>;
+
+/**
+ * Canonical point economy — SPEC_LOG 2026-08-01 "Community-portal redesign
+ * decisions", D1 (displayed economy) and D2/D3 (streak bonus).
+ * manual_award carries caller-provided points and has no fixed weight.
+ */
+export const POINT_WEIGHTS = {
+  [PointEventType.TOPIC_CREATED]: 10,
+  [PointEventType.COMMENT_CREATED]: 5,
+  [PointEventType.SOLUTION_ACCEPTED]: 25,
+  [PointEventType.LIKE_RECEIVED]: 2,
+  [PointEventType.LIKE_GIVEN]: 1,
+  [PointEventType.INVITE_ACCEPTED]: 5,
+  [PointEventType.DAILY_VISIT]: 0.5,
+  [PointEventType.POSTS_READ]: 0.5,
+  [PointEventType.STREAK_BONUS]: 2,
+} as const;
+
+export const DAILY_CAPS = {
+  likesGivenCount: 50,
+  likesGivenPoints: 50,
+  postsReadCount: 20,
+  postsReadPoints: 10,
+  streakBonusMaxDays: 30,
+} as const;
 
 export const LeaderboardPeriod = {
   ALL_TIME: 'all_time',

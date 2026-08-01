@@ -187,5 +187,8 @@ Source: `docs/DESIGN-GAP-REPORT.md` (gap analysis of Claude Design project `55d7
 
 ### Open questions raised
 - Level ladder confirmed as designed (Lv1 Newcomer 0 / Lv2 Builder 100 / Lv3 Contributor 400 / Lv4 Operator 900 / Lv5 Senior operator 1,500 / Lv6 Legend 3,000) against the 10/5/25 economy; revisit thresholds if inflation observed.
-- Streak-bonus cap value (default proposal: bonus stops counting past 30 consecutive days) — confirm with PM before WS2.
+- ~~Streak-bonus cap value (default proposal: bonus stops counting past 30 consecutive days) — confirm with PM before WS2.~~ **Closed 2026-08-01** — 30-day cap confirmed by Izzy; implemented as `DAILY_CAPS.streakBonusMaxDays`.
 - DM data model (tables, retention, GDPR erasure path) — spec addendum required before WS9 build.
+
+### 2026-08-01 addendum — INVITE-3 fix
+- `invite_accepted` points (5, to the inviter, once per `group_invites.id`) were spec'd but never awarded by any code path; fixed in `services/groups.ts` `acceptInvite` during WS2.

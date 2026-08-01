@@ -1,6 +1,6 @@
 export const runtime = 'nodejs';
 
-import { createPostRequestSchema, type CreatePostRequest } from '@pm-operator/api';
+import { createPostRequestSchema, POINT_WEIGHTS, type CreatePostRequest } from '@pm-operator/api';
 import {
   getDb,
   ok,
@@ -10,7 +10,7 @@ import {
   rateLimit,
 } from '@/lib/api/server';
 import { createPost } from '@/lib/services/posts';
-import { awardPoints } from '@/lib/services/points';
+import { awardPoints, advanceStreak } from '@/lib/services/points';
 
 export async function POST(request: Request) {
   const session = await requireSession();
@@ -31,11 +31,13 @@ export async function POST(request: Request) {
   await awardPoints(getDb(), {
     userId: session.userId,
     eventType: 'topic_created',
-    points: 5,
+    points: POINT_WEIGHTS.topic_created,
     sourceId: post.id,
     groupId: post.groupId,
     context: { title: post.title },
   });
+
+  await advanceStreak(getDb(), session.userId);
 
   return ok(post);
 }

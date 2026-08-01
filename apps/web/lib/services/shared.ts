@@ -1,4 +1,5 @@
 import type { PublicUserProfile, UserPublicProfile } from '@pm-operator/api';
+import { levelForScore } from '@pm-operator/api';
 import { getAvatarReadUrl } from '../storage';
 
 export function toNumber(value: string | number | null | undefined): number {
@@ -38,6 +39,7 @@ export async function toPublicUserProfile(row: UserRow): Promise<PublicUserProfi
     reputationScore: toNumber(row.reputationScore),
     streakDays: row.streakDays,
     acceptedSolutions: toNumber(row.acceptedSolutions ?? 0),
+    level: levelForScore(toNumber(row.reputationScore)).level,
   };
 }
 
@@ -52,6 +54,7 @@ export async function toUserPublicProfile(row: UserRow): Promise<UserPublicProfi
     role: row.role as UserPublicProfile['role'],
     reputationScore: toNumber(row.reputationScore),
     streakDays: row.streakDays,
+    level: levelForScore(toNumber(row.reputationScore)).level,
     painfulToolStackTask: row.painfulToolStackTask ?? '',
     onboardingComplete: Boolean(row.painfulToolStackTask && row.painfulToolStackTask.length > 0),
   };

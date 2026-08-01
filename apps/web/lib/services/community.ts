@@ -9,6 +9,7 @@ import type {
   PublicUserProfile,
   UserRole,
 } from '@pm-operator/api';
+import { levelForScore } from '@pm-operator/api';
 import { getAvatarReadUrl } from '../storage';
 import { toISO, toNumber, isAdminOrModerator } from './shared';
 
@@ -74,6 +75,7 @@ async function toPostListItem(
       username: row.author.username,
       reputationScore: toNumber(row.author.reputationScore),
       acceptedSolutions: toNumber(row.acceptedSolutions),
+      level: levelForScore(toNumber(row.author.reputationScore)).level,
     },
     upvotes: row.post.upvotes,
     commentCount: row.post.commentCount,
@@ -201,10 +203,25 @@ export async function listPinnedPosts(
   return Promise.all(rows.map(toPostListItem));
 }
 
+export type LeaderboardWindow = 'all_time' | 'weekly' | 'monthly';
+
+// Matches the period_start windows written by the apply_point_event trigger
+// (migration 0010): all_time rows use the 1970-01-01 sentinel.
+function currentPeriodStartSql(period: LeaderboardWindow) {
+  switch (period) {
+    case 'weekly':
+      return sql`date_trunc('week', now())::date`;
+    case 'monthly':
+      return sql`date_trunc('month', now())::date`;
+    default:
+      return sql`'1970-01-01'::date`;
+  }
+}
+
 function leaderboardQuery(
   db: DrizzleClient,
   groupId: string,
-  period: 'all_time' | 'weekly',
+  period: LeaderboardWindow,
   limit: number
 ) {
   return db.execute(sql`
@@ -225,6 +242,7 @@ function leaderboardQuery(
     left join as_count on as_count.user_id = ${schema.users.id}
     where ${schema.userScores.groupId} = ${groupId}
       and ${schema.userScores.period} = ${period}
+      and ${schema.userScores.periodStart} = ${currentPeriodStartSql(period)}
     order by ${schema.userScores.score} desc
     limit ${limit}
   `);
@@ -232,7 +250,7 @@ function leaderboardQuery(
 
 export async function listGlobalLeaderboard(
   db: DrizzleClient,
-  period: 'all_time' | 'weekly',
+  period: LeaderboardWindow,
   limit = 5
 ): Promise<LeaderboardEntry[]> {
   const rows = (await leaderboardQuery(db, schema.GLOBAL_GROUP_ID, period, limit)) as unknown as Array<{
@@ -254,7 +272,7 @@ export async function listGlobalLeaderboard(
 export async function listGroupLeaderboard(
   db: DrizzleClient,
   groupId: string,
-  period: 'all_time' | 'weekly',
+  period: LeaderboardWindow,
   limit = 5
 ): Promise<LeaderboardEntry[]> {
   const rows = (await leaderboardQuery(db, groupId, period, limit)) as unknown as Array<{
@@ -377,6 +395,7 @@ export async function listAcceptedSolutionsByAuthor(
         reputationScore: toNumber(author.reputationScore),
         streakDays: author.streakDays,
         acceptedSolutions: 0,
+        level: levelForScore(toNumber(author.reputationScore)).level,
       },
       post: {
         id: post.id,
@@ -474,6 +493,7 @@ export async function listCommentsByAuthor(
         reputationScore: toNumber(author.reputationScore),
         streakDays: author.streakDays,
         acceptedSolutions: 0,
+        level: levelForScore(toNumber(author.reputationScore)).level,
       },
     });
   }

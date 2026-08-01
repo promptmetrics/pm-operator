@@ -15,6 +15,7 @@ import type {
   UserRole,
   AwardPointsRequest,
 } from '@pm-operator/api';
+import { levelForScore } from '@pm-operator/api';
 import { isAdminOrModerator, toISO, toNumber } from './shared';
 import { awardPoints } from './points';
 import { insertNotification } from './notifications';
@@ -398,6 +399,7 @@ export async function adminListUsers(
     role: u.role as UserRole,
     reputationScore: toNumber(u.reputationScore),
     streakDays: u.streakDays,
+    level: levelForScore(toNumber(u.reputationScore)).level,
     painfulToolStackTask: u.painfulToolStackTask ?? '',
     onboardingComplete: Boolean(u.painfulToolStackTask && u.painfulToolStackTask.length > 0),
     createdAt: toISO(u.createdAt),

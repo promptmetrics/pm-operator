@@ -4,6 +4,7 @@ import * as schema from '@pm-operator/db';
 import type { FeedQuery, FeedResponse, PostDetail, CreatePostRequest, PatchPostRequest, PostListItem } from '@pm-operator/api';
 import { getAvatarReadUrl } from '../storage';
 import { htmlToText } from '../html-to-text';
+import { levelForScore } from '@pm-operator/api';
 import { toISO, toNumber, isAdminOrModerator } from './shared';
 import { autoFlagIfWatched } from './flags';
 
@@ -121,6 +122,7 @@ async function toPostListItem(
       username: row.author.username,
       reputationScore: toNumber(row.author.reputationScore),
       acceptedSolutions: toNumber(row.acceptedSolutions),
+      level: levelForScore(toNumber(row.author.reputationScore)).level,
     },
     upvotes: row.post.upvotes,
     commentCount: row.post.commentCount,
@@ -274,6 +276,7 @@ export async function getPostById(
       reputationScore: toNumber(author.reputationScore),
       streakDays: author.streakDays,
       acceptedSolutions: toNumber(acceptedSolutions),
+      level: levelForScore(toNumber(author.reputationScore)).level,
     },
   };
 }

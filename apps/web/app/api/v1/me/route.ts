@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 
 import { eq } from 'drizzle-orm';
 import * as schema from '@pm-operator/db';
-import { patchMeRequestSchema, type UserPublicProfile } from '@pm-operator/api';
+import { patchMeRequestSchema, levelForScore, type UserPublicProfile } from '@pm-operator/api';
 import {
   getDb,
   ok,
@@ -33,6 +33,7 @@ export async function GET(request: Request) {
     pictureUrl: await getAvatarReadUrl(user.pictureUrl),
     role: user.role as UserPublicProfile['role'],
     reputationScore: toNumber(user.reputationScore),
+    level: levelForScore(toNumber(user.reputationScore)).level,
     streakDays: user.streakDays,
     painfulToolStackTask: user.painfulToolStackTask ?? '',
     onboardingComplete: Boolean(user.painfulToolStackTask && user.painfulToolStackTask.length > 0),

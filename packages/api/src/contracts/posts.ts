@@ -93,6 +93,7 @@ export const postListItemSchema = z.object({
     username: z.string(),
     reputationScore: z.number(),
     acceptedSolutions: z.number().int().nonnegative(),
+    level: z.number().int().min(1),
   }),
   upvotes: z.number().int().nonnegative(),
   commentCount: z.number().int().nonnegative(),

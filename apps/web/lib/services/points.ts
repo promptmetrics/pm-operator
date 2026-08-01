@@ -2,6 +2,7 @@ import { eq, and, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type { PointEventType, DailyStatType, PointEvent } from '@pm-operator/api';
+import { POINT_WEIGHTS, DAILY_CAPS } from '@pm-operator/api';
 import { toISO, toNumber } from './shared';
 
 export async function awardPoints(
@@ -153,9 +154,76 @@ export async function awardDailyVisit(
   return awardPoints(db, {
     userId,
     eventType: 'daily_visit',
-    points: 0.5,
+    points: POINT_WEIGHTS.daily_visit,
     context: { date: new Date().toISOString().split('T')[0] },
   });
+}
+
+/**
+ * Advance the user's activity streak for the current UTC day (SPEC_LOG
+ * 2026-08-01, D2/D3). Called after post/comment creation. One atomic UPDATE:
+ * same day → no change; consecutive day → +1; gap → reset to 1. Awards the
+ * streak_bonus point event (+2) while the streak is within the 30-day cap.
+ * Never throws — streak bookkeeping must not fail the caller's main operation.
+ */
+export async function advanceStreak(
+  db: DrizzleClient,
+  userId: string
+): Promise<{ current: number; longest: number; advanced: boolean; bonusAwarded: boolean }> {
+  try {
+    // "prev" is a self-join on the same row: RETURNING sees post-update
+    // values on "users", so the old streak_last_date must come from prev.
+    const rows = (await db.execute(sql`
+      UPDATE users
+      SET
+        streak_days = CASE
+          WHEN prev.streak_last_date = (now() AT TIME ZONE 'UTC')::date THEN prev.streak_days
+          WHEN prev.streak_last_date = (now() AT TIME ZONE 'UTC')::date - 1 THEN prev.streak_days + 1
+          ELSE 1
+        END,
+        longest_streak_days = GREATEST(
+          prev.longest_streak_days,
+          CASE
+            WHEN prev.streak_last_date = (now() AT TIME ZONE 'UTC')::date THEN prev.streak_days
+            WHEN prev.streak_last_date = (now() AT TIME ZONE 'UTC')::date - 1 THEN prev.streak_days + 1
+            ELSE 1
+          END
+        ),
+        streak_last_date = (now() AT TIME ZONE 'UTC')::date
+      FROM users AS prev
+      WHERE users.id = ${userId} AND prev.id = users.id
+      RETURNING
+        users.streak_days,
+        users.longest_streak_days,
+        (prev.streak_last_date IS DISTINCT FROM (now() AT TIME ZONE 'UTC')::date) AS advanced
+    `)) as unknown as Array<{
+      streak_days: number | string;
+      longest_streak_days: number | string;
+      advanced: boolean;
+    }>;
+    const row = rows[0];
+    if (!row) return { current: 0, longest: 0, advanced: false, bonusAwarded: false };
+
+    const current = toNumber(row.streak_days);
+    const longest = toNumber(row.longest_streak_days);
+    const advanced = Boolean(row.advanced);
+
+    let bonusAwarded = false;
+    if (advanced && current <= DAILY_CAPS.streakBonusMaxDays) {
+      const event = await awardPoints(db, {
+        userId,
+        eventType: 'streak_bonus',
+        points: POINT_WEIGHTS.streak_bonus,
+        context: { streakDays: current },
+      });
+      bonusAwarded = event !== null;
+    }
+
+    return { current, longest, advanced, bonusAwarded };
+  } catch (err) {
+    console.error('advanceStreak failed', err);
+    return { current: 0, longest: 0, advanced: false, bonusAwarded: false };
+  }
 }
 
 export async function awardPostRead(
@@ -168,9 +236,9 @@ export async function awardPostRead(
     userId,
     'posts_read',
     {
-      countCap: 20,
-      pointsCap: 10,
-      pointsPerAction: 0.5,
+      countCap: DAILY_CAPS.postsReadCount,
+      pointsCap: DAILY_CAPS.postsReadPoints,
+      pointsPerAction: POINT_WEIGHTS.posts_read,
     },
     postId
   );

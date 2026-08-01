@@ -2,6 +2,7 @@ import { eq, and, or, sql, desc, count } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type { SearchQuery, SearchResponse, SearchResult, PostType } from '@pm-operator/api';
+import { levelForScore } from '@pm-operator/api';
 import { toISO, toNumber } from './shared';
 
 function sanitizeTsQueryTerm(term: string): string | null {
@@ -146,6 +147,7 @@ export async function searchPosts(
       username: r.author.username,
       reputationScore: toNumber(r.author.reputationScore),
       acceptedSolutions: toNumber(r.acceptedSolutions),
+      level: levelForScore(toNumber(r.author.reputationScore)).level,
     },
     upvotes: r.post.upvotes,
     commentCount: r.post.commentCount,

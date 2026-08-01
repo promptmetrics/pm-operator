@@ -10,7 +10,9 @@ import type {
   CreateInviteRequest,
   JoinGroupRequest,
 } from '@pm-operator/api';
+import { POINT_WEIGHTS } from '@pm-operator/api';
 import { toISO, isAdminOrModerator, toNumber } from './shared';
+import { awardPoints } from './points';
 
 // Visibility filter mirrored from RLS: public groups, groups the current user
 // belongs to, or groups created by the current user. Admins bypass visibility.
@@ -511,6 +513,19 @@ export async function acceptInvite(
 
     return row;
   });
+
+  // PRD INVITE-3: the inviter earns points once per invite (idempotent via
+  // the (user, event_type, source_id) unique key on point_events).
+  if (invite.inviterId && invite.inviterId !== userId) {
+    await awardPoints(db, {
+      userId: invite.inviterId,
+      eventType: 'invite_accepted',
+      points: POINT_WEIGHTS.invite_accepted,
+      sourceId: invite.id,
+      groupId: group.id,
+      context: { acceptedBy: userId },
+    });
+  }
 
   return {
     id: membership.id,

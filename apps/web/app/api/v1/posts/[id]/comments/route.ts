@@ -1,7 +1,5 @@
 export const runtime = 'nodejs';
 
-import { eq } from 'drizzle-orm';
-import * as schema from '@pm-operator/db';
 import { createCommentRequestSchema } from '@pm-operator/api';
 import { getSession } from '@/lib/auth/server';
 import {
@@ -14,7 +12,6 @@ import {
   getClientIp,
 } from '@/lib/api/server';
 import { listCommentsForPost, createComment } from '@/lib/services/comments';
-import { awardPoints } from '@/lib/services/points';
 
 export async function GET(
   request: Request,
@@ -48,21 +45,9 @@ export async function POST(
   if (body instanceof Response) return body;
 
   const { id } = await params;
+  // createComment awards comment_created itself; a second award here was
+  // always a no-op via the (user, event, source) idempotency guard.
   const comment = await createComment(getDb(), id, body, session.userId);
-
-  const post = await getDb().query.posts.findFirst({
-    where: eq(schema.posts.id, comment.postId),
-    columns: { groupId: true },
-  });
-
-  await awardPoints(getDb(), {
-    userId: session.userId,
-    eventType: 'comment_created',
-    points: 3,
-    sourceId: comment.id,
-    groupId: post?.groupId ?? null,
-    context: { postId: comment.postId },
-  });
 
   return ok(comment);
 }

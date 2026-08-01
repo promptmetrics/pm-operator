@@ -40,6 +40,7 @@ export const pointEventTypeEnum = pgEnum('point_event_type', [
   'invite_accepted',
   'daily_visit',
   'posts_read',
+  'streak_bonus',
   'manual_award',
 ]);
 export const leaderboardPeriodEnum = pgEnum('leaderboard_period', [
@@ -75,6 +76,9 @@ export const users = pgTable(
     role: userRoleEnum('role').default('member').notNull(),
     reputationScore: numeric('reputation_score', { precision: 12, scale: 2 }).default('0').notNull(),
     streakDays: integer('streak_days').default(0).notNull(),
+    longestStreakDays: integer('longest_streak_days').default(0).notNull(),
+    // UTC day the streak last advanced (null until first advancing activity).
+    streakLastDate: date('streak_last_date'),
     lastActiveAt: timestamp('last_active_at', { withTimezone: true }),
     preferences: jsonb('preferences').default(sql`'{}'::jsonb`).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -330,6 +334,9 @@ export const pointEvents = pgTable(
     uniqueDailyVisit: uniqueIndex('point_events_daily_visit_idx')
       .on(table.userId, sql`CAST((${table.awardedAt} AT TIME ZONE 'UTC') AS date)`)
       .where(sql`${table.eventType} = 'daily_visit'`),
+    uniqueStreakBonus: uniqueIndex('point_events_streak_bonus_idx')
+      .on(table.userId, sql`CAST((${table.awardedAt} AT TIME ZONE 'UTC') AS date)`)
+      .where(sql`${table.eventType} = 'streak_bonus'`),
   })
 ).enableRLS();
 
@@ -341,12 +348,15 @@ export const userScores = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     groupId: uuid('group_id').notNull().default(GLOBAL_GROUP_ID),
     period: leaderboardPeriodEnum('period').notNull(),
+    // Start of the scoring window (date_trunc of week/month/quarter).
+    // all_time rows use the 1970-01-01 sentinel.
+    periodStart: date('period_start').notNull().default('1970-01-01'),
     score: numeric('score', { precision: 12, scale: 2 }).default('0').notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    pk: unique('user_scores_pk').on(table.userId, table.groupId, table.period),
-    scoreIdx: index('user_scores_score_idx').on(table.groupId, table.period, table.score),
+    pk: unique('user_scores_pk').on(table.userId, table.groupId, table.period, table.periodStart),
+    scoreIdx: index('user_scores_score_idx').on(table.groupId, table.period, table.periodStart, table.score),
   })
 ).enableRLS();
 

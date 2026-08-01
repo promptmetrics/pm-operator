@@ -12,6 +12,53 @@ export const userRoleSchema = z.nativeEnum(
   UserRole as Record<string, string>
 ) as z.ZodType<UserRole>;
 
+/**
+ * Operator level ladder — SPEC_LOG 2026-08-01 (design's Leaderboards page),
+ * thresholds against the canonical 10/5/25 economy. Levels are derived from
+ * users.reputation_score; nothing is stored.
+ */
+export const OPERATOR_LEVELS = [
+  { level: 1, name: 'Newcomer', minScore: 0 },
+  { level: 2, name: 'Builder', minScore: 100 },
+  { level: 3, name: 'Contributor', minScore: 400 },
+  { level: 4, name: 'Operator', minScore: 900 },
+  { level: 5, name: 'Senior operator', minScore: 1500 },
+  { level: 6, name: 'Legend', minScore: 3000 },
+] as const;
+
+export type OperatorLevel = (typeof OPERATOR_LEVELS)[number];
+
+export interface LevelInfo {
+  level: number;
+  name: string;
+  /** null at max level */
+  nextLevel: { level: number; name: string; minScore: number } | null;
+  /** points still needed for the next level; null at max level */
+  pointsToNext: number | null;
+  /** 0-100 progress within the current level band; 100 at max level */
+  progressPercent: number;
+}
+
+export function levelForScore(score: number): LevelInfo {
+  const clamped = Math.max(0, score);
+  let current: OperatorLevel = OPERATOR_LEVELS[0];
+  for (const candidate of OPERATOR_LEVELS) {
+    if (clamped >= candidate.minScore) current = candidate;
+  }
+  const next = OPERATOR_LEVELS.find((l) => l.level === current.level + 1) ?? null;
+  if (!next) {
+    return { level: current.level, name: current.name, nextLevel: null, pointsToNext: null, progressPercent: 100 };
+  }
+  const bandSize = next.minScore - current.minScore;
+  return {
+    level: current.level,
+    name: current.name,
+    nextLevel: { level: next.level, name: next.name, minScore: next.minScore },
+    pointsToNext: Math.max(0, next.minScore - clamped),
+    progressPercent: Math.min(100, Math.round(((clamped - current.minScore) / bandSize) * 100)),
+  };
+}
+
 export const userPreferencesSchema = z.object({
   emailNotifications: z.boolean().optional(),
   weeklyDigest: z.boolean().optional(),
@@ -31,6 +78,7 @@ export const userPublicProfileSchema = z.object({
   role: userRoleSchema,
   reputationScore: z.number(),
   streakDays: z.number().int().nonnegative(),
+  level: z.number().int().min(1),
   painfulToolStackTask: z.string(),
   onboardingComplete: z.boolean(),
 });
@@ -68,6 +116,7 @@ export const publicUserProfileSchema = z.object({
   reputationScore: z.number(),
   streakDays: z.number().int().nonnegative(),
   acceptedSolutions: z.number().int().nonnegative(),
+  level: z.number().int().min(1),
 });
 
 export type PublicUserProfile = z.infer<typeof publicUserProfileSchema>;
@@ -92,3 +141,27 @@ export const patchUserRoleRequestSchema = z.object({
 });
 
 export type PatchUserRoleRequest = z.infer<typeof patchUserRoleRequestSchema>;
+
+/**
+ * Streak week view (T2.3): 'done' = activity that UTC day, 'pending' = today
+ * without activity yet, 'empty' = no activity / future day.
+ */
+export const streakDayStateSchema = z.enum(['done', 'pending', 'empty']);
+
+export type StreakDayState = z.infer<typeof streakDayStateSchema>;
+
+export const myStreakResponseSchema = z.object({
+  current: z.number().int().nonnegative(),
+  best: z.number().int().nonnegative(),
+  days: z
+    .array(
+      z.object({
+        date: z.string(),
+        label: z.string(),
+        state: streakDayStateSchema,
+      })
+    )
+    .length(7),
+});
+
+export type MyStreakResponse = z.infer<typeof myStreakResponseSchema>;

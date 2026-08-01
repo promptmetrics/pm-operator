@@ -53,6 +53,14 @@ export async function GET(request: Request) {
     left join as_count on as_count.user_id = ${schema.users.id}
     where ${schema.userScores.groupId} = ${groupId}
       and ${schema.userScores.period} = ${period}
+      and ${schema.userScores.periodStart} = (
+        case ${period}
+          when 'weekly' then date_trunc('week', now())::date
+          when 'monthly' then date_trunc('month', now())::date
+          when 'quarterly' then date_trunc('quarter', now())::date
+          else '1970-01-01'::date
+        end
+      )
     order by ${schema.userScores.score} desc
     limit ${limit + 1}
     offset ${offset}

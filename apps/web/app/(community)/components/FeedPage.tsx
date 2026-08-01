@@ -11,6 +11,7 @@ import { FeedCard } from './FeedCard';
 import { CreatePostModal } from './CreatePostModal';
 import { useRealtimeGroup } from './RealtimeProvider';
 import type { FeedFilter, PostListItem, Group, LeaderboardEntry } from '@pm-operator/api';
+import { POINT_WEIGHTS } from '@pm-operator/api';
 
 interface FeedPageProps {
   initialPosts: PostListItem[];
@@ -116,6 +117,7 @@ export function FeedPage({
             username: detail.author.username,
             reputationScore: detail.author.reputationScore,
             acceptedSolutions: detail.author.acceptedSolutions,
+            level: detail.author.level,
           },
           upvotes: detail.upvotes,
           commentCount: detail.commentCount,
@@ -230,15 +232,15 @@ export function FeedPage({
             </CardTitle>
             <ul className="space-y-2 text-sm text-[var(--pm-muted)]">
               <li className="flex items-start gap-2">
-                <span className="text-[var(--pm-green)]">+10</span>
+                <span className="text-[var(--pm-green)]">+{POINT_WEIGHTS.topic_created}</span>
                 <span>Share a build or ask a question</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-[var(--pm-green)]">+5</span>
+                <span className="text-[var(--pm-green)]">+{POINT_WEIGHTS.comment_created}</span>
                 <span>Leave a helpful comment</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-[var(--pm-green)]">+25</span>
+                <span className="text-[var(--pm-green)]">+{POINT_WEIGHTS.solution_accepted}</span>
                 <span>Have your answer accepted as a solution</span>
               </li>
             </ul>

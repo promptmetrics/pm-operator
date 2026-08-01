@@ -29,7 +29,14 @@ export function Header() {
   React.useEffect(() => {
     fetch('/api/v1/me')
       .then((res) => (res.ok ? res.json() : null))
-      .then((json) => setProfile(json?.data ?? null))
+      .then((json) => {
+        const user = json?.data ?? null;
+        setProfile(user);
+        if (user) {
+          // Fire-and-forget: the endpoint is idempotent per UTC day.
+          fetch('/api/v1/daily-visit', { method: 'POST' }).catch(() => {});
+        }
+      })
       .catch(() => {});
   }, []);
 

@@ -99,13 +99,16 @@ ALTER TABLE "mcp_clients" ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 
 -- users: public profiles; users may update only their own row.
-CREATE POLICY IF NOT EXISTS "users_select" ON "users" FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY IF NOT EXISTS "users_update" ON "users" FOR UPDATE TO authenticated USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+DROP POLICY IF EXISTS "users_select" ON "users";--> statement-breakpoint
+CREATE POLICY "users_select" ON "users" FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "users_update" ON "users";--> statement-breakpoint
+CREATE POLICY "users_update" ON "users" FOR UPDATE TO authenticated USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
 --> statement-breakpoint
 
 -- groups: public circles readable by anyone; non-public circles only to members, creators, or admins.
-CREATE POLICY IF NOT EXISTS "groups_select" ON "groups" FOR SELECT TO anon, authenticated USING (
+DROP POLICY IF EXISTS "groups_select" ON "groups";--> statement-breakpoint
+CREATE POLICY "groups_select" ON "groups" FOR SELECT TO anon, authenticated USING (
   visibility = 'public'
   OR auth.uid() = created_by
   OR EXISTS (
@@ -113,10 +116,12 @@ CREATE POLICY IF NOT EXISTS "groups_select" ON "groups" FOR SELECT TO anon, auth
   )
   OR EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
 );
-CREATE POLICY IF NOT EXISTS "groups_insert" ON "groups" FOR INSERT TO authenticated WITH CHECK (
+DROP POLICY IF EXISTS "groups_insert" ON "groups";--> statement-breakpoint
+CREATE POLICY "groups_insert" ON "groups" FOR INSERT TO authenticated WITH CHECK (
   EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
 );
-CREATE POLICY IF NOT EXISTS "groups_update" ON "groups" FOR UPDATE TO authenticated USING (
+DROP POLICY IF EXISTS "groups_update" ON "groups";--> statement-breakpoint
+CREATE POLICY "groups_update" ON "groups" FOR UPDATE TO authenticated USING (
   auth.uid() = created_by
   OR EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
   OR EXISTS (
@@ -135,7 +140,8 @@ CREATE POLICY IF NOT EXISTS "groups_update" ON "groups" FOR UPDATE TO authentica
 --> statement-breakpoint
 
 -- group_memberships: own memberships plus group moderators/admins and global admins.
-CREATE POLICY IF NOT EXISTS "group_memberships_select" ON "group_memberships" FOR SELECT TO authenticated USING (
+DROP POLICY IF EXISTS "group_memberships_select" ON "group_memberships";--> statement-breakpoint
+CREATE POLICY "group_memberships_select" ON "group_memberships" FOR SELECT TO authenticated USING (
   user_id = auth.uid()
   OR EXISTS (
     SELECT 1 FROM "group_memberships" gm
@@ -145,11 +151,13 @@ CREATE POLICY IF NOT EXISTS "group_memberships_select" ON "group_memberships" FO
   )
   OR EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
 );
-CREATE POLICY IF NOT EXISTS "group_memberships_insert" ON "group_memberships" FOR INSERT TO authenticated WITH CHECK (
+DROP POLICY IF EXISTS "group_memberships_insert" ON "group_memberships";--> statement-breakpoint
+CREATE POLICY "group_memberships_insert" ON "group_memberships" FOR INSERT TO authenticated WITH CHECK (
   user_id = auth.uid()
   OR EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
 );
-CREATE POLICY IF NOT EXISTS "group_memberships_delete" ON "group_memberships" FOR DELETE TO authenticated USING (
+DROP POLICY IF EXISTS "group_memberships_delete" ON "group_memberships";--> statement-breakpoint
+CREATE POLICY "group_memberships_delete" ON "group_memberships" FOR DELETE TO authenticated USING (
   user_id = auth.uid()
   OR EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
   OR EXISTS (
@@ -163,7 +171,8 @@ CREATE POLICY IF NOT EXISTS "group_memberships_delete" ON "group_memberships" FO
 --> statement-breakpoint
 
 -- group_invites: visible to inviter and group admins/moderators; created by them.
-CREATE POLICY IF NOT EXISTS "group_invites_select" ON "group_invites" FOR SELECT TO authenticated USING (
+DROP POLICY IF EXISTS "group_invites_select" ON "group_invites";--> statement-breakpoint
+CREATE POLICY "group_invites_select" ON "group_invites" FOR SELECT TO authenticated USING (
   inviter_id = auth.uid()
   OR EXISTS (
     SELECT 1 FROM "group_memberships" gm
@@ -173,7 +182,8 @@ CREATE POLICY IF NOT EXISTS "group_invites_select" ON "group_invites" FOR SELECT
   )
   OR EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
 );
-CREATE POLICY IF NOT EXISTS "group_invites_insert" ON "group_invites" FOR INSERT TO authenticated WITH CHECK (
+DROP POLICY IF EXISTS "group_invites_insert" ON "group_invites";--> statement-breakpoint
+CREATE POLICY "group_invites_insert" ON "group_invites" FOR INSERT TO authenticated WITH CHECK (
   EXISTS (
     SELECT 1 FROM "group_memberships"
     WHERE group_id = "group_invites".group_id
@@ -186,8 +196,10 @@ CREATE POLICY IF NOT EXISTS "group_invites_insert" ON "group_invites" FOR INSERT
 --> statement-breakpoint
 
 -- membership_tiers: public read; admin-only writes.
-CREATE POLICY IF NOT EXISTS "membership_tiers_select" ON "membership_tiers" FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY IF NOT EXISTS "membership_tiers_write" ON "membership_tiers" FOR ALL TO authenticated USING (
+DROP POLICY IF EXISTS "membership_tiers_select" ON "membership_tiers";--> statement-breakpoint
+CREATE POLICY "membership_tiers_select" ON "membership_tiers" FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "membership_tiers_write" ON "membership_tiers";--> statement-breakpoint
+CREATE POLICY "membership_tiers_write" ON "membership_tiers" FOR ALL TO authenticated USING (
   EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
 ) WITH CHECK (
   EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
@@ -196,7 +208,8 @@ CREATE POLICY IF NOT EXISTS "membership_tiers_write" ON "membership_tiers" FOR A
 --> statement-breakpoint
 
 -- user_memberships: own subscriptions plus global admins.
-CREATE POLICY IF NOT EXISTS "user_memberships_select" ON "user_memberships" FOR SELECT TO authenticated USING (
+DROP POLICY IF EXISTS "user_memberships_select" ON "user_memberships";--> statement-breakpoint
+CREATE POLICY "user_memberships_select" ON "user_memberships" FOR SELECT TO authenticated USING (
   user_id = auth.uid()
   OR EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
 );
@@ -204,7 +217,8 @@ CREATE POLICY IF NOT EXISTS "user_memberships_select" ON "user_memberships" FOR 
 --> statement-breakpoint
 
 -- posts: read published posts in accessible groups; hidden/deleted only for privileged users.
-CREATE POLICY IF NOT EXISTS "posts_select" ON "posts" FOR SELECT TO anon, authenticated USING (
+DROP POLICY IF EXISTS "posts_select" ON "posts";--> statement-breakpoint
+CREATE POLICY "posts_select" ON "posts" FOR SELECT TO anon, authenticated USING (
   status <> 'deleted'
   AND (
     status <> 'hidden'
@@ -228,26 +242,30 @@ CREATE POLICY IF NOT EXISTS "posts_select" ON "posts" FOR SELECT TO anon, authen
 
 -- posts inserts: public circles allow authenticated inserts; private/invite-only circles require membership.
 -- All client inserts must set author_id to the current user.
-CREATE POLICY IF NOT EXISTS "posts_public_insert" ON "posts" FOR INSERT TO authenticated WITH CHECK (
+DROP POLICY IF EXISTS "posts_public_insert" ON "posts";--> statement-breakpoint
+CREATE POLICY "posts_public_insert" ON "posts" FOR INSERT TO authenticated WITH CHECK (
   author_id = auth.uid()
   AND EXISTS (
     SELECT 1 FROM "groups" WHERE id = "posts".group_id AND visibility = 'public'
   )
 );
-CREATE POLICY IF NOT EXISTS "posts_member_insert" ON "posts" FOR INSERT TO authenticated WITH CHECK (
+DROP POLICY IF EXISTS "posts_member_insert" ON "posts";--> statement-breakpoint
+CREATE POLICY "posts_member_insert" ON "posts" FOR INSERT TO authenticated WITH CHECK (
   author_id = auth.uid()
   AND EXISTS (
     SELECT 1 FROM "group_memberships"
     WHERE group_id = "posts".group_id AND user_id = auth.uid()
   )
 );
-CREATE POLICY IF NOT EXISTS "posts_admin_insert" ON "posts" FOR INSERT TO authenticated WITH CHECK (
+DROP POLICY IF EXISTS "posts_admin_insert" ON "posts";--> statement-breakpoint
+CREATE POLICY "posts_admin_insert" ON "posts" FOR INSERT TO authenticated WITH CHECK (
   author_id = auth.uid()
   AND EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
 );
 
 -- posts updates/deletes: author, global moderators/admins, or circle moderators/admins.
-CREATE POLICY IF NOT EXISTS "posts_update" ON "posts" FOR UPDATE TO authenticated USING (
+DROP POLICY IF EXISTS "posts_update" ON "posts";--> statement-breakpoint
+CREATE POLICY "posts_update" ON "posts" FOR UPDATE TO authenticated USING (
   auth.uid() = author_id
   OR EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
   OR EXISTS (
@@ -262,7 +280,8 @@ CREATE POLICY IF NOT EXISTS "posts_update" ON "posts" FOR UPDATE TO authenticate
     WHERE group_id = "posts".group_id AND user_id = auth.uid() AND role IN ('admin', 'moderator')
   )
 );
-CREATE POLICY IF NOT EXISTS "posts_delete" ON "posts" FOR DELETE TO authenticated USING (
+DROP POLICY IF EXISTS "posts_delete" ON "posts";--> statement-breakpoint
+CREATE POLICY "posts_delete" ON "posts" FOR DELETE TO authenticated USING (
   auth.uid() = author_id
   OR EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
   OR EXISTS (
@@ -274,7 +293,8 @@ CREATE POLICY IF NOT EXISTS "posts_delete" ON "posts" FOR DELETE TO authenticate
 --> statement-breakpoint
 
 -- comments: same visibility as parent post; deleted/hidden only for privileged users.
-CREATE POLICY IF NOT EXISTS "comments_select" ON "comments" FOR SELECT TO anon, authenticated USING (
+DROP POLICY IF EXISTS "comments_select" ON "comments";--> statement-breakpoint
+CREATE POLICY "comments_select" ON "comments" FOR SELECT TO anon, authenticated USING (
   status <> 'deleted'
   AND (
     status <> 'hidden'
@@ -305,7 +325,8 @@ CREATE POLICY IF NOT EXISTS "comments_select" ON "comments" FOR SELECT TO anon, 
 
 -- comments inserts: public posts allow authenticated inserts; non-public circles require membership.
 -- All client inserts must set author_id to the current user.
-CREATE POLICY IF NOT EXISTS "comments_public_insert" ON "comments" FOR INSERT TO authenticated WITH CHECK (
+DROP POLICY IF EXISTS "comments_public_insert" ON "comments";--> statement-breakpoint
+CREATE POLICY "comments_public_insert" ON "comments" FOR INSERT TO authenticated WITH CHECK (
   author_id = auth.uid()
   AND EXISTS (
     SELECT 1 FROM "posts" p
@@ -313,7 +334,8 @@ CREATE POLICY IF NOT EXISTS "comments_public_insert" ON "comments" FOR INSERT TO
     WHERE p.id = "comments".post_id AND p.status <> 'deleted' AND g.visibility = 'public'
   )
 );
-CREATE POLICY IF NOT EXISTS "comments_member_insert" ON "comments" FOR INSERT TO authenticated WITH CHECK (
+DROP POLICY IF EXISTS "comments_member_insert" ON "comments";--> statement-breakpoint
+CREATE POLICY "comments_member_insert" ON "comments" FOR INSERT TO authenticated WITH CHECK (
   author_id = auth.uid()
   AND EXISTS (
     SELECT 1 FROM "posts" p
@@ -321,20 +343,23 @@ CREATE POLICY IF NOT EXISTS "comments_member_insert" ON "comments" FOR INSERT TO
     WHERE p.id = "comments".post_id AND gm.user_id = auth.uid()
   )
 );
-CREATE POLICY IF NOT EXISTS "comments_admin_insert" ON "comments" FOR INSERT TO authenticated WITH CHECK (
+DROP POLICY IF EXISTS "comments_admin_insert" ON "comments";--> statement-breakpoint
+CREATE POLICY "comments_admin_insert" ON "comments" FOR INSERT TO authenticated WITH CHECK (
   author_id = auth.uid()
   AND EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
 );
 
 -- comments updates/deletes: author or global moderators/admins.
-CREATE POLICY IF NOT EXISTS "comments_update" ON "comments" FOR UPDATE TO authenticated USING (
+DROP POLICY IF EXISTS "comments_update" ON "comments";--> statement-breakpoint
+CREATE POLICY "comments_update" ON "comments" FOR UPDATE TO authenticated USING (
   auth.uid() = author_id
   OR EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
 ) WITH CHECK (
   auth.uid() = author_id
   OR EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
 );
-CREATE POLICY IF NOT EXISTS "comments_delete" ON "comments" FOR DELETE TO authenticated USING (
+DROP POLICY IF EXISTS "comments_delete" ON "comments";--> statement-breakpoint
+CREATE POLICY "comments_delete" ON "comments" FOR DELETE TO authenticated USING (
   auth.uid() = author_id
   OR EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
 );
@@ -342,7 +367,8 @@ CREATE POLICY IF NOT EXISTS "comments_delete" ON "comments" FOR DELETE TO authen
 --> statement-breakpoint
 
 -- reactions: read/write own reactions only on visible targets.
-CREATE POLICY IF NOT EXISTS "reactions_select" ON "reactions" FOR SELECT TO anon, authenticated USING (
+DROP POLICY IF EXISTS "reactions_select" ON "reactions";--> statement-breakpoint
+CREATE POLICY "reactions_select" ON "reactions" FOR SELECT TO anon, authenticated USING (
   EXISTS (
     SELECT 1 FROM "posts" p
     JOIN "groups" g ON g.id = p.group_id
@@ -370,7 +396,8 @@ CREATE POLICY IF NOT EXISTS "reactions_select" ON "reactions" FOR SELECT TO anon
       )
   )
 );
-CREATE POLICY IF NOT EXISTS "reactions_insert" ON "reactions" FOR INSERT TO authenticated WITH CHECK (
+DROP POLICY IF EXISTS "reactions_insert" ON "reactions";--> statement-breakpoint
+CREATE POLICY "reactions_insert" ON "reactions" FOR INSERT TO authenticated WITH CHECK (
   user_id = auth.uid()
   AND (
     EXISTS (
@@ -401,15 +428,18 @@ CREATE POLICY IF NOT EXISTS "reactions_insert" ON "reactions" FOR INSERT TO auth
     )
   )
 );
-CREATE POLICY IF NOT EXISTS "reactions_delete" ON "reactions" FOR DELETE TO authenticated USING (user_id = auth.uid());
+DROP POLICY IF EXISTS "reactions_delete" ON "reactions";--> statement-breakpoint
+CREATE POLICY "reactions_delete" ON "reactions" FOR DELETE TO authenticated USING (user_id = auth.uid());
 
 --> statement-breakpoint
 
 -- post_views: anonymous (NULL user_id) or self views on insert; reads restricted to owner/admin.
-CREATE POLICY IF NOT EXISTS "post_views_insert" ON "post_views" FOR INSERT TO anon, authenticated WITH CHECK (
+DROP POLICY IF EXISTS "post_views_insert" ON "post_views";--> statement-breakpoint
+CREATE POLICY "post_views_insert" ON "post_views" FOR INSERT TO anon, authenticated WITH CHECK (
   user_id IS NULL OR user_id = auth.uid()
 );
-CREATE POLICY IF NOT EXISTS "post_views_select" ON "post_views" FOR SELECT TO authenticated USING (
+DROP POLICY IF EXISTS "post_views_select" ON "post_views";--> statement-breakpoint
+CREATE POLICY "post_views_select" ON "post_views" FOR SELECT TO authenticated USING (
   user_id = auth.uid()
   OR EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
 );
@@ -417,12 +447,14 @@ CREATE POLICY IF NOT EXISTS "post_views_select" ON "post_views" FOR SELECT TO au
 --> statement-breakpoint
 
 -- notifications: own only.
-CREATE POLICY IF NOT EXISTS "notifications_all" ON "notifications" FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+DROP POLICY IF EXISTS "notifications_all" ON "notifications";--> statement-breakpoint
+CREATE POLICY "notifications_all" ON "notifications" FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
 --> statement-breakpoint
 
 -- point_events: own + admin.
-CREATE POLICY IF NOT EXISTS "point_events_select" ON "point_events" FOR SELECT TO authenticated USING (
+DROP POLICY IF EXISTS "point_events_select" ON "point_events";--> statement-breakpoint
+CREATE POLICY "point_events_select" ON "point_events" FOR SELECT TO authenticated USING (
   user_id = auth.uid()
   OR EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
 );
@@ -430,12 +462,14 @@ CREATE POLICY IF NOT EXISTS "point_events_select" ON "point_events" FOR SELECT T
 --> statement-breakpoint
 
 -- user_scores: public read (leaderboards); no client writes.
-CREATE POLICY IF NOT EXISTS "user_scores_select" ON "user_scores" FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "user_scores_select" ON "user_scores";--> statement-breakpoint
+CREATE POLICY "user_scores_select" ON "user_scores" FOR SELECT TO anon, authenticated USING (true);
 
 --> statement-breakpoint
 
 -- user_daily_stats: own + admin.
-CREATE POLICY IF NOT EXISTS "user_daily_stats_select" ON "user_daily_stats" FOR SELECT TO authenticated USING (
+DROP POLICY IF EXISTS "user_daily_stats_select" ON "user_daily_stats";--> statement-breakpoint
+CREATE POLICY "user_daily_stats_select" ON "user_daily_stats" FOR SELECT TO authenticated USING (
   user_id = auth.uid()
   OR EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
 );
@@ -443,11 +477,14 @@ CREATE POLICY IF NOT EXISTS "user_daily_stats_select" ON "user_daily_stats" FOR 
 --> statement-breakpoint
 
 -- flags: read/update by moderators/admins; insert only by the reporter themselves.
-CREATE POLICY IF NOT EXISTS "flags_select" ON "flags" FOR SELECT TO authenticated USING (
+DROP POLICY IF EXISTS "flags_select" ON "flags";--> statement-breakpoint
+CREATE POLICY "flags_select" ON "flags" FOR SELECT TO authenticated USING (
   EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
 );
-CREATE POLICY IF NOT EXISTS "flags_insert" ON "flags" FOR INSERT TO authenticated WITH CHECK (reporter_id = auth.uid());
-CREATE POLICY IF NOT EXISTS "flags_update" ON "flags" FOR UPDATE TO authenticated USING (
+DROP POLICY IF EXISTS "flags_insert" ON "flags";--> statement-breakpoint
+CREATE POLICY "flags_insert" ON "flags" FOR INSERT TO authenticated WITH CHECK (reporter_id = auth.uid());
+DROP POLICY IF EXISTS "flags_update" ON "flags";--> statement-breakpoint
+CREATE POLICY "flags_update" ON "flags" FOR UPDATE TO authenticated USING (
   EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
 ) WITH CHECK (
   EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
@@ -456,7 +493,8 @@ CREATE POLICY IF NOT EXISTS "flags_update" ON "flags" FOR UPDATE TO authenticate
 --> statement-breakpoint
 
 -- watched_phrases: admin/moderator only.
-CREATE POLICY IF NOT EXISTS "watched_phrases_all" ON "watched_phrases" FOR ALL TO authenticated USING (
+DROP POLICY IF EXISTS "watched_phrases_all" ON "watched_phrases";--> statement-breakpoint
+CREATE POLICY "watched_phrases_all" ON "watched_phrases" FOR ALL TO authenticated USING (
   EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
 ) WITH CHECK (
   EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
@@ -465,9 +503,12 @@ CREATE POLICY IF NOT EXISTS "watched_phrases_all" ON "watched_phrases" FOR ALL T
 --> statement-breakpoint
 
 -- badges / user_badges: public read; admin writes.
-CREATE POLICY IF NOT EXISTS "badges_select" ON "badges" FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY IF NOT EXISTS "user_badges_select" ON "user_badges" FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY IF NOT EXISTS "user_badges_write" ON "user_badges" FOR ALL TO authenticated USING (
+DROP POLICY IF EXISTS "badges_select" ON "badges";--> statement-breakpoint
+CREATE POLICY "badges_select" ON "badges" FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "user_badges_select" ON "user_badges";--> statement-breakpoint
+CREATE POLICY "user_badges_select" ON "user_badges" FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "user_badges_write" ON "user_badges";--> statement-breakpoint
+CREATE POLICY "user_badges_write" ON "user_badges" FOR ALL TO authenticated USING (
   EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
 ) WITH CHECK (
   EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
@@ -476,9 +517,11 @@ CREATE POLICY IF NOT EXISTS "user_badges_write" ON "user_badges" FOR ALL TO auth
 --> statement-breakpoint
 
 -- agent_actions / mcp_clients: admin only.
-CREATE POLICY IF NOT EXISTS "agent_actions_select" ON "agent_actions" FOR SELECT TO authenticated USING (
+DROP POLICY IF EXISTS "agent_actions_select" ON "agent_actions";--> statement-breakpoint
+CREATE POLICY "agent_actions_select" ON "agent_actions" FOR SELECT TO authenticated USING (
   EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
 );
-CREATE POLICY IF NOT EXISTS "mcp_clients_select" ON "mcp_clients" FOR SELECT TO authenticated USING (
+DROP POLICY IF EXISTS "mcp_clients_select" ON "mcp_clients";--> statement-breakpoint
+CREATE POLICY "mcp_clients_select" ON "mcp_clients" FOR SELECT TO authenticated USING (
   EXISTS (SELECT 1 FROM "users" WHERE id = auth.uid() AND role = 'admin')
 );

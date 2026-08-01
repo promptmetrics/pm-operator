@@ -8,11 +8,12 @@ import type {
   PatchCommentRequest,
   AcceptSolutionRequest,
 } from '@pm-operator/api';
+import { POINT_WEIGHTS, levelForScore } from '@pm-operator/api';
 import { getAvatarReadUrl } from '../storage';
 import { htmlToText } from '../html-to-text';
 import { toISO, toNumber, isAdminOrModerator } from './shared';
 import { insertNotification } from './notifications';
-import { awardPoints, trackDailyStat } from './points';
+import { awardPoints, trackDailyStat, advanceStreak } from './points';
 import { autoFlagIfWatched } from './flags';
 
 function commentVisibilityFilter(currentUserId: string | undefined) {
@@ -93,6 +94,7 @@ async function toCommentDetail(
       reputationScore: toNumber(author.reputationScore),
       streakDays: author.streakDays,
       acceptedSolutions: 0,
+      level: levelForScore(toNumber(author.reputationScore)).level,
     },
   };
 }
@@ -194,11 +196,13 @@ export async function createComment(
   await awardPoints(db, {
     userId: authorId,
     eventType: 'comment_created',
-    points: 2,
+    points: POINT_WEIGHTS.comment_created,
     sourceId: comment.id,
     groupId: post.groupId,
     context: { postId },
   });
+
+  await advanceStreak(db, authorId);
 
   if (post.authorId !== authorId) {
     await insertNotification(db, {
@@ -340,7 +344,7 @@ export async function acceptSolution(
   await awardPoints(db, {
     userId: comment.authorId,
     eventType: 'solution_accepted',
-    points: 25,
+    points: POINT_WEIGHTS.solution_accepted,
     sourceId: comment.id,
     groupId: post.groupId,
     context: { postId },
