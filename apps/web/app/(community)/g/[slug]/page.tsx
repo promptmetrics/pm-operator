@@ -65,17 +65,11 @@ export default async function GroupRoute({
   const pageParam = typeof paramsQuery.page === 'string' ? Number(paramsQuery.page) : undefined;
   const page = Number.isFinite(pageParam) && pageParam && pageParam > 0 ? pageParam : 1;
 
-  const [
-    membership,
-    pinned,
-    { posts, nextCursor },
-    leaderboard,
-    writableGroups,
-    currentUser,
-    stats,
-    members,
-    circles,
-  ] = await Promise.all([
+  // Bounded waves (≤3 concurrent queries): a single wide Promise.all starves
+  // the small per-instance DB pool and hangs instead of queueing — abandoned
+  // clients then pin pooler slots and wedge the whole database (2026-08-02
+  // incident; see DESIGN-GAP-REPORT "Pool-starvation gotcha").
+  const [membership, currentUser, writableGroups] = await Promise.all([
     currentUserId
       ? db.query.groupMemberships.findFirst({
           where: and(
@@ -84,16 +78,22 @@ export default async function GroupRoute({
           ),
         })
       : Promise.resolve(null),
-    listPinnedPosts(db, group.id, currentUserId),
-    listGroupPosts(db, slug, { filter, sort, page, limit: 20 }, currentUserId),
-    listGroupLeaderboard(db, group.id, 'weekly', 5),
-    currentUserId ? getWritableGroups(db, currentUserId) : Promise.resolve([]),
     currentUserId
       ? db.query.users.findFirst({
           where: eq(schema.users.id, currentUserId),
           columns: { role: true, username: true },
         })
       : Promise.resolve(null),
+    currentUserId ? getWritableGroups(db, currentUserId) : Promise.resolve([]),
+  ]);
+
+  const [{ posts, nextCursor }, pinned, leaderboard] = await Promise.all([
+    listGroupPosts(db, slug, { filter, sort, page, limit: 20 }, currentUserId),
+    listPinnedPosts(db, group.id, currentUserId),
+    listGroupLeaderboard(db, group.id, 'weekly', 5),
+  ]);
+
+  const [stats, members, circles] = await Promise.all([
     getGroupStats(db, group.id, currentUserId),
     listGroupMembers(db, slug, currentUserId),
     listGroupsWithPostCounts(db, currentUserId),
