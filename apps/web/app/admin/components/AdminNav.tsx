@@ -3,15 +3,17 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Shield, Flag, Circle, Eye, Award, Users, LayoutDashboard } from 'lucide-react';
+import { Shield, Flag, Circle, Eye, Award, Users, LayoutDashboard, CalendarDays, Terminal } from 'lucide-react';
 
 const LINKS = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/moderation', label: 'Moderation', icon: Flag },
   { href: '/admin/groups', label: 'Circles', icon: Circle },
+  { href: '/admin/events', label: 'Events', icon: CalendarDays },
   { href: '/admin/watched-phrases', label: 'Watched phrases', icon: Eye },
   { href: '/admin/badges', label: 'Badges', icon: Award },
   { href: '/admin/users', label: 'Users', icon: Users },
+  { href: '/admin/agent-actions', label: 'Agent actions', icon: Terminal },
 ];
 
 export function AdminNav() {

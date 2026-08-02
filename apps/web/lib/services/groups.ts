@@ -15,6 +15,7 @@ import { POINT_WEIGHTS } from '@pm-operator/api';
 import { toISO, isAdminOrModerator, toNumber } from './shared';
 import { awardPoints } from './points';
 import { postVisibilityFilter } from './posts';
+import { sendTransactional } from '../email';
 
 // Visibility filter mirrored from RLS: public groups, groups the current user
 // belongs to, or groups created by the current user. Admins bypass visibility.
@@ -562,6 +563,19 @@ export async function acceptInvite(
       groupId: group.id,
       context: { acceptedBy: userId },
     });
+
+    // T8.4: email the inviter that their invite was accepted. Same guard as
+    // the points award (inviter exists and isn't the acceptor). Fire-and-forget
+    // — sendTransactional honors emailNotifications (default on) and never
+    // throws, so a Loops outage can't break invite acceptance.
+    await sendTransactional('invite_accepted', {
+      db,
+      userId: invite.inviterId,
+      dataVariables: {
+        circleName: group.name,
+        circleUrl: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/g/${group.slug}`,
+      },
+    });
   }
 
   return {
@@ -573,4 +587,193 @@ export async function acceptInvite(
     createdAt: toISO(membership.createdAt),
     updatedAt: toISO(membership.updatedAt),
   };
+}
+
+// T8.9 (spec §5.5/521): read-side resolution for the /invite/[code] redemption
+// page. Sequential (≤1 concurrent): invite → group → membership. Returns only
+// what the page needs to render a state (valid / expired / fully-redeemed /
+// already-member), never the member list or posts.
+export interface InviteRedemption {
+  code: string;
+  group: {
+    slug: string;
+    name: string;
+    color: string | null;
+    description: string | null;
+    memberCount: number;
+  };
+  role: string;
+  expired: boolean;
+  fullyRedeemed: boolean;
+  alreadyMember: boolean;
+}
+
+export async function getInviteForRedemption(
+  db: DrizzleClient,
+  code: string,
+  userId?: string
+): Promise<InviteRedemption | null> {
+  const invite = await db.query.groupInvites.findFirst({
+    where: eq(schema.groupInvites.code, code),
+  });
+  if (!invite) return null;
+
+  const group = await db.query.groups.findFirst({
+    where: eq(schema.groups.id, invite.groupId),
+    columns: {
+      id: true,
+      slug: true,
+      name: true,
+      color: true,
+      description: true,
+      memberCount: true,
+    },
+  });
+  if (!group) return null;
+
+  const expired = invite.expiresAt ? new Date(invite.expiresAt) < new Date() : false;
+  const fullyRedeemed = invite.usedCount >= invite.maxUses;
+
+  let alreadyMember = false;
+  if (userId) {
+    const membership = await db.query.groupMemberships.findFirst({
+      where: and(
+        eq(schema.groupMemberships.groupId, group.id),
+        eq(schema.groupMemberships.userId, userId)
+      ),
+    });
+    alreadyMember = !!membership;
+  }
+
+  return {
+    code: invite.code,
+    group: {
+      slug: group.slug,
+      name: group.name,
+      color: group.color,
+      description: group.description,
+      memberCount: group.memberCount,
+    },
+    role: invite.role,
+    expired,
+    fullyRedeemed,
+    alreadyMember,
+  };
+}
+
+// T8.9 (spec §5.5/522): logged-in non-members of an invite-only circle see a
+// gated preview (lock + description + invite-code entry) instead of a 404.
+// Returns metadata only — never posts/members/leaderboard — and only for
+// invite-only circles (paid/private stay hidden at launch). Bounded: 1 query.
+export interface InviteOnlyPreview {
+  slug: string;
+  name: string;
+  color: string | null;
+  description: string | null;
+  memberCount: number;
+}
+
+export async function getGroupPreviewForInviteOnly(
+  db: DrizzleClient,
+  slug: string
+): Promise<InviteOnlyPreview | null> {
+  const row = await db.query.groups.findFirst({
+    where: and(eq(schema.groups.slug, slug), eq(schema.groups.visibility, 'invite_only')),
+    columns: {
+      slug: true,
+      name: true,
+      color: true,
+      description: true,
+      memberCount: true,
+    },
+  });
+  if (!row) return null;
+  return {
+    slug: row.slug,
+    name: row.name,
+    color: row.color,
+    description: row.description,
+    memberCount: row.memberCount,
+  };
+}
+
+export interface RecommendedCircle {
+  slug: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  memberCount: number;
+}
+
+// Expands the fixed Step-1 stack options (see onboarding-form STACK_OPTIONS)
+// into the loose keywords that actually appear in circle names/descriptions, so
+// a tag like "Vercel" matches a circle called "Vercel AI SDK" and "Evals"
+// matches "eval"/"evaluation". Custom free-text tags fall back to a plain
+// substring match against the lowercased name+description.
+const STACK_KEYWORD_ALIASES: Record<string, string[]> = {
+  mcp: ['mcp', 'model context protocol', 'tool'],
+  'next.js': ['next', 'next.js', 'react'],
+  vercel: ['vercel', 'ai sdk', 'ai gateway', 'edge'],
+  langchain: ['langchain', 'agent', 'rag', 'llm'],
+  openai: ['openai', 'gpt', 'prompt', 'llm'],
+  authentication: ['auth', 'oauth', 'session', 'supabase'],
+  evals: ['eval', 'evaluation', 'quality'],
+  'multi-agent orchestration': ['agent', 'agents', 'orchestration', 'workflow'],
+  governance: ['governance', 'policy', 'compliance', 'guardrail', 'moderation'],
+  storage: ['storage', 'vector', 'cache', 'database'],
+  supabase: ['supabase', 'auth', 'postgres', 'rls'],
+  postgres: ['postgres', 'sql', 'database', 'query'],
+  redis: ['redis', 'cache', 'queue'],
+  observability: ['observability', 'telemetry', 'trace', 'monitor', 'metrics'],
+  testing: ['test', 'testing', 'eval', 'quality', 'ci'],
+};
+
+// T8.10 (spec §3.2/105-169): Step-2 circle recommendations. One bounded query
+// (public circles only) scored in JS by stack-keyword overlap, then by
+// popularity so an empty/blank stack still surfaces joinable circles. No
+// Promise.all, no multi-CTE — pool-safe (1 concurrent query).
+export async function listRecommendedCircles(
+  db: DrizzleClient,
+  keywords: string[],
+  limit = 12
+): Promise<RecommendedCircle[]> {
+  const rows = await db.query.groups.findMany({
+    where: eq(schema.groups.visibility, 'public'),
+    columns: {
+      slug: true,
+      name: true,
+      description: true,
+      color: true,
+      memberCount: true,
+    },
+  });
+
+  const kws = new Set<string>();
+  for (const raw of keywords) {
+    const key = raw.trim().toLowerCase();
+    if (!key) continue;
+    kws.add(key);
+    const aliases = STACK_KEYWORD_ALIASES[key];
+    if (aliases) for (const a of aliases) kws.add(a);
+  }
+
+  const scored = rows.map((row) => {
+    const hay = `${row.name} ${row.description ?? ''}`.toLowerCase();
+    let score = 0;
+    if (kws.size > 0) {
+      for (const kw of kws) {
+        if (hay.includes(kw)) score += 1;
+      }
+    }
+    return { ...row, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score || b.memberCount - a.memberCount);
+  return scored.slice(0, limit).map(({ slug, name, description, color, memberCount }) => ({
+    slug,
+    name,
+    description,
+    color,
+    memberCount,
+  }));
 }

@@ -13,3 +13,7 @@ export * from './contracts/badges';
 export * from './contracts/search';
 export * from './contracts/flags';
 export * from './contracts/watched-phrases';
+export * from './contracts/agent-actions';
+export * from './contracts/events';
+export * from './contracts/follows';
+export * from './contracts/messages';

@@ -9,6 +9,8 @@ export const NotificationType = {
   FLAG_RESOLVED: 'flag_resolved',
   MENTION: 'mention',
   BADGE: 'badge',
+  NEW_FOLLOWER: 'new_follower',
+  NEW_MESSAGE: 'new_message',
 } as const;
 
 export type NotificationType =
@@ -30,6 +32,10 @@ export const notificationPayloadSchema = z.object({
   reason: z.string().optional(),
   badgeSlug: z.string().optional(),
   badgeName: z.string().optional(),
+  // WS9 DMs: new_message notifications deep-link into the conversation thread.
+  conversationId: z.string().uuid().optional(),
+  messageId: z.string().uuid().optional(),
+  messagePreview: z.string().max(160).optional(),
 });
 
 export type NotificationPayload = z.infer<typeof notificationPayloadSchema>;

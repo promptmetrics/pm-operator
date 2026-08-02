@@ -1,4 +1,4 @@
-import { eq, and, or, sql, desc, count, like } from 'drizzle-orm';
+import { eq, and, or, sql, desc, count, like, inArray } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type {
@@ -14,6 +14,7 @@ import type {
   UserListItem,
   UserRole,
   AwardPointsRequest,
+  AgentActionListItem,
 } from '@pm-operator/api';
 import { levelForScore } from '@pm-operator/api';
 import { isAdminOrModerator, toISO, toNumber } from './shared';
@@ -420,4 +421,68 @@ export async function adminSetUserRole(
     .returning();
 
   if (!updated) throw new Error('User not found');
+}
+
+// T8.12 (ADMIN-5): admin-only audit list of MCP agent actions. List UI only.
+// Pool-safe: two sequential queries — (1) the actions page (findMany, limit+1
+// for hasMore, newest first, optional clientId/toolName filters), then (2) the
+// usernames for just the user ids on that page (inArray, bounded by page size).
+// input/output are truncated to previews so the audit list stays triage-sized.
+const ACTION_PREVIEW_LIMIT = 280;
+
+function truncatePreview(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  let text: string;
+  if (typeof value === 'string') text = value;
+  else text = JSON.stringify(value);
+  if (text.length <= ACTION_PREVIEW_LIMIT) return text;
+  return `${text.slice(0, ACTION_PREVIEW_LIMIT)}…`;
+}
+
+export async function adminListAgentActions(
+  db: DrizzleClient,
+  query: { clientId?: string; toolName?: string; page: number; limit: number }
+): Promise<{ actions: AgentActionListItem[]; hasMore: boolean }> {
+  const conditions = [];
+  if (query.clientId) conditions.push(eq(schema.agentActions.clientId, query.clientId));
+  if (query.toolName) conditions.push(eq(schema.agentActions.toolName, query.toolName));
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const offset = (query.page - 1) * query.limit;
+
+  const rows = await db.query.agentActions.findMany({
+    where,
+    orderBy: [desc(schema.agentActions.createdAt)],
+    limit: query.limit + 1,
+    offset,
+  });
+
+  const hasMore = rows.length > query.limit;
+  const slice = hasMore ? rows.slice(0, query.limit) : rows;
+
+  const userIds = Array.from(
+    new Set(slice.map((r) => r.userId).filter((id): id is string => Boolean(id)))
+  );
+  const nameById = new Map<string, string>();
+  if (userIds.length > 0) {
+    const users = await db.query.users.findMany({
+      where: inArray(schema.users.id, userIds),
+      columns: { id: true, username: true },
+    });
+    for (const u of users) nameById.set(u.id, u.username);
+  }
+
+  const actions: AgentActionListItem[] = slice.map((r) => ({
+    id: r.id,
+    clientId: r.clientId,
+    userId: r.userId,
+    username: r.userId ? nameById.get(r.userId) ?? null : null,
+    toolName: r.toolName,
+    error: r.error,
+    durationMs: r.durationMs,
+    inputPreview: truncatePreview(r.input),
+    outputPreview: truncatePreview(r.output),
+    createdAt: toISO(r.createdAt),
+  }));
+
+  return { actions, hasMore };
 }

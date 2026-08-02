@@ -45,6 +45,8 @@ export async function getUserProfile(
     postsCount,
     joinedAt: toISO(user.createdAt),
     levelInfo: levelForScore(toNumber(user.reputationScore)),
+    followerCount: user.followerCount,
+    followingCount: user.followingCount,
   };
 }
 

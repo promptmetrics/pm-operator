@@ -50,6 +50,12 @@ interface FeedPageProps {
   railSlot?: React.ReactNode;
   /** Overrides composer-strip visibility (default remains !groupSlug). */
   showComposerStrip?: boolean;
+  /** Dismissible weekly-digest banner rendered at the top of the main column. */
+  digestBanner?: React.ReactNode;
+  /** Post-onboarding welcome toast (T8.10); rendered only on /feed?welcome=1. */
+  welcomeBanner?: React.ReactNode;
+  /** Open the post composer on mount (T8.10 "Write your first post" → ?compose=1). */
+  autoOpenComposer?: boolean;
 }
 
 const FILTERS: { label: string; value: FeedFilter; swatch?: string }[] = [
@@ -84,6 +90,9 @@ export function FeedPage({
   viewerUsername,
   railSlot,
   showComposerStrip,
+  digestBanner,
+  welcomeBanner,
+  autoOpenComposer,
 }: FeedPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -110,6 +119,13 @@ export function FeedPage({
     setCursor(initialCursor);
     setPage(1);
   }, [initialPosts, initialCursor]);
+
+  // T8.10: "Write your first post" from onboarding lands on /feed?compose=1 —
+  // open the composer once on mount so the user can start writing immediately.
+  React.useEffect(() => {
+    if (autoOpenComposer) openComposer('question');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const routeWith = (nextFilter: FeedFilter, nextSort: FeedSort) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -302,6 +318,8 @@ export function FeedPage({
       ) : null}
 
       <div>
+        {welcomeBanner}
+        {digestBanner}
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="font-serif text-2xl font-semibold text-[var(--pm-ink)]">

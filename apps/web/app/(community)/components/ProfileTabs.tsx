@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Flame } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Card } from '@pm-operator/ui/components/Card';
@@ -41,6 +42,7 @@ function formatJoined(iso: string): string {
 interface ProfileTabsProps {
   user: UserProfileDetail;
   currentUserId?: string;
+  isFollowing: boolean;
   posts: PostListItem[];
   solutions: AcceptedSolutionItem[];
   comments: CommentDetail[];
@@ -53,6 +55,7 @@ interface ProfileTabsProps {
 export function ProfileTabs({
   user,
   currentUserId,
+  isFollowing,
   posts,
   solutions,
   comments,
@@ -64,6 +67,55 @@ export function ProfileTabs({
   const [tab, setTab] = React.useState<Tab>('posts');
   const isMe = currentUserId === user.id;
   const { levelInfo } = user;
+
+  // Follow state (WS9): viewer-specific, toggled client-side via the follow
+  // route. Counts come from the profile payload and refresh from the response.
+  const [following, setFollowing] = React.useState(isFollowing);
+  const [counts, setCounts] = React.useState({
+    followerCount: user.followerCount,
+    followingCount: user.followingCount,
+  });
+  const [followPending, setFollowPending] = React.useState(false);
+  const [messagePending, setMessagePending] = React.useState(false);
+  const router = useRouter();
+
+  const toggleFollow = async () => {
+    if (!currentUserId || isMe || followPending) return;
+    setFollowPending(true);
+    const method = following ? 'DELETE' : 'POST';
+    try {
+      const res = await fetch(`/api/v1/users/${user.userslug}/follow`, { method });
+      if (!res.ok) return;
+      const json = (await res.json()) as {
+        data: { following: boolean; followerCount: number; followingCount: number };
+      };
+      setFollowing(json.data.following);
+      setCounts({
+        followerCount: json.data.followerCount,
+        followingCount: json.data.followingCount,
+      });
+    } finally {
+      setFollowPending(false);
+    }
+  };
+
+  // Start (or reuse) a 1:1 conversation with this user, then open the thread.
+  const startConversation = async () => {
+    if (!currentUserId || isMe || messagePending) return;
+    setMessagePending(true);
+    try {
+      const res = await fetch('/api/v1/conversations', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ targetUserId: user.id }),
+      });
+      if (!res.ok) return;
+      const json = (await res.json()) as { data?: { id: string } };
+      if (json.data?.id) router.push(`/messages/${json.data.id}`);
+    } finally {
+      setMessagePending(false);
+    }
+  };
 
   return (
     <>
@@ -101,11 +153,51 @@ export function ProfileTabs({
                 ) : null}
               </div>
             ) : null}
+            <p className="mt-2 text-[13px] text-[var(--pm-muted)]">
+              {isMe ? (
+                <Link
+                  href={`/u/${user.userslug}/followers`}
+                  className="hover:text-[var(--pm-coral-dark)] hover:underline"
+                >
+                  {counts.followerCount.toLocaleString()} followers
+                </Link>
+              ) : (
+                <span>{counts.followerCount.toLocaleString()} followers</span>
+              )}{' '}
+              ·{' '}
+              {isMe ? (
+                <Link
+                  href={`/u/${user.userslug}/following`}
+                  className="hover:text-[var(--pm-coral-dark)] hover:underline"
+                >
+                  {counts.followingCount.toLocaleString()} following
+                </Link>
+              ) : (
+                <span>{counts.followingCount.toLocaleString()} following</span>
+              )}
+            </p>
           </div>
           {isMe ? (
             <Button variant="secondary" asChild>
               <Link href="/settings">Edit profile</Link>
             </Button>
+          ) : currentUserId ? (
+            <div className="flex gap-2">
+              <Button
+                variant={following ? 'secondary' : 'primary'}
+                onClick={toggleFollow}
+                disabled={followPending}
+              >
+                {following ? 'Following' : 'Follow'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={startConversation}
+                disabled={messagePending}
+              >
+                Message
+              </Button>
+            </div>
           ) : null}
         </div>
       </header>

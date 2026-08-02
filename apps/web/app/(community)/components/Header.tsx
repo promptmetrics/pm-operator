@@ -4,8 +4,9 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Search, Menu, X, ChevronDown, LogOut, User, Settings, Award, Bell, Shield, Flame } from 'lucide-react';
+import { Search, Menu, X, ChevronDown, LogOut, User, Settings, Award, Bell, Shield, Flame, Mail } from 'lucide-react';
 import { createAuthClient } from '@/lib/auth/client';
+import { trackEvent, identifyAnalytics, analyticsReset } from '@/lib/analytics';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
@@ -37,6 +38,11 @@ export function Header() {
         if (user) {
           // Fire-and-forget: the endpoint is idempotent per UTC day.
           fetch('/api/v1/daily-visit', { method: 'POST' }).catch(() => {});
+          // Product analytics: attribute this session to the user and record a
+          // daily visit (once per session — Header mounts once per navigation
+          // lifecycle). No-op until PostHog is provisioned.
+          identifyAnalytics(user.id);
+          trackEvent('daily_visit');
         }
       })
       .catch(() => {});
@@ -52,6 +58,7 @@ export function Header() {
   const signOut = async () => {
     const client = createAuthClient();
     await client.auth.signOut();
+    analyticsReset();
     router.push('/login');
   };
 
@@ -135,6 +142,13 @@ export function Header() {
                   {profile.streakDays}
                 </span>
               ) : null}
+              <Link
+                href="/messages"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--pm-ink)] hover:bg-[var(--pm-paper-inset)]"
+                aria-label="Messages"
+              >
+                <Mail className="h-5 w-5" aria-hidden="true" />
+              </Link>
               <NotificationBell userId={profile.id} />
               <UserDropdown profile={profile} onSignOut={signOut} />
             </>

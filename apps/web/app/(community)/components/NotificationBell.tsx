@@ -147,6 +147,14 @@ export function notificationText(n: Notification): string {
       return 'Someone mentioned you';
     case 'badge':
       return 'You earned a new badge';
+    case 'new_follower':
+      return n.payload.actorUsername
+        ? `${n.payload.actorUsername} started following you`
+        : 'Someone followed you';
+    case 'new_message':
+      return n.payload.actorUsername
+        ? `${n.payload.actorUsername} sent you a message`
+        : 'You have a new message';
     default:
       return 'New notification';
   }
@@ -154,6 +162,7 @@ export function notificationText(n: Notification): string {
 
 export function notificationHref(n: Notification): string {
   const p = n.payload;
+  if (p.conversationId) return `/messages/${p.conversationId}`;
   if (p.groupSlug) return `/g/${p.groupSlug}`;
   if (p.postId) return `/p/${p.postId}`;
   if (p.actorSlug) return `/u/${p.actorSlug}`;

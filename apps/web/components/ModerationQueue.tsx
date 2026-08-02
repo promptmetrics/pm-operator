@@ -101,10 +101,19 @@ export function ModerationQueue() {
             <Card key={flag.id}>
               <CardHeader>
                 <CardTitle className="text-base">
-                  {flag.target.type === 'post' ? 'Post' : 'Comment'} in{' '}
-                  <Link href={`/g/${flag.target.group.slug}`} className="text-[var(--pm-coral)] hover:underline">
-                    {flag.target.group.name}
-                  </Link>
+                  {flag.target.type === 'message' ? (
+                    'Direct message'
+                  ) : (
+                    <>
+                      {flag.target.type === 'post' ? 'Post' : 'Comment'} in{' '}
+                      <Link
+                        href={`/g/${flag.target.group?.slug}`}
+                        className="text-[var(--pm-coral)] hover:underline"
+                      >
+                        {flag.target.group?.name}
+                      </Link>
+                    </>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -117,13 +126,28 @@ export function ModerationQueue() {
                 </p>
                 {flag.target.title ? <p className="font-medium">{flag.target.title}</p> : null}
                 {flag.target.content ? (
-                  <div
-                    className="rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-3 text-sm"
-                    dangerouslySetInnerHTML={{ __html: flag.target.content }}
-                  />
+                  flag.target.type === 'message' ? (
+                    // Message flag content is contentPlain (plain text), not
+                    // HTML — render it as text so a DM body is never parsed as
+                    // markup.
+                    <p className="whitespace-pre-wrap break-words rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-3 text-sm">
+                      {flag.target.content}
+                    </p>
+                  ) : (
+                    <div
+                      className="rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-3 text-sm"
+                      dangerouslySetInnerHTML={{ __html: flag.target.content }}
+                    />
+                  )
                 ) : null}
                 <div className="flex flex-wrap gap-2">
-                  <Link href={flag.target.type === 'post' ? `/p/${flag.target.id}` : `/p/${flag.target.id}`}>
+                  <Link
+                    href={
+                      flag.target.type === 'message'
+                        ? `/messages/${flag.target.conversationId ?? ''}`
+                        : `/p/${flag.target.id}`
+                    }
+                  >
                     <Button variant="secondary" size="sm">View</Button>
                   </Link>
                   {flag.status === 'open' ? (

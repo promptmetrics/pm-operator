@@ -13,8 +13,17 @@ export type RealtimeClient = SupabaseClient;
 export type RealtimeInsertPayload<T extends Record<string, unknown>> =
   RealtimePostgresChangesPayload<T>;
 
+// Supabase REALTIME_SUBSCRIBE_STATES, surfaced up to subscribers (T8.8) so the
+// UI can reflect real channel state instead of always claiming "enabled".
+export type RealtimeChannelStatus =
+  | 'SUBSCRIBED'
+  | 'CHANNEL_ERROR'
+  | 'TIMED_OUT'
+  | 'CLOSED';
+
 export interface RealtimeInsertCallbacks<T extends IdRow> {
   onInsert?: (row: T) => void;
+  onStatus?: (status: RealtimeChannelStatus) => void;
 }
 
 function missingEnvRealtimeClient(): RealtimeClient {
@@ -142,6 +151,7 @@ export async function subscribeToGroupPosts<T extends IdRow>(
       }
     )
     .subscribe((status) => {
+      callbacks.onStatus?.(status as RealtimeChannelStatus);
       if (status === 'CHANNEL_ERROR') {
         removeChannel(client, channel);
       }
@@ -178,6 +188,46 @@ export function subscribeToPostComments<T extends IdRow>(
       }
     )
     .subscribe((status) => {
+      callbacks.onStatus?.(status as RealtimeChannelStatus);
+      if (status === 'CHANNEL_ERROR') {
+        removeChannel(client, channel);
+      }
+    });
+
+  return () => removeChannel(client, channel);
+}
+
+/**
+ * Subscribe to new messages in a conversation (WS9 DMs). Mirrors
+ * subscribeToPostComments — Realtime filters on the raw conversation_id column.
+ * `messages` was added to the supabase_realtime publication in migration 0017.
+ */
+export function subscribeToConversation<T extends IdRow>(
+  conversationId: string,
+  callbacks: RealtimeInsertCallbacks<T>,
+  opts?: SubscribeOptions
+): () => void {
+  const client = getClient(opts);
+  const deduper = getDeduper(opts);
+
+  const channel = client
+    .channel(`conversation:${conversationId}:messages`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      },
+      (payload: RealtimeInsertPayload<{ id?: string }>) => {
+        const id = (payload.new as { id?: string }).id;
+        if (!id || deduper.has(id)) return;
+        callbacks.onInsert?.(payload.new as T);
+      }
+    )
+    .subscribe((status) => {
+      callbacks.onStatus?.(status as RealtimeChannelStatus);
       if (status === 'CHANNEL_ERROR') {
         removeChannel(client, channel);
       }
@@ -214,6 +264,7 @@ export function subscribeToUserNotifications<T extends IdRow>(
       }
     )
     .subscribe((status) => {
+      callbacks.onStatus?.(status as RealtimeChannelStatus);
       if (status === 'CHANNEL_ERROR') {
         removeChannel(client, channel);
       }

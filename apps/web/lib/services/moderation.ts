@@ -6,6 +6,7 @@ import type {
   Flag,
   ResolveFlagRequest,
   FlagQuery,
+  FlagTargetType,
 } from '@pm-operator/api';
 import { isAdminOrModerator, toISO } from './shared';
 import { insertNotification } from './notifications';
@@ -159,6 +160,37 @@ async function resolveFlagTarget(
     };
   }
 
+  if (flag.targetType === 'message') {
+    const row = await db
+      .select({
+        message: schema.messages,
+        author: schema.users,
+      })
+      .from(schema.messages)
+      .innerJoin(schema.users, eq(schema.messages.authorId, schema.users.id))
+      .where(eq(schema.messages.id, flag.targetId))
+      .then((rows) => rows[0]);
+
+    if (!row) {
+      return missingTarget(flag.targetType, flag.targetId);
+    }
+
+    // DMs have no group; link the moderator to the conversation itself.
+    return {
+      id: row.message.id,
+      type: 'message',
+      title: null,
+      content: row.message.contentPlain,
+      conversationId: row.message.conversationId,
+      author: {
+        id: row.author.id,
+        username: row.author.username,
+        userslug: row.author.userslug,
+      },
+      group: null,
+    };
+  }
+
   const row = await db
     .select({
       comment: schema.comments,
@@ -196,7 +228,7 @@ async function resolveFlagTarget(
 }
 
 function missingTarget(
-  type: 'post' | 'comment',
+  type: FlagTargetType,
   id: string
 ): FlagQueueItem['target'] {
   return {
@@ -205,7 +237,7 @@ function missingTarget(
     title: null,
     content: null,
     author: { id: '', username: 'unknown', userslug: 'unknown' },
-    group: { id: '', slug: 'unknown', name: 'Unknown' },
+    group: type === 'message' ? null : { id: '', slug: 'unknown', name: 'Unknown' },
   };
 }
 

@@ -36,8 +36,39 @@ export function SettingsPage({ user, memberships }: SettingsPageProps) {
   );
   const [saving, setSaving] = React.useState(false);
   const [message, setMessage] = React.useState('');
+  const [uploading, setUploading] = React.useState(false);
   const [leaveSlug, setLeaveSlug] = React.useState<string | null>(null);
   const { toast } = useToast();
+
+  const onAvatarSelected = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    setMessage('');
+    try {
+      const res = await fetch('/api/v1/me/avatar', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contentType: file.type, sizeBytes: file.size }),
+      });
+      if (!res.ok) {
+        const errJson = (await res.json()) as { error?: { message?: string } };
+        throw new Error(errJson.error?.message || 'Failed to start upload');
+      }
+      const { uploadUrl } = (await res.json()) as { uploadUrl: string };
+      const put = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': file.type },
+        body: file,
+      });
+      if (!put.ok) throw new Error('Failed to upload avatar');
+      toast({ title: 'Avatar updated', variant: 'success' });
+      window.location.reload();
+    } catch (err: any) {
+      toast({ title: err.message || 'Failed to upload avatar', variant: 'error' });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,6 +124,17 @@ export function SettingsPage({ user, memberships }: SettingsPageProps) {
             <p className="text-sm text-[var(--pm-muted)]">@{user.userslug} · {user.email}</p>
           </div>
         </div>
+        <label className="inline-flex items-center gap-2 text-sm">
+          <span className="font-medium">Change avatar</span>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={uploading}
+            onChange={(e) => onAvatarSelected(e.target.files?.[0])}
+            className="text-sm text-[var(--pm-muted)] file:mr-3 file:rounded-lg file:border file:border-[var(--pm-line)] file:bg-[var(--pm-paper-inset)] file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-[var(--pm-paper-2)]"
+          />
+          {uploading ? <span className="text-xs text-[var(--pm-muted)]">Uploading…</span> : null}
+        </label>
       </Card>
 
       <Card className="mb-6 p-6">

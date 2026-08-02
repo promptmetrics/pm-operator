@@ -33,7 +33,7 @@ function matchesPhrase(content: string, phrase: string, isRegex: boolean): boole
 export async function autoFlagIfWatched(
   db: DrizzleClient,
   contentPlain: string,
-  targetType: 'post' | 'comment',
+  targetType: 'post' | 'comment' | 'message',
   targetId: string
 ): Promise<void> {
   const phrases = await db.query.watchedPhrases.findMany();

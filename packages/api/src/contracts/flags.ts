@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { targetTypeSchema } from './reactions';
 
 export const FlagStatus = {
   OPEN: 'open',
@@ -13,8 +12,23 @@ export const flagStatusSchema = z.nativeEnum(
   FlagStatus as Record<string, string>
 ) as z.ZodType<FlagStatus>;
 
+// Flags can target posts, comments, or direct messages (D9.6 auto-flags DMs).
+// Deliberately separate from the reactions targetType (post|comment only) so
+// widening the flag domain never makes messages reaction-targetable.
+export const FlagTargetType = {
+  POST: 'post',
+  COMMENT: 'comment',
+  MESSAGE: 'message',
+} as const;
+
+export type FlagTargetType = (typeof FlagTargetType)[keyof typeof FlagTargetType];
+
+export const flagTargetTypeSchema = z.nativeEnum(
+  FlagTargetType as Record<string, string>
+) as z.ZodType<FlagTargetType>;
+
 export const createFlagRequestSchema = z.object({
-  targetType: targetTypeSchema,
+  targetType: flagTargetTypeSchema,
   targetId: z.string().uuid(),
   reason: z.string().optional(),
 });
@@ -30,7 +44,7 @@ export type ResolveFlagRequest = z.infer<typeof resolveFlagRequestSchema>;
 
 export const flagSchema = z.object({
   id: z.string().uuid(),
-  targetType: targetTypeSchema,
+  targetType: flagTargetTypeSchema,
   targetId: z.string().uuid(),
   reporterId: z.string().uuid().nullable(),
   reason: z.string().nullable(),
@@ -55,7 +69,7 @@ export type FlagQuery = z.infer<typeof flagQuerySchema>;
 
 export const flagTargetPreviewSchema = z.object({
   id: z.string().uuid(),
-  type: z.enum(['post', 'comment']),
+  type: z.enum(['post', 'comment', 'message']),
   title: z.string().nullable(),
   content: z.string().nullable(),
   author: z.object({
@@ -63,11 +77,17 @@ export const flagTargetPreviewSchema = z.object({
     username: z.string(),
     userslug: z.string(),
   }),
-  group: z.object({
-    id: z.string().uuid(),
-    slug: z.string(),
-    name: z.string(),
-  }),
+  // Null for DM flags (messages have no group); present for post/comment flags.
+  group: z
+    .object({
+      id: z.string().uuid(),
+      slug: z.string(),
+      name: z.string(),
+    })
+    .nullable(),
+  // Present only for DM flags — the conversation the message belongs to, so the
+  // moderation queue can link to /messages/:conversationId.
+  conversationId: z.string().uuid().nullable().optional(),
 });
 
 export type FlagTargetPreview = z.infer<typeof flagTargetPreviewSchema>;

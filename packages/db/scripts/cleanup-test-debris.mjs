@@ -40,8 +40,10 @@ const TEST_USERNAME_RE = String.raw`^(Test|Tmp) \d{13} [a-z0-9]{1,6}$`;
 // Covers invite-only-/community-test-/any slugify(prefix)-{13-digit-ms-timestamp}-{rand};
 // also catches test groups orphaned when their creator was deleted (owner SET NULL).
 const TEST_GROUP_SLUG_RE = String.raw`-1\d{12}-[a-z0-9]{1,8}$`;
-// Deterministic seed UUID prefix from packages/db/src/seed.ts.
-const SEED_ID_PREFIX = '10000000-0000-0000-0000-%';
+// Deterministic seed UUID prefix from packages/db/src/seed.ts. seed.ts's uid()
+// rewrites the 3rd/4th UUID blocks to 4xxx/8xxx for a valid v4 variant, so the
+// real seed user IDs are 10000000-0000-4000-8000-… (not the pre-rewrite prefix).
+const SEED_ID_PREFIX = '10000000-0000-4000-8000-%';
 
 const sql = postgres(url, { max: 1 });
 

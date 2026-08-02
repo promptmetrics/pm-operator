@@ -1,5 +1,15 @@
 'use client';
 
+// Product analytics via PostHog (T8.2). The `posthog` singleton is initialized
+// client-side by <PostHogProvider> (apps/web/components/Analytics/PostHogProvider)
+// using NEXT_PUBLIC_POSTHOG_KEY / NEXT_PUBLIC_POSTHOG_HOST. When those env vars
+// are unset (e.g. PostHog not provisioned yet) the singleton stays a no-op stub,
+// so every call below degrades cleanly without affecting the UI or sending data
+// anywhere. Analytics must never block the UI — all calls are fire-and-forget
+// and swallow errors.
+
+import posthog from 'posthog-js';
+
 export type AnalyticsEvent =
   | 'search_click'
   | 'signup'
@@ -8,34 +18,41 @@ export type AnalyticsEvent =
   | 'first_comment'
   | 'daily_visit';
 
-const ANALYTICS_ENDPOINT = '/api/v1/analytics/events';
-
 export function trackEvent(
   event: AnalyticsEvent,
-  payload: Record<string, unknown> = {}
+  payload: Record<string, unknown> = {},
 ): void {
   if (typeof window === 'undefined') return;
-
-  const body = JSON.stringify({
-    event,
-    payload,
-    url: window.location.href,
-    ts: Date.now(),
-  });
-
   try {
-    if (navigator.sendBeacon) {
-      navigator.sendBeacon(ANALYTICS_ENDPOINT, body);
-    } else {
-      fetch(ANALYTICS_ENDPOINT, {
-        method: 'POST',
-        body,
-        keepalive: true,
-        headers: { 'content-type': 'application/json' },
-      }).catch(() => {
-        // Silently ignore: analytics must never block the UI.
-      });
-    }
+    posthog.capture(event, { ...payload, $current_url: window.location.href });
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Associate subsequent events with a known user. Call after login resolves
+ * (Header /api/v1/me) and on the onboarding form mount. With memory
+ * persistence the anonymous distinct_id is per-session; identify merges this
+ * session's events onto the person so cross-session funnels still resolve.
+ */
+export function identifyAnalytics(
+  userId: string,
+  properties?: Record<string, unknown>,
+): void {
+  if (typeof window === 'undefined') return;
+  try {
+    posthog.identify(userId, properties);
+  } catch {
+    // ignore
+  }
+}
+
+/** Clear the analytics identity — call on sign out. */
+export function analyticsReset(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    posthog.reset();
   } catch {
     // ignore
   }

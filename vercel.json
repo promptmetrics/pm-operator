@@ -7,6 +7,10 @@
     {
       "path": "/api/v1/admin/jobs/grant-badges",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/v1/admin/jobs/weekly-digest",
+      "schedule": "7 7 * * 1"
     }
   ],
   "regions": ["fra1"]

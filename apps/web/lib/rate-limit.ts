@@ -10,7 +10,9 @@ export type RateLimitTier =
   | 'authEndpoint'
   | 'mcp'
   | 'mcpRead'
-  | 'mentionAutocomplete';
+  | 'mentionAutocomplete'
+  | 'follow'
+  | 'message';
 
 type RateLimitConfig = {
   windowSeconds: number;
@@ -55,6 +57,18 @@ const TIER_CONFIG: Record<RateLimitTier, RateLimitConfig> = {
     maxRequests: 30,
     keyPrefix: 'ratelimit:mention',
     keyFn: (userId: string) => `ratelimit:mention:${userId}`,
+  },
+  follow: {
+    windowSeconds: 60,
+    maxRequests: 20,
+    keyPrefix: 'ratelimit:follow',
+    keyFn: (userId: string) => `ratelimit:follow:${userId}`,
+  },
+  message: {
+    windowSeconds: 60,
+    maxRequests: 30,
+    keyPrefix: 'ratelimit:message',
+    keyFn: (userId: string) => `ratelimit:message:${userId}`,
   },
 };
 

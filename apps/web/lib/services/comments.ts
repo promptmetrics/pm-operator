@@ -15,6 +15,7 @@ import { htmlToText } from '../html-to-text';
 import { toISO, toNumber, isAdminOrModerator } from './shared';
 import { insertNotification } from './notifications';
 import { awardPoints, trackDailyStat, advanceStreak } from './points';
+import { sendTransactional } from '../email';
 import { autoFlagIfWatched } from './flags';
 
 function commentVisibilityFilter(currentUserId: string | undefined) {
@@ -462,6 +463,18 @@ export async function acceptSolution(
     actorId: currentUserId,
     type: 'solution',
     payload: { postId, commentId: comment.id },
+  });
+
+  // T8.4: notify the solver by email. Fire-and-forget — sendTransactional
+  // reads users.preferences.emailNotifications (default on) and never throws,
+  // so a Loops outage can't break solution acceptance.
+  await sendTransactional('solution_accepted', {
+    db,
+    userId: comment.authorId,
+    dataVariables: {
+      postTitle: post.title,
+      postUrl: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/p/${post.id}`,
+    },
   });
 
   return {

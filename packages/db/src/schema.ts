@@ -13,6 +13,7 @@ import {
   uniqueIndex,
   pgEnum,
   foreignKey,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -30,7 +31,7 @@ export const postTypeEnum = pgEnum('post_type', [
 export const postStatusEnum = pgEnum('post_status', ['published', 'draft', 'flagged', 'hidden', 'deleted']);
 export const commentStatusEnum = pgEnum('comment_status', ['published', 'hidden', 'deleted']);
 export const reactionTypeEnum = pgEnum('reaction_type', ['like', 'celebrate']);
-export const targetTypeEnum = pgEnum('target_type', ['post', 'comment']);
+export const targetTypeEnum = pgEnum('target_type', ['post', 'comment', 'message']);
 export const pointEventTypeEnum = pgEnum('point_event_type', [
   'topic_created',
   'comment_created',
@@ -51,7 +52,7 @@ export const leaderboardPeriodEnum = pgEnum('leaderboard_period', [
 ]);
 export const inviteRoleEnum = pgEnum('invite_role', ['member', 'moderator', 'admin']);
 export const flagStatusEnum = pgEnum('flag_status', ['open', 'resolved', 'dismissed']);
-export const notificationTypeEnum = pgEnum('notification_type', ['comment', 'reaction', 'solution', 'invite', 'flag', 'flag_resolved', 'mention', 'badge']);
+export const notificationTypeEnum = pgEnum('notification_type', ['comment', 'reaction', 'solution', 'invite', 'flag', 'flag_resolved', 'mention', 'badge', 'new_follower', 'new_message']);
 export const dailyStatTypeEnum = pgEnum('daily_stat_type', ['posts_read', 'likes_given']);
 
 // Sentinel UUID used for global leaderboard rows in user_scores.
@@ -77,6 +78,9 @@ export const users = pgTable(
     reputationScore: numeric('reputation_score', { precision: 12, scale: 2 }).default('0').notNull(),
     streakDays: integer('streak_days').default(0).notNull(),
     longestStreakDays: integer('longest_streak_days').default(0).notNull(),
+    // WS9 social graph: trigger-maintained follow counts (migration 0016).
+    followerCount: integer('follower_count').default(0).notNull(),
+    followingCount: integer('following_count').default(0).notNull(),
     // UTC day the streak last advanced (null until first advancing activity).
     streakLastDate: date('streak_last_date'),
     lastActiveAt: timestamp('last_active_at', { withTimezone: true }),
@@ -487,4 +491,107 @@ export const mcpClients = pgTable(
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   }
+).enableRLS();
+
+// T8.5: community events. Optionally scoped to a circle (groupId null = global
+// event). Public read; writes restricted to site-admins / circle admins via RLS.
+export const events = pgTable(
+  'events',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    groupId: uuid('group_id').references(() => groups.id, { onDelete: 'set null' }),
+    title: text('title').notNull(),
+    description: text('description'),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    location: text('location'),
+    url: text('url'),
+    capacity: integer('capacity'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    groupStartsIdx: index('events_group_starts_idx').on(table.groupId, table.startsAt),
+    startsIdx: index('events_starts_idx').on(table.startsAt),
+  })
+).enableRLS();
+
+// T9.1: social follow graph. Composite PK on (follower, followee) makes the
+// pair unique and not-null. Count columns on `users` are kept in sync by the
+// update_follow_counts trigger (migration 0016), so profile pages read counts
+// without an extra `count(*)` (pool-safe). RLS: self-only writes; edge lists
+// self-only (decision 2A); counts are public.
+export const follows = pgTable(
+  'follows',
+  {
+    followerId: uuid('follower_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    followeeId: uuid('followee_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.followerId, table.followeeId] }),
+    followeeIdx: index('follows_followee_idx').on(table.followeeId, table.createdAt),
+    followerIdx: index('follows_follower_idx').on(table.followerId, table.createdAt),
+  })
+).enableRLS();
+
+// T9.2: direct messages (3-table model, decision D9.2). Capped to 2
+// participants at launch in the service; the schema permits N for a later
+// group-DM capacity change. conversations.updated_at is bumped by the
+// update_conversation_updated_at trigger on each message insert (D9.7), so the
+// inbox sorts by last activity without a read-time aggregate.
+export const conversations = pgTable(
+  'conversations',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  () => ({})
+).enableRLS();
+
+export const conversationParticipants = pgTable(
+  'conversation_participants',
+  {
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    joinedAt: timestamp('joined_at', { withTimezone: true }).defaultNow().notNull(),
+    lastReadAt: timestamp('last_read_at', { withTimezone: true }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.conversationId, table.userId] }),
+    byUserIdx: index('conversation_participants_user_idx').on(table.userId, table.joinedAt),
+  })
+).enableRLS();
+
+// messages.author_id is set-null (NOT cascade) on user erasure so the
+// counterparty's thread survives; the erasure step blanks the body first
+// (D9.4, docs/GDPR-ERASURE-RUNBOOK.md §5).
+export const messages = pgTable(
+  'messages',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
+    body: text('body').notNull(),
+    contentPlain: text('content_plain').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    byConversationIdx: index('messages_conversation_created_idx').on(
+      table.conversationId,
+      table.createdAt
+    ),
+  })
 ).enableRLS();

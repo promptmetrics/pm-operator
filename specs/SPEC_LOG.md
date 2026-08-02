@@ -192,3 +192,22 @@ Source: `docs/DESIGN-GAP-REPORT.md` (gap analysis of Claude Design project `55d7
 
 ### 2026-08-01 addendum — INVITE-3 fix
 - `invite_accepted` points (5, to the inviter, once per `group_invites.id`) were spec'd but never awarded by any code path; fixed in `services/groups.ts` `acceptInvite` during WS2.
+
+## Decisions made (2026-08-02) — WS9 social spec addendum (T9.0)
+
+Closes the open SPEC_LOG bullets "Follow + Message … spec addendum required" (line 183) and "DM data model … spec addendum required before WS9 build" (line 191). Full spec: `specs/09-ws9-social-spec.md`. Approved by Izzy 2026-08-02.
+
+- **Instant public follow (D9.1):** `follows(follower_id, followee_id)` unique pair; follow takes effect immediately (skool/daily.dev style), no request/accept state machine. Block/mute deferred to a later, separate feature.
+- **3-table DM model (D9.2):** `conversations` + `conversation_participants` + `messages`, capped to 2 participants at launch (app-enforced), schema-ready for group DMs later. Rejected the simpler two-party `messages(sender_id, recipient_id)` table because Realtime filters on a single `conversation_id` column and RLS "participant-only reads" is a clean `EXISTS` subquery; group DMs later are a capacity change, not a schema rewrite.
+- **Counts as columns, trigger-maintained (D9.3):** `users.follower_count` / `users.following_count` kept in sync by an `AFTER INSERT OR DELETE` trigger (the `member_count` pattern), not read-time `count(*)` (avoids extra queries on profile pages under the pool rule).
+- **`messages.author_id` `onDelete: 'set null'` (D9.4):** preserves the counterparty's thread on erasure (anonymize-retain); the erasure step blanks the subject's sent bodies to `[message deleted]`. Rejected `cascade`, which would hard-delete the subject's messages from the counterparty's thread.
+- **`/messages` under the `(community)` route group (D9.5):** reuses the existing `RealtimeProvider` (scoped to the community surface) — no provider lift to the root layout.
+- **DM content policy = insert-then-flag (D9.6):** `autoFlagIfWatched(db, contentPlain, 'message', messageId)` inside the insert transaction, mirroring posts/comments; adds `'message'` to the `target_type` enum.
+- **`updated_at` trigger only for `conversations` (D9.7):** the codebase has no auto-`updated_at` trigger anywhere; `follows` and `messages` are append-only (`created_at` only). `conversations.updated_at` is bumped on message insert for inbox sort.
+- **No notification dedup (D9.8):** one `new_follower` per follow event, one `new_message` per message — matches existing `insertNotification` behavior.
+- **Notification types added:** `new_follower`, `new_message` to the `NotificationType` const + the `notification_type` pgEnum (DO-block `ALTER TYPE ADD VALUE`); payload gains optional `conversationId`/`messageId`/`messagePreview`.
+- **Rate limits added:** `follow` (20/60s per user) and `message` (30/60s per user) tiers in `lib/rate-limit.ts`, fixed-window over Upstash, fail-open.
+- **Migration `0016`:** hand-written SQL mirroring `0015` (RLS/triggers/publication need raw SQL drizzle-kit can't generate), then `drizzle-kit generate` to emit the matching snapshot (decision 3A). `messages` added to the `supabase_realtime` publication.
+- **GDPR runbook extended:** Section 3 export adds follows + sent messages + conversation memberships; Section 5 adds hard-delete follows (both directions), anonymize sent DM bodies, and orphan-conversation cleanup. Anonymize-retain is the DM erasure policy (decision 1A).
+- **Public follower lists deferred (decision 2A):** follower/following *counts* are public; the edge list is self-only via RLS in v1 (privacy-leaning; lift later with one policy change).
+- **DM email notifications in-app only (decision 4A):** `new_message` surfaces in the notification bell only; no Loops send in v1 (the `preferences.emailNotifications` gate can be wired later if requested).

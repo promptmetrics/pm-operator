@@ -3,10 +3,27 @@ import 'server-only';
 import { createClient } from '@supabase/supabase-js';
 
 const AVATAR_BUCKET = 'avatars';
-const ALLOWED_CONTENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const MAX_SIZE_BYTES = 2 * 1024 * 1024;
 const UPLOAD_TTL_SECONDS = 5 * 60;
 const READ_TTL_SECONDS = 60 * 60;
+
+// AUTH-4 Must: avatar limits are env-driven, not hardcoded. Read per-call so
+// operators can tune them without a redeploy of the schema/contract.
+function maxBytes(): number {
+  const env = Number(process.env.AVATAR_MAX_BYTES);
+  return Number.isFinite(env) && env > 0 ? env : 2 * 1024 * 1024;
+}
+function allowedContentTypes(): Set<string> {
+  const env = process.env.AVATAR_ALLOWED_TYPES;
+  if (env && env.trim()) {
+    return new Set(
+      env
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean)
+    );
+  }
+  return new Set(['image/jpeg', 'image/png', 'image/webp']);
+}
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,11 +37,13 @@ function getServiceSupabase() {
 }
 
 export function validateAvatarFile(sizeBytes: number, contentType: string): void {
-  if (sizeBytes > MAX_SIZE_BYTES) {
-    throw new Error('Avatar image must be 2 MB or smaller');
+  const max = maxBytes();
+  if (sizeBytes > max) {
+    throw new Error(`Avatar image must be ${Math.round(max / 1024 / 1024)} MB or smaller`);
   }
-  if (!ALLOWED_CONTENT_TYPES.has(contentType)) {
-    throw new Error('Avatar image must be JPEG, PNG, or WebP');
+  const allowed = allowedContentTypes();
+  if (!allowed.has(contentType)) {
+    throw new Error(`Avatar image must be one of: ${[...allowed].join(', ')}`);
   }
 }
 

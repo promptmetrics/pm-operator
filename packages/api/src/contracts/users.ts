@@ -154,6 +154,9 @@ export const userProfileDetailSchema = publicUserProfileSchema.extend({
   postsCount: z.number().int().nonnegative(),
   joinedAt: z.string().datetime(),
   levelInfo: levelInfoSchema,
+  // WS9 social graph: public follow counts (trigger-maintained on users).
+  followerCount: z.number().int().nonnegative(),
+  followingCount: z.number().int().nonnegative(),
 });
 
 export type UserProfileDetail = z.infer<typeof userProfileDetailSchema>;

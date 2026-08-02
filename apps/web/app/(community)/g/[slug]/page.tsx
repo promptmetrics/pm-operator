@@ -6,7 +6,7 @@ import * as schema from '@pm-operator/db';
 import { Button } from '@pm-operator/ui/components/Button';
 import { createServiceDb } from '@/lib/db';
 import { getSession } from '@/lib/auth/server';
-import { getGroupBySlug, getGroupStats, listGroupMembers } from '@/lib/services/groups';
+import { getGroupBySlug, getGroupStats, getGroupPreviewForInviteOnly, listGroupMembers } from '@/lib/services/groups';
 import { listGroupPosts } from '@/lib/services/posts';
 import {
   listPinnedPosts,
@@ -17,7 +17,10 @@ import {
 import { FeedPage } from '../../components/FeedPage';
 import { GroupMembershipButton } from '../../components/GroupMembershipButton';
 import { GroupInviteButton } from '../../components/GroupInviteButton';
+import { InviteOnlyPreview } from '../../components/InviteOnlyPreview';
 import { CircleRail } from './CircleRail';
+import { UpcomingEventsRail } from './UpcomingEventsRail';
+import { listEvents } from '@/lib/services/events';
 import { FeedFilter, FeedSort } from '@pm-operator/api';
 
 type PageSearchParams = Record<string, string | string[] | undefined>;
@@ -52,7 +55,19 @@ export default async function GroupRoute({
   const currentUserId = session?.user?.id;
 
   const group = await getGroupBySlug(db, slug, currentUserId);
-  if (!group) notFound();
+  if (!group) {
+    // T8.9 (spec §5.5/522): invite-only circles show a gated preview + invite-
+    // code entry to logged-in non-members instead of a bare 404. This branch
+    // returns early (1 query) and skips the feed waves, so the pool budget is
+    // untouched. Paid/private circles still 404 (not enabled at launch).
+    if (currentUserId) {
+      const preview = await getGroupPreviewForInviteOnly(db, slug);
+      if (preview) {
+        return <InviteOnlyPreview {...preview} />;
+      }
+    }
+    notFound();
+  }
 
   const filterParam = typeof paramsQuery.filter === 'string' ? paramsQuery.filter : undefined;
   const filter: FeedFilter = Object.values(FeedFilter).includes(filterParam as FeedFilter)
@@ -98,6 +113,15 @@ export default async function GroupRoute({
     listGroupMembers(db, slug, currentUserId),
     listGroupsWithPostCounts(db, currentUserId),
   ]);
+
+  // Trailing bounded query (1 concurrent): upcoming circle events for the rail.
+  // Kept out of the 3-wide waves above to respect the pool-starvation budget.
+  const upcomingEvents = await listEvents(db, {
+    groupSlug: slug,
+    upcoming: true,
+    limit: 3,
+    offset: 0,
+  });
 
   const canInvite =
     membership?.role === 'admin' ||
@@ -207,12 +231,15 @@ export default async function GroupRoute({
         viewerUsername={currentUser?.username}
         showComposerStrip={Boolean(membership) || canInvite}
         railSlot={
-          <CircleRail
-            group={group}
-            moderators={moderators}
-            leaderboard={leaderboard}
-            otherCircles={otherCircles}
-          />
+          <>
+            <UpcomingEventsRail events={upcomingEvents} />
+            <CircleRail
+              group={group}
+              moderators={moderators}
+              leaderboard={leaderboard}
+              otherCircles={otherCircles}
+            />
+          </>
         }
       />
     </div>
