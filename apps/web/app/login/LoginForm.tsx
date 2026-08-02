@@ -16,12 +16,12 @@ const PROVIDERS = [
   { id: 'linkedin_oidc', label: 'Continue with LinkedIn' },
 ] as const;
 
-export function LoginForm() {
+export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnUrl = searchParams.get('returnUrl') || '/feed';
 
-  const [mode, setMode] = React.useState<Mode>('sign-in');
+  const [mode, setMode] = React.useState<Mode>(initialMode);
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [showPassword, setShowPassword] = React.useState(false);
