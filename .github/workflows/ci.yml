@@ -42,7 +42,22 @@ jobs:
     name: Unit tests
     runs-on: ubuntu-latest
     needs: ci
-    environment: production
+    # Runs against a throwaway Postgres in the runner — never against a real
+    # Supabase project. TEST_DB_ONLY=1 makes the test helpers skip GoTrue.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,24 +77,24 @@ jobs:
       - name: Run MCP unit tests
         run: pnpm --filter @pm-operator/mcp test
 
+      - name: Bootstrap Supabase shim
+        run: psql "$DATABASE_URL" -f packages/db/supabase-shim.sql
+
+      - name: Run migrations
+        run: pnpm --filter @pm-operator/db db:migrate
+
       - name: Run web unit tests
         env:
-          BASE_URL: https://operator.promptmetrics.dev
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          # The serverless-safe default pool (3) makes the 100-concurrent
-          # reactions test exceed its 60s timeout from the US runner to the
-          # EU database; CI is a single client, so a larger pool is safe.
-          DB_POOL_SIZE: "10"
+          TEST_DB_ONLY: "1"
         run: pnpm test:unit
 
-  production-smoke-e2e:
-    name: Production smoke E2E
+  e2e:
+    name: E2E (test Supabase project)
     runs-on: ubuntu-latest
     needs: unit-tests
-    environment: production
+    # Uses the dedicated test Supabase project — never production. The app is
+    # built and served inside the runner; Playwright drives localhost.
+    environment: test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -99,11 +114,27 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm --filter @pm-operator/web exec playwright install chromium
 
-      - name: Run production smoke E2E
+      - name: Reset and migrate test database
         env:
-          BASE_URL: https://operator.promptmetrics.dev
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RESET_DB_ALLOW_HOST: ${{ vars.RESET_DB_ALLOW_HOST }}
+        run: node packages/db/reset-and-migrate.mjs --wipe-auth
+
+      - name: Build web app
+        env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
+        run: pnpm --filter @pm-operator/web build
+
+      - name: Run E2E
+        env:
+          PLAYWRIGHT_WEB_SERVER: "1"
+          BASE_URL: http://localhost:3000
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: pnpm --filter @pm-operator/web test:e2e

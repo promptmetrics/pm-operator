@@ -61,8 +61,38 @@ Shared helpers live in `apps/web/e2e/helpers.ts`:
 - Slugs and usernames include timestamps and random suffixes.
 - Tests clean up created users via `test.afterEach` to avoid leaking auth records.
 
+## Running unit tests against plain Postgres (no Supabase)
+
+The unit/concurrency suite does not need Supabase at all. Any plain Postgres instance works:
+
+1. Apply the Supabase shim once: `psql '<DATABASE_URL>' -f packages/db/supabase-shim.sql`
+2. Run migrations: `pnpm --filter @pm-operator/db db:migrate`
+3. Run tests with `TEST_DB_ONLY=1` — the helpers skip GoTrue and give test users random UUIDs.
+
+Local recipe (Docker):
+
+```bash
+docker run -d --name pmtest -e POSTGRES_PASSWORD=postgres -p 54329:5432 postgres:16
+psql 'postgresql://postgres:postgres@localhost:54329/postgres' -f packages/db/supabase-shim.sql
+DATABASE_URL='postgresql://postgres:postgres@localhost:54329/postgres' pnpm --filter @pm-operator/db db:migrate
+TEST_DB_ONLY=1 DATABASE_URL='postgresql://postgres:postgres@localhost:54329/postgres' pnpm test:unit
+```
+
+## How CI runs the suites
+
+- **Unit tests** — the `unit-tests` job runs against a `postgres:16` service container using the shim + migrate steps above. It uses no Supabase secrets at all.
+- **E2E tests** — the `e2e` job runs against the **dedicated test Supabase project**, never production. Its credentials live in the GitHub `test` environment: secrets `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, plus the environment variable `RESET_DB_ALLOW_HOST=<test DB hostname>`. The job resets the test project with `node packages/db/reset-and-migrate.mjs --wipe-auth` at job start — that reset **is** the teardown. It then builds the app in the runner and drives `http://localhost:3000`; `PLAYWRIGHT_WEB_SERVER=1` makes Playwright start `next start` itself.
+- Production is **never** touched by CI tests.
+
+### reset-and-migrate.mjs safety guard
+
+`packages/db/reset-and-migrate.mjs` refuses to reset any non-local host unless `RESET_DB_ALLOW_HOST=<host>` matches the target hostname, so an inherited production `DATABASE_URL` can never be wiped by accident. `--wipe-auth` also clears `auth.users` (disposable test projects only); `--no-seed` skips seeding.
+
+### Cleaning up test debris
+
+`packages/db/scripts/cleanup-test-debris.mjs` removes E2E/CI test debris (timestamped test users, groups, and GoTrue records) from a database as a one-off manual operation. It is dry-run by default (prints counts and sample rows), deletes only with `--execute`, and is never run in CI. It reads `DATABASE_URL` from the environment only — no `.env` loading — so the operator must paste the target URL deliberately.
+
 ## Known limitations
 
-- The E2E suite requires a live Supabase project with the service role key. It cannot run in a pure local/offline environment.
 - The concurrency spec currently creates 100 test users synchronously inside the test body, which can be slow. Future iterations should batch user creation or use a smaller concurrency level for faster feedback.
 - Rate-limit tests are not included because they depend on Upstash Redis; they should be run against a staging environment with Redis enabled.

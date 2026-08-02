@@ -23,4 +23,16 @@ export default defineConfig({
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
+  // Opt-in app lifecycle for CI: the build is done beforehand, then Playwright
+  // starts `next start` itself and waits for it. Local runs against a
+  // hand-started dev server stay unchanged (flag unset).
+  webServer:
+    process.env.PLAYWRIGHT_WEB_SERVER === '1'
+      ? {
+          command: 'pnpm start',
+          url: 'http://localhost:3000',
+          reuseExistingServer: !process.env.CI,
+          timeout: 120_000,
+        }
+      : undefined,
 });

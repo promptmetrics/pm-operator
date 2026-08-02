@@ -59,6 +59,11 @@ This checklist documents every environment variable used by `operator.promptmetr
 | Variable | Scope | Purpose |
 |----------|-------|---------|
 | `BASE_URL` | Test | Base URL for Playwright E2E tests (defaults to `http://localhost:3000`). |
+| `TEST_DB_ONLY` | Test | When `1`, test helpers skip GoTrue and create users with random UUIDs, so unit/concurrency tests run against any plain Postgres (no Supabase project needed). |
+| `RESET_DB_ALLOW_HOST` | Test | Arms `packages/db/reset-and-migrate.mjs` for a specific non-local hostname. Without it the reset script refuses any remote database, protecting production. Set to the test DB hostname in CI. |
+| `PLAYWRIGHT_WEB_SERVER` | Test | When `1`, Playwright starts `next start` itself instead of expecting an already-running server. Used by the CI e2e job. |
+
+In CI, the e2e job reads its Supabase credentials (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`) and `RESET_DB_ALLOW_HOST` from the GitHub `test` environment, which points at the dedicated test Supabase project — never production. See `docs/TESTING.md`.
 
 ## Local development template
 

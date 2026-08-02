@@ -4,7 +4,6 @@ import {
   deleteTestUser,
   signIn,
   uniqueEmail,
-  serviceSupabase,
   serviceDb,
   dismissOverlays,
 } from './helpers';
@@ -64,10 +63,6 @@ test('onboarding can be completed and redirects to the requested page', async ({
 });
 
 test('forgot-password flow shows a confirmation message', async ({ page }) => {
-  // Cloudflare challenge modals intercept clicks on the live production domain
-  // from GitHub-hosted runners, so this UI copy test is skipped in CI.
-  test.skip(!!process.env.CI, 'skipped in CI due to Cloudflare challenge modal');
-
   const user = await createTestUser({ onboardingComplete: true });
   usersToClean.push(user.id);
 

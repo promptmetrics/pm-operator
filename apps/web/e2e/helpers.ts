@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { createDrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
@@ -8,19 +9,37 @@ import type { Page } from '@playwright/test';
 dotenv.config({ path: '.env.local' });
 dotenv.config({ path: '.env' });
 
+// TEST_DB_ONLY=1 runs the DB-backed tests against a plain Postgres with no
+// Supabase project at all: users get random UUIDs instead of GoTrue accounts.
+// It is an explicit flag (not env absence) because .env.local is dotenv-loaded
+// above and could silently supply real Supabase credentials.
+const dbOnly = process.env.TEST_DB_ONLY === '1';
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const databaseUrl = process.env.DATABASE_URL?.trim();
 
-if (!supabaseUrl || !serviceRoleKey || !databaseUrl) {
+if (dbOnly) {
+  if (!databaseUrl) throw new Error('Missing DATABASE_URL (TEST_DB_ONLY=1)');
+} else if (!supabaseUrl || !serviceRoleKey || !databaseUrl) {
   throw new Error(
     'Missing NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, or DATABASE_URL'
   );
 }
 
-export const serviceSupabase = createClient(supabaseUrl, serviceRoleKey, {
-  auth: { persistSession: false },
-});
+let _serviceSupabase: ReturnType<typeof createClient> | null = null;
+
+function getServiceSupabase() {
+  if (dbOnly) {
+    throw new Error('TEST_DB_ONLY=1: Supabase auth is unavailable in DB-only mode');
+  }
+  if (!_serviceSupabase) {
+    _serviceSupabase = createClient(supabaseUrl!, serviceRoleKey!, {
+      auth: { persistSession: false },
+    });
+  }
+  return _serviceSupabase;
+}
 
 let _serviceDb: ReturnType<typeof createDrizzleClient>['db'] | null = null;
 
@@ -70,16 +89,24 @@ export async function createTestUser(opts: {
   const username = `Test ${Date.now()} ${Math.random().toString(36).slice(2, 6)}`;
   const userslug = slugify('test');
 
-  const { data, error } = await serviceSupabase.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  });
-  if (error || !data.user) throw error ?? new Error('Failed to create test user');
+  let userId: string;
+  if (dbOnly) {
+    // No FK from public.users to auth.users, so a bare UUID is a valid user
+    // for everything that doesn't sign in through GoTrue.
+    userId = randomUUID();
+  } else {
+    const { data, error } = await getServiceSupabase().auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+    if (error || !data.user) throw error ?? new Error('Failed to create test user');
+    userId = data.user.id;
+  }
 
   const db = serviceDb();
   await db.insert(schema.users).values({
-    id: data.user.id,
+    id: userId,
     email,
     username,
     userslug,
@@ -94,13 +121,15 @@ export async function createTestUser(opts: {
     preferences: {},
   });
 
-  return { id: data.user.id, email, password, username, userslug };
+  return { id: userId, email, password, username, userslug };
 }
 
 export async function deleteTestUser(userId: string): Promise<void> {
   const db = serviceDb();
   await db.delete(schema.users).where(eq(schema.users.id, userId));
-  await serviceSupabase.auth.admin.deleteUser(userId);
+  if (!dbOnly) {
+    await getServiceSupabase().auth.admin.deleteUser(userId);
+  }
 }
 
 function cookieDomainFromBaseUrl(): string {
@@ -120,7 +149,7 @@ export async function dismissOverlays(page: Page): Promise<void> {
 export async function signIn(page: Page, email: string, password: string): Promise<void> {
   // Sign in via the admin-backed client and inject the session cookies to avoid
   // Supabase Auth IP rate limits in repeated test runs.
-  const { data, error } = await serviceSupabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await getServiceSupabase().auth.signInWithPassword({ email, password });
   if (error || !data.session) {
     throw error ?? new Error('Failed to sign in test user');
   }
