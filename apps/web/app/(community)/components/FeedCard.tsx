@@ -2,13 +2,28 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Heart, MessageSquare, Flag, CheckCircle2, Wrench, Rocket, Bookmark } from 'lucide-react';
+import {
+  Heart,
+  MessageSquare,
+  Flag,
+  CheckCircle2,
+  Wrench,
+  Rocket,
+  Bookmark,
+  MoreHorizontal,
+} from 'lucide-react';
 import { FlagDialog } from './FlagDialog';
 import { Card, CardContent } from '@pm-operator/ui/components/Card';
 import { Badge } from '@pm-operator/ui/components/Badge';
 import { Tag } from '@pm-operator/ui/components/Tag';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { Button } from '@pm-operator/ui/components/Button';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@pm-operator/ui/components/DropdownMenu';
 import { useToast } from '@pm-operator/ui/components/Toast';
 import { timeAgo, formatNumber } from '@/lib/format';
 import type { PostListItem, SearchResult } from '@pm-operator/api';
@@ -51,7 +66,34 @@ export function FeedCard({ post, currentUserId, rank, onClickResult, variant = '
   const [toggling, setToggling] = React.useState(false);
   const [bookmarked, setBookmarked] = React.useState(Boolean(post.viewerHasBookmarked));
   const [bookmarking, setBookmarking] = React.useState(false);
+  const flagTriggerRef = React.useRef<HTMLButtonElement>(null);
   const { toast } = useToast();
+
+  // Flag lives in the "…" overflow (D4); the sr-only FlagDialog trigger is
+  // clicked from the menu item so the dialog survives the menu closing —
+  // same pattern as PostDetailPage.
+  const overflowMenu = currentUserId ? (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" aria-label="Post actions">
+            <MoreHorizontal className="h-4 w-4 text-[var(--pm-muted)]" aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => setTimeout(() => flagTriggerRef.current?.click(), 0)}>
+            <Flag className="h-4 w-4" aria-hidden="true" />
+            Flag
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <FlagDialog targetType="post" targetId={post.id}>
+        <button ref={flagTriggerRef} type="button" tabIndex={-1} className="sr-only">
+          Flag post
+        </button>
+      </FlagDialog>
+    </>
+  ) : null;
 
   const handleBookmark = async () => {
     if (!currentUserId || bookmarking) return;
@@ -207,11 +249,7 @@ export function FeedCard({ post, currentUserId, rank, onClickResult, variant = '
               />
             </Button>
           ) : null}
-          <FlagDialog targetType="post" targetId={post.id}>
-            <Button variant="ghost" size="sm" aria-label="Flag post" disabled={!currentUserId}>
-              <Flag className="h-4 w-4 text-[var(--pm-muted)]" aria-hidden="true" />
-            </Button>
-          </FlagDialog>
+          {overflowMenu}
         </div>
       </article>
     );
@@ -324,16 +362,7 @@ export function FeedCard({ post, currentUserId, rank, onClickResult, variant = '
                 </Button>
               ) : null}
 
-              <FlagDialog targetType="post" targetId={post.id}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label="Flag post"
-                  disabled={!currentUserId}
-                >
-                  <Flag className="h-4 w-4 text-[var(--pm-muted)]" aria-hidden="true" />
-                </Button>
-              </FlagDialog>
+              {overflowMenu}
             </div>
           </div>
         </CardContent>

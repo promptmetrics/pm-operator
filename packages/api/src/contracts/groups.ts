@@ -91,6 +91,22 @@ export const groupWithPostCountSchema = groupSchema.extend({
 
 export type GroupWithPostCount = z.infer<typeof groupWithPostCountSchema>;
 
+// Circle-page banner aggregates (WS6/T6.1). Counts respect the viewer's post
+// visibility, matching groupWithPostCountSchema. solvedRate is accepted
+// questions / total questions; null when the circle has no questions.
+export const groupStatsSchema = z.object({
+  postsThisMonth: z.number().int().nonnegative(),
+  solvedRate: z.number().min(0).max(1).nullable(),
+});
+
+export type GroupStats = z.infer<typeof groupStatsSchema>;
+
+export const groupWithStatsSchema = groupSchema.extend({
+  stats: groupStatsSchema,
+});
+
+export type GroupWithStats = z.infer<typeof groupWithStatsSchema>;
+
 export const groupMembershipSchema = z.object({
   id: z.string().uuid(),
   groupId: z.string().uuid(),

@@ -4,11 +4,12 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Search, Menu, X, ChevronDown, LogOut, User, Settings, Award, Bell, Shield } from 'lucide-react';
+import { Search, Menu, X, ChevronDown, LogOut, User, Settings, Award, Bell, Shield, Flame } from 'lucide-react';
 import { createAuthClient } from '@/lib/auth/client';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
+import { LevelBadge } from '@pm-operator/ui/components/LevelBadge';
 import { Progress } from '@pm-operator/ui/components/Progress';
 import { NotificationBell } from './NotificationBell';
 import type { UserPublicProfile, UserBadgesResponse, BadgeProgressItem } from '@pm-operator/api';
@@ -122,13 +123,30 @@ export function Header() {
 
           {profile ? (
             <>
+              <span className="hidden text-[13px] font-semibold text-[var(--pm-ink-2)] md:inline-flex">
+                {profile.reputationScore.toLocaleString()} pts
+              </span>
+              {profile.streakDays > 0 ? (
+                <span
+                  className="hidden items-center gap-1 rounded-full border border-[var(--pm-line)] px-2 py-0.5 text-[13px] md:inline-flex"
+                  title={`Posting streak: ${profile.streakDays} days`}
+                >
+                  <Flame className="h-3.5 w-3.5 text-[var(--pm-coral)]" aria-hidden="true" />
+                  {profile.streakDays}
+                </span>
+              ) : null}
               <NotificationBell userId={profile.id} />
               <UserDropdown profile={profile} onSignOut={signOut} />
             </>
           ) : (
-            <Link href="/login">
-              <Button variant="secondary" size="sm">Log in</Button>
-            </Link>
+            <>
+              <Link href="/login">
+                <Button variant="secondary" size="sm">Log in</Button>
+              </Link>
+              <Link href="/register">
+                <Button variant="primary" size="sm">Create account</Button>
+              </Link>
+            </>
           )}
         </div>
       </nav>
@@ -230,6 +248,7 @@ function UserDropdown({
             alt={profile.username}
             fallback={profile.fullName || profile.username}
             size="sm"
+            badge={<LevelBadge level={profile.level} size="xs" />}
           />
           <span className="hidden text-sm lg:inline">{profile.fullName || profile.username}</span>
           <ChevronDown className="h-4 w-4" aria-hidden="true" />

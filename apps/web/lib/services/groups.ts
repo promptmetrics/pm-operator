@@ -6,6 +6,7 @@ import type {
   GroupMember,
   GroupMembership,
   GroupInvite,
+  GroupStats,
   CreateGroupRequest,
   CreateInviteRequest,
   JoinGroupRequest,
@@ -13,6 +14,7 @@ import type {
 import { POINT_WEIGHTS } from '@pm-operator/api';
 import { toISO, isAdminOrModerator, toNumber } from './shared';
 import { awardPoints } from './points';
+import { postVisibilityFilter } from './posts';
 
 // Visibility filter mirrored from RLS: public groups, groups the current user
 // belongs to, or groups created by the current user. Admins bypass visibility.
@@ -111,6 +113,41 @@ export async function getGroupBySlug(
     createdBy: row.createdBy,
     createdAt: toISO(row.createdAt),
     updatedAt: toISO(row.updatedAt),
+  };
+}
+
+// Circle-page banner aggregates (WS6/T6.1). Counts are viewer-visibility-
+// dependent (same postVisibilityFilter as listGroupsWithPostCounts): absolute
+// counts would leak activity volume in groups the viewer can't see into.
+// memberCount and createdAt come from the group row itself — not recounted.
+export async function getGroupStats(
+  db: DrizzleClient,
+  groupId: string,
+  currentUserId?: string
+): Promise<GroupStats> {
+  const [row] = await db
+    .select({
+      postsThisMonth: sql<number>`count(*) filter (
+        where ${schema.posts.createdAt} >= date_trunc('month', now())
+      )::int`,
+      questions: sql<number>`count(*) filter (
+        where ${schema.posts.type} = 'question'
+      )::int`,
+      solved: sql<number>`count(*) filter (
+        where ${schema.posts.type} = 'question'
+          and ${schema.posts.acceptedCommentId} is not null
+      )::int`,
+    })
+    .from(schema.posts)
+    // postVisibilityFilter references groups.visibility, so the group row
+    // must be in scope (1:1 join — does not change the aggregates).
+    .innerJoin(schema.groups, eq(schema.groups.id, schema.posts.groupId))
+    .where(and(eq(schema.posts.groupId, groupId), postVisibilityFilter(currentUserId)));
+
+  const questions = toNumber(row?.questions ?? 0);
+  return {
+    postsThisMonth: toNumber(row?.postsThisMonth ?? 0),
+    solvedRate: questions > 0 ? toNumber(row?.solved ?? 0) / questions : null,
   };
 }
 

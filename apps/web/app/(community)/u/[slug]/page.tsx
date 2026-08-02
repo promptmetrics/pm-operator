@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { createServiceDb } from '@/lib/db';
 import { getSession } from '@/lib/auth/server';
-import { getUserProfile } from '@/lib/services/users';
+import { getUserProfile, listUserCircleContributions, getUserStreakWeek } from '@/lib/services/users';
 import {
   listPostsByAuthor,
   listAcceptedSolutionsByAuthor,
@@ -22,15 +22,22 @@ export default async function UserRoute({ params }: { params: Promise<{ slug: st
 
   const isOwnProfile = currentUserId === user.id;
 
-  const [posts, solutions, comments, badges, bookmarks] = await Promise.all([
+  // Two bounded waves instead of one wide Promise.all: getUserBadges fans out
+  // its own concurrent queries, and stacking everything starves the small
+  // per-instance DB pool instead of queueing (same note in the profile route).
+  const [posts, solutions, comments, bookmarks] = await Promise.all([
     listPostsByAuthor(db, user.id, currentUserId, 20),
     listAcceptedSolutionsByAuthor(db, user.id, currentUserId, 20),
     listCommentsByAuthor(db, user.id, currentUserId, 20),
-    getUserBadges(db, user.id),
     isOwnProfile && currentUserId
       ? listBookmarkedPosts(db, currentUserId, { limit: 20 }).then((r) => r.posts)
       : Promise.resolve(undefined),
   ]);
+  const [circles, streak] = await Promise.all([
+    listUserCircleContributions(db, user.id),
+    getUserStreakWeek(db, user.id),
+  ]);
+  const badges = await getUserBadges(db, user.id);
 
   return (
     <ProfileTabs
@@ -41,6 +48,8 @@ export default async function UserRoute({ params }: { params: Promise<{ slug: st
       comments={comments}
       badges={badges}
       bookmarks={bookmarks}
+      circles={circles}
+      streak={streak}
     />
   );
 }

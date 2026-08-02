@@ -342,11 +342,19 @@ function leaderboardBoardSql(
   const window: LeaderboardPeriod = type === 'points' ? period : 'all_time';
   const boardGroupId = type === 'points' ? groupId : schema.GLOBAL_GROUP_ID;
   const order = leaderboardOrderSql(type);
+  // Solutions counts follow the board's scope (WS6/T6.1): a circle board
+  // counts only solutions accepted in that circle; global boards (and the
+  // always-global solutions/streaks types, via boardGroupId) stay site-wide.
+  const asCountScope =
+    boardGroupId === schema.GLOBAL_GROUP_ID
+      ? sql``
+      : sql`where ${schema.posts.groupId} = ${boardGroupId}`;
   return sql`
     with as_count as (
       select ${schema.comments.authorId} as user_id, count(*)::int as count
       from ${schema.comments}
       inner join ${schema.posts} on ${schema.posts.acceptedCommentId} = ${schema.comments.id}
+      ${asCountScope}
       group by ${schema.comments.authorId}
     ),
     board as (

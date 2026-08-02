@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { userBadgesResponseSchema } from './badges';
 
 export const UserRole = {
   MEMBER: 'member',
@@ -120,6 +121,51 @@ export const publicUserProfileSchema = z.object({
 });
 
 export type PublicUserProfile = z.infer<typeof publicUserProfileSchema>;
+
+// Wire shape of levelForScore() (WS6/T6.3) — validates as LevelInfo.
+export const levelInfoSchema = z.object({
+  level: z.number().int().min(1),
+  name: z.string(),
+  nextLevel: z
+    .object({ level: z.number().int(), name: z.string(), minScore: z.number() })
+    .nullable(),
+  pointsToNext: z.number().nullable(),
+  progressPercent: z.number().min(0).max(100),
+});
+
+// Per-circle contribution row for the profile sidebar (WS6/T6.3): all-time
+// group-scoped score plus solutions accepted in that circle.
+export const circleContributionSchema = z.object({
+  group: z.object({
+    slug: z.string(),
+    name: z.string(),
+    color: z.string().nullable(),
+  }),
+  score: z.number(),
+  acceptedSolutions: z.number().int().nonnegative(),
+});
+
+export type CircleContribution = z.infer<typeof circleContributionSchema>;
+
+// Full profile-page payload (WS6/T6.3). Extends — never widens —
+// publicUserProfileSchema: toPublicUserProfile also feeds mention search.
+export const userProfileDetailSchema = publicUserProfileSchema.extend({
+  aboutMe: z.string().nullable(),
+  postsCount: z.number().int().nonnegative(),
+  joinedAt: z.string().datetime(),
+  levelInfo: levelInfoSchema,
+});
+
+export type UserProfileDetail = z.infer<typeof userProfileDetailSchema>;
+
+// GET /api/v1/users/[slug] response (REST parity for the profile redesign).
+export const getUserProfileResponseSchema = z.object({
+  user: userProfileDetailSchema,
+  badges: userBadgesResponseSchema,
+  circles: z.array(circleContributionSchema),
+});
+
+export type GetUserProfileResponse = z.infer<typeof getUserProfileResponseSchema>;
 
 export const userListQuerySchema = z.object({
   q: z.string().optional(),

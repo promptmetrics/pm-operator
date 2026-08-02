@@ -1,18 +1,41 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { eq, and } from 'drizzle-orm';
+import { Settings } from 'lucide-react';
 import * as schema from '@pm-operator/db';
+import { Button } from '@pm-operator/ui/components/Button';
 import { createServiceDb } from '@/lib/db';
 import { getSession } from '@/lib/auth/server';
-import { getGroupBySlug } from '@/lib/services/groups';
+import { getGroupBySlug, getGroupStats, listGroupMembers } from '@/lib/services/groups';
 import { listGroupPosts } from '@/lib/services/posts';
-import { listPinnedPosts, listGroupLeaderboard, getWritableGroups } from '@/lib/services/community';
+import {
+  listPinnedPosts,
+  listGroupLeaderboard,
+  listGroupsWithPostCounts,
+  getWritableGroups,
+} from '@/lib/services/community';
 import { FeedPage } from '../../components/FeedPage';
-import { FeedCard } from '../../components/FeedCard';
 import { GroupMembershipButton } from '../../components/GroupMembershipButton';
 import { GroupInviteButton } from '../../components/GroupInviteButton';
+import { CircleRail } from './CircleRail';
 import { FeedFilter, FeedSort } from '@pm-operator/api';
 
 type PageSearchParams = Record<string, string | string[] | undefined>;
+
+function formatPercent(rate: number): string {
+  return `${Math.round(rate * 100)}%`;
+}
+
+function BannerStat({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="text-center">
+      <div className="font-serif text-[22px] font-semibold text-[var(--pm-ink)]">{value}</div>
+      <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--pm-muted)]">
+        {label}
+      </div>
+    </div>
+  );
+}
 
 export default async function GroupRoute({
   params,
@@ -42,48 +65,74 @@ export default async function GroupRoute({
   const pageParam = typeof paramsQuery.page === 'string' ? Number(paramsQuery.page) : undefined;
   const page = Number.isFinite(pageParam) && pageParam && pageParam > 0 ? pageParam : 1;
 
-  const [membership, pinned, { posts, nextCursor }, leaderboard, writableGroups, currentUser] =
-    await Promise.all([
-      currentUserId
-        ? db.query.groupMemberships.findFirst({
-            where: and(
-              eq(schema.groupMemberships.groupId, group.id),
-              eq(schema.groupMemberships.userId, currentUserId)
-            ),
-          })
-        : Promise.resolve(null),
-      listPinnedPosts(db, group.id, currentUserId),
-      listGroupPosts(db, slug, { filter, sort, page, limit: 20 }, currentUserId),
-      listGroupLeaderboard(db, group.id, 'weekly', 5),
-      currentUserId ? getWritableGroups(db, currentUserId) : Promise.resolve([]),
-      currentUserId
-        ? db.query.users.findFirst({
-            where: eq(schema.users.id, currentUserId),
-            columns: { role: true },
-          })
-        : Promise.resolve(null),
-    ]);
+  const [
+    membership,
+    pinned,
+    { posts, nextCursor },
+    leaderboard,
+    writableGroups,
+    currentUser,
+    stats,
+    members,
+    circles,
+  ] = await Promise.all([
+    currentUserId
+      ? db.query.groupMemberships.findFirst({
+          where: and(
+            eq(schema.groupMemberships.groupId, group.id),
+            eq(schema.groupMemberships.userId, currentUserId)
+          ),
+        })
+      : Promise.resolve(null),
+    listPinnedPosts(db, group.id, currentUserId),
+    listGroupPosts(db, slug, { filter, sort, page, limit: 20 }, currentUserId),
+    listGroupLeaderboard(db, group.id, 'weekly', 5),
+    currentUserId ? getWritableGroups(db, currentUserId) : Promise.resolve([]),
+    currentUserId
+      ? db.query.users.findFirst({
+          where: eq(schema.users.id, currentUserId),
+          columns: { role: true, username: true },
+        })
+      : Promise.resolve(null),
+    getGroupStats(db, group.id, currentUserId),
+    listGroupMembers(db, slug, currentUserId),
+    listGroupsWithPostCounts(db, currentUserId),
+  ]);
 
   const canInvite =
     membership?.role === 'admin' ||
     membership?.role === 'moderator' ||
     currentUser?.role === 'admin';
+  // /admin/groups sits behind the site-admin layout guard, so Manage renders
+  // for site admins only; group admins/mods keep Invite (D8).
+  const canManage = currentUser?.role === 'admin';
+
+  const moderators = members.filter((m) => m.role === 'admin' || m.role === 'moderator');
+  const otherCircles = circles.groups.filter((c) => c.slug !== slug).slice(0, 6);
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <div className="mb-6 rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-6 shadow-[var(--pm-shadow)]">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            {group.color ? (
-              <span
-                className="inline-block h-10 w-10 rounded-full ring-2 ring-[var(--pm-line)]"
-                style={{ backgroundColor: group.color }}
-                aria-hidden="true"
-              />
-            ) : null}
-            <div>
+    <div>
+      <div className="mx-auto mb-6 max-w-6xl rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-2)] p-6 shadow-[var(--pm-shadow)]">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-4">
+            <span
+              className="flex h-[62px] w-[62px] shrink-0 items-center justify-center rounded-xl font-serif text-[26px] font-semibold text-[var(--pm-on-ink)]"
+              style={{ backgroundColor: group.color ?? 'var(--pm-coral)' }}
+              aria-hidden="true"
+            >
+              {group.name.charAt(0).toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <div className="mb-0.5 text-xs text-[var(--pm-muted)]">
+                <Link href="/feed" className="hover:text-[var(--pm-ink)]">
+                  Feed
+                </Link>
+                {' / circle'}
+              </div>
               <div className="mb-1 flex items-center gap-2">
-                <h1 className="font-serif text-2xl font-semibold text-[var(--pm-ink)]">{group.name}</h1>
+                <h1 className="truncate font-serif text-[28px] font-semibold leading-tight text-[var(--pm-ink)]">
+                  {group.name}
+                </h1>
                 <span className="rounded-full border border-[var(--pm-line)] bg-[var(--pm-paper)] px-2 py-0.5 text-xs capitalize text-[var(--pm-muted)]">
                   {group.visibility.replace('_', ' ')}
                 </span>
@@ -93,25 +142,56 @@ export default async function GroupRoute({
               ) : null}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {canInvite ? <GroupInviteButton slug={slug} /> : null}
-            <GroupMembershipButton
-              slug={slug}
-              initialIsMember={Boolean(membership)}
-              isLoggedIn={Boolean(currentUserId)}
-            />
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+            <BannerStat value={group.memberCount.toLocaleString()} label="Members" />
+            <BannerStat value={stats.postsThisMonth.toLocaleString()} label="Posts / mo" />
+            {stats.solvedRate !== null ? (
+              <BannerStat value={formatPercent(stats.solvedRate)} label="Solved rate" />
+            ) : null}
+            <div className="flex items-center gap-2">
+              {canInvite ? <GroupInviteButton slug={slug} /> : null}
+              {canManage ? (
+                <Button variant="secondary" asChild className="gap-1">
+                  <Link href="/admin/groups">
+                    <Settings className="h-4 w-4" aria-hidden="true" />
+                    Manage
+                  </Link>
+                </Button>
+              ) : null}
+              <GroupMembershipButton
+                slug={slug}
+                initialIsMember={Boolean(membership)}
+                isLoggedIn={Boolean(currentUserId)}
+              />
+            </div>
           </div>
         </div>
       </div>
 
       {pinned.length > 0 ? (
-        <div className="mb-6">
-          <p className="mb-2 text-sm font-semibold">Pinned</p>
-          <div className="flex flex-col gap-3">
-            {pinned.map((post) => (
-              <FeedCard key={post.id} post={post} currentUserId={currentUserId} />
+        <div className="mx-auto mb-6 max-w-6xl">
+          <p className="mb-2 text-sm font-semibold text-[var(--pm-ink)]">Pinned resources</p>
+          <ol className="divide-y divide-[var(--pm-line)] overflow-hidden rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] shadow-[var(--pm-shadow)]">
+            {pinned.map((post, index) => (
+              <li key={post.id} className="flex items-start gap-3 px-4 py-3">
+                <span className="mt-0.5 font-mono text-xs font-bold text-[var(--pm-muted)]">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <div className="min-w-0">
+                  <Link
+                    href={`/p/${post.id}`}
+                    className="font-serif text-[15px] font-semibold leading-snug text-[var(--pm-ink)] hover:text-[var(--pm-coral-dark)]"
+                  >
+                    {post.title}
+                  </Link>
+                  <div className="text-xs text-[var(--pm-muted)]">
+                    {post.author.username} · {post.commentCount}{' '}
+                    {post.commentCount === 1 ? 'comment' : 'comments'}
+                  </div>
+                </div>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
       ) : null}
 
@@ -124,6 +204,16 @@ export default async function GroupRoute({
         writableGroups={writableGroups}
         leaderboard={leaderboard}
         groupSlug={slug}
+        viewerUsername={currentUser?.username}
+        showComposerStrip={Boolean(membership) || canInvite}
+        railSlot={
+          <CircleRail
+            group={group}
+            moderators={moderators}
+            leaderboard={leaderboard}
+            otherCircles={otherCircles}
+          />
+        }
       />
     </div>
   );

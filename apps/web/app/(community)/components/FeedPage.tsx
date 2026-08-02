@@ -42,6 +42,14 @@ interface FeedPageProps {
   /** Session user, for the composer strip avatar and rail shortcuts. */
   viewerUserslug?: string;
   viewerUsername?: string;
+  /**
+   * Server-rendered right-rail content (WS6/T6.2); replaces the built-in
+   * aside when provided. Passed as a ReactNode so rail cards stay server
+   * components inside this client component.
+   */
+  railSlot?: React.ReactNode;
+  /** Overrides composer-strip visibility (default remains !groupSlug). */
+  showComposerStrip?: boolean;
 }
 
 const FILTERS: { label: string; value: FeedFilter; swatch?: string }[] = [
@@ -74,6 +82,8 @@ export function FeedPage({
   totalCirclePosts,
   viewerUserslug,
   viewerUsername,
+  railSlot,
+  showComposerStrip,
 }: FeedPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -211,7 +221,8 @@ export function FeedPage({
   );
 
   const showLeftRail = !groupSlug && (circles ?? []).length > 0;
-  const showComposer = !groupSlug && Boolean(currentUserId) && writableGroups.length > 0;
+  const showComposer =
+    (showComposerStrip ?? !groupSlug) && Boolean(currentUserId) && writableGroups.length > 0;
 
   return (
     <div
@@ -300,7 +311,7 @@ export function FeedPage({
               {groupSlug ? 'Posts from this circle' : 'Questions, builds, and solutions from operators'}
             </p>
           </div>
-          {groupSlug && currentUserId && writableGroups.length > 0 ? (
+          {!showComposer && groupSlug && currentUserId && writableGroups.length > 0 ? (
             <Button onClick={() => openComposer('question')} className="gap-1">
               <Plus className="h-4 w-4" aria-hidden="true" />
               New post
@@ -406,11 +417,13 @@ export function FeedPage({
       </div>
 
       <aside className="flex flex-col gap-4">
+        {railSlot ?? (
+        <>
         <Card>
           <CardContent className="space-y-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Trophy className="h-4 w-4 text-[var(--pm-coral)]" aria-hidden="true" />
-              Top operators this week
+              {groupSlug ? 'Top contributors this week' : 'Top operators this week'}
             </CardTitle>
             {leaderboard.length > 0 ? (
               <ol className="space-y-2">
@@ -471,6 +484,8 @@ export function FeedPage({
             </CardContent>
           </Card>
         ) : null}
+        </>
+        )}
       </aside>
 
       <CreatePostModal

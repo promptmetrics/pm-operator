@@ -15,7 +15,7 @@ import {
   rateLimit,
   getClientIp,
 } from '@/lib/api/server';
-import { getGroupBySlug, updateGroup } from '@/lib/services/groups';
+import { getGroupBySlug, getGroupStats, updateGroup } from '@/lib/services/groups';
 import { isAdminOrModerator } from '@/lib/services/shared';
 
 const updateGroupSchema = createGroupRequestSchema.partial();
@@ -31,6 +31,12 @@ export async function GET(
   const { session } = await getSession();
   const group = await getGroupBySlug(getDb(), slug, session?.user?.id);
   if (!group) return notFound('Group not found');
+
+  const includeStats = new URL(request.url).searchParams.get('includeStats') === '1';
+  if (includeStats) {
+    const stats = await getGroupStats(getDb(), group.id, session?.user?.id);
+    return ok({ ...group, stats });
+  }
   return ok(group);
 }
 
