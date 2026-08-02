@@ -16,7 +16,16 @@
 import * as React from 'react';
 import posthog from 'posthog-js';
 
+// NEXT_PUBLIC_POSTHOG_KEY must be the PostHog *Project API key* (prefix `phc_`),
+// which is public and is what posthog-js needs for client-side event capture.
+// Do NOT use a *Personal API key* (`phx_`) here: it is private/server-only, a
+// phx_ token is not a valid capture token so PostHog silently drops every event,
+// and — because NEXT_PUBLIC_* values are inlined into the client bundle — a
+// phx_ key here would leak a private credential to every site visitor.
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+// NEXT_PUBLIC_POSTHOG_HOST is the PostHog instance URL. The default is PostHog
+// Cloud EU; set it only for US cloud (https://us.i.posthog.com) or a self-hosted
+// instance.
 const POSTHOG_HOST =
   process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://eu.i.posthog.com';
 
