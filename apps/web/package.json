@@ -43,6 +43,7 @@
     "@playwright/test": "^1.49.1",
     "@pm-operator/eslint-config": "workspace:*",
     "@pm-operator/tsconfig": "workspace:*",
+    "@sentry/cli": "^3.6.2",
     "@tailwindcss/postcss": "^4.0.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.13.0",
