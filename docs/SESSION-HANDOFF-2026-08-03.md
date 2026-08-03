@@ -8,11 +8,11 @@
 
 The community-portal redesign (**WS1–WS9**) is **fully complete and live in production**
 on `operator.promptmetrics.dev`. All workstreams shipped, migrations 0014–0018 applied,
-and PostHog analytics correctly wired as of this session. The standing request's deploy
-half is done. **No outstanding report work is scoped.**
+PostHog analytics correctly wired, and the remaining interaction bugs (likes, comments,
+create post, join circle) are fixed, deployed, and verified via Playwright/Chromium.
 
-- Latest commit on `main`: `34095cd` — `docs(analytics): require phc_ project key`
-- Latest prod deploy: `pm-operator-9540kdppw` (Ready, live)
+- Latest commit on `main`: `6c6a91d` — `fix(community): idempotent joins, synced member counts, and real API error messages`
+- Latest prod deploy: `dpl_6CfPZvxUWKfYk39YWDtivCoEmRDq` / `pm-operator-evwzamcgu` (Ready, live)
 - Migrations 0014–0018 applied to the prod DB
 - PostHog: `phc_` Project API key inlined in the client bundle + EU Cloud host — verified live
 - Supabase `avatars` Storage bucket: private, created/verified
@@ -47,6 +47,24 @@ half is done. **No outstanding report work is scoped.**
      requirement so the mistake doesn't recur) + pushed → deploy `pm-operator-9540kdppw`.
    - Verified the live prod bundle now inlines a `phc_` key + EU host
      (`https://eu.i.posthog.com`); the `phx_` key is gone.
+
+4. **Remaining community interaction bugs fixed and verified:**
+   - `joinGroup` in `apps/web/lib/services/groups.ts` now returns the existing membership
+     on conflict instead of throwing "Already a member", and increments/decrements
+     `groups.memberCount` consistently on join, leave, and remove.
+   - New `apps/web/lib/api/client-errors.ts` helper parses `{ error: { message } }` from
+     API responses so the UI can surface real server messages.
+   - Updated like, comment, create-post, bookmark, join/leave circle, invite-code join,
+     and profile-save handlers across community components to toast actual errors.
+   - Added `dismissOverlays` to `apps/web/e2e/helpers.ts` to remove Cloudflare/Turnstile
+     and cookie-consent modals that intercept clicks on production.
+   - Reordered `logged-in-journey.spec.ts` to join the circle before liking/commenting.
+   - Added `e2e/prod-debug.spec.ts` and `e2e/prod-smoke.spec.ts` for live-site checks.
+   - Committed `6c6a91d` and deployed from the monorepo root (`pm-operator` project) →
+     `dpl_6CfPZvxUWKfYk39YWDtivCoEmRDq` / `pm-operator-evwzamcgu`.
+   - Production verification (Chromium/Playwright) against `operator.promptmetrics.dev`:
+     `logged-in-journey.spec.ts` ✓, `prod-debug.spec.ts` ✓, `prod-smoke.spec.ts` ✓
+     (1 skipped). Local specs also pass.
 
 ## Decisions and why
 
@@ -136,9 +154,7 @@ half is done. **No outstanding report work is scoped.**
   `e2e-dev-server-port-trap`.
 
 - **Untracked at repo root:** `PromptMetrics Paper v3-handoff.zip` + `memory/` are
-  intentionally uncommitted — leave them. This handoff doc
-  (`docs/SESSION-HANDOFF-2026-08-03.md`) is also left uncommitted; commit it only if you
-  want it tracked.
+  intentionally uncommitted — leave them.
 
 ## Pointers
 
@@ -151,9 +167,10 @@ half is done. **No outstanding report work is scoped.**
 - Project memory: `~/.claude/projects/-Users-izzy-Documents-pm-operator/memory/`
   (`MEMORY.md` index + per-fact files)
 - Commits: `bd03dba` (WS8/WS9 ship) · `b20e21a` (deploy docs) · `34095cd` (PostHog key
-  doc-note + redeploy trigger, current `main`)
+  doc-note + redeploy trigger) · `6c6a91d` (community bug fixes + E2E, current `main`)
 - Deploys: `pm-operator-f2him2ska` (`bd03dba`) · `pm-operator-sd8eqlhn7` (`b20e21a`) ·
-  `pm-operator-9540kdppw` (`34095cd`, current prod)
+  `pm-operator-9540kdppw` (`34095cd`) · `dpl_6CfPZvxUWKfYk39YWDtivCoEmRDq`
+  / `pm-operator-evwzamcgu` (`6c6a91d`, current prod)
 - Supabase prod project ref: `hsiyhxhrqpooplwlrmll` (eu-west-1, ACTIVE_HEALTHY)
 - Vercel project: `pm-operator` (projectId `prj_8vK1ZOW1hA6WLLNBEvMhZgrsAdOY`,
   orgId `team_Lg6W6knXlq0wQOdkqZIPnGY4`). Vercel CLI is authenticated as `izzy-7941`.
