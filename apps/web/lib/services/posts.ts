@@ -11,6 +11,34 @@ import { autoFlagIfWatched } from './flags';
 type FilterValue = FeedQuery['filter'];
 type SortValue = FeedQuery['sort'];
 
+function slugify(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+}
+
+async function uniquePostSlug(
+  db: DrizzleClient,
+  groupId: string,
+  title: string
+): Promise<string> {
+  let base = slugify(title) || 'post';
+  let slug = base;
+  let counter = 1;
+  while (
+    await db.query.posts.findFirst({
+      where: and(eq(schema.posts.groupId, groupId), eq(schema.posts.slug, slug)),
+      columns: { id: true },
+    })
+  ) {
+    slug = `${base}-${counter}`;
+    counter++;
+  }
+  return slug;
+}
+
 export function postVisibilityFilter(currentUserId: string | undefined) {
   const notDeleted = sql`${schema.posts.status} <> 'deleted'`;
   if (!currentUserId) {
@@ -118,6 +146,7 @@ export async function toPostListItem(
 ): Promise<PostListItem> {
   return {
     id: row.post.id,
+    slug: row.post.slug,
     title: row.post.title,
     type: row.post.type,
     status: row.post.status,
@@ -337,6 +366,99 @@ export async function getPostById(
 
   return {
     id: post.id,
+    slug: post.slug,
+    groupId: post.groupId,
+    authorId: post.authorId,
+    title: post.title,
+    content: post.status === 'hidden' && post.authorId !== currentUserId && !isAdminOrModerator(author.role) ? '' : post.content,
+    contentPlain: post.status === 'hidden' && post.authorId !== currentUserId && !isAdminOrModerator(author.role) ? '' : post.contentPlain,
+    type: post.type,
+    status: post.status,
+    tags: post.tags,
+    upvotes: post.upvotes,
+    commentCount: post.commentCount,
+    viewCount: post.viewCount,
+    isPinned: post.isPinned,
+    featuredLabel: post.featuredLabel,
+    acceptedCommentId: post.acceptedCommentId,
+    createdAt: toISO(post.createdAt),
+    updatedAt: toISO(post.updatedAt),
+    viewerHasLiked: Boolean(viewerHasLiked),
+    viewerHasBookmarked: Boolean(viewerHasBookmarked),
+    group: {
+      id: group.id,
+      slug: group.slug,
+      name: group.name,
+      description: group.description,
+      color: group.color,
+      visibility: group.visibility,
+      requiredTierId: group.requiredTierId,
+      memberCount: group.memberCount,
+      createdBy: group.createdBy,
+      createdAt: toISO(group.createdAt),
+      updatedAt: toISO(group.updatedAt),
+    },
+    author: {
+      id: author.id,
+      username: author.username,
+      userslug: author.userslug,
+      fullName: author.fullName,
+      pictureUrl: await getAvatarReadUrl(author.pictureUrl),
+      role: author.role,
+      reputationScore: toNumber(author.reputationScore),
+      streakDays: author.streakDays,
+      acceptedSolutions: toNumber(acceptedSolutions),
+      level: levelForScore(toNumber(author.reputationScore)).level,
+    },
+  };
+}
+
+export async function getPostBySlug(
+  db: DrizzleClient,
+  groupSlug: string,
+  postSlug: string,
+  currentUserId?: string
+): Promise<PostDetail | null> {
+  const asCount = db.$with('as_count').as(
+    db
+      .select({
+        userId: schema.comments.authorId,
+        count: count().as('count'),
+      })
+      .from(schema.comments)
+      .innerJoin(schema.posts, eq(schema.posts.acceptedCommentId, schema.comments.id))
+      .groupBy(schema.comments.authorId)
+  );
+
+  const row = await db
+    .with(asCount)
+    .select({
+      post: schema.posts,
+      group: schema.groups,
+      author: schema.users,
+      acceptedSolutions: asCount.count,
+      viewerHasLiked: viewerHasLikedPostSql(currentUserId),
+      viewerHasBookmarked: viewerHasBookmarkedPostSql(currentUserId),
+    })
+    .from(schema.posts)
+    .innerJoin(schema.groups, eq(schema.posts.groupId, schema.groups.id))
+    .innerJoin(schema.users, eq(schema.posts.authorId, schema.users.id))
+    .leftJoin(asCount, eq(asCount.userId, schema.users.id))
+    .where(
+      and(
+        eq(schema.groups.slug, groupSlug),
+        eq(schema.posts.slug, postSlug),
+        postVisibilityFilter(currentUserId)
+      )
+    )
+    .limit(1);
+
+  if (!row[0]) return null;
+  const { post, group, author, acceptedSolutions, viewerHasLiked, viewerHasBookmarked } = row[0];
+
+  return {
+    id: post.id,
+    slug: post.slug,
     groupId: post.groupId,
     authorId: post.authorId,
     title: post.title,
@@ -408,6 +530,7 @@ export async function createPost(
   if (!canPost) throw new Error('Forbidden');
 
   const contentPlain = htmlToText(input.content);
+  const slug = await uniquePostSlug(db, group.id, input.title);
 
   const post = await db.transaction(async (tx) => {
     const [created] = await tx
@@ -415,6 +538,7 @@ export async function createPost(
       .values({
         groupId: group.id,
         authorId,
+        slug,
         title: input.title,
         content: input.content,
         contentPlain,

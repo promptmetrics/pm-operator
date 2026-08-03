@@ -27,6 +27,7 @@ export const notificationPayloadSchema = z.object({
   actorSlug: z.string().optional(),
   actorUsername: z.string().optional(),
   groupSlug: z.string().optional(),
+  postSlug: z.string().optional(),
   inviteCode: z.string().optional(),
   flagId: z.string().uuid().optional(),
   reason: z.string().optional(),

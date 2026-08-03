@@ -137,6 +137,7 @@ export async function searchPosts(
 
   const mapped: SearchResult[] = results.map((r) => ({
     id: r.post.id,
+    slug: r.post.slug,
     title: r.post.title,
     type: r.post.type,
     status: r.post.status,

@@ -32,8 +32,8 @@ test('logged-in community journey', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Leave circle' })).toBeVisible();
 
   // 3. Open a seeded post in the circle and verify detail loads.
-  const seededPostId = '20000000-0000-4000-8000-000000000002';
-  await page.goto(`/p/${seededPostId}`);
+  const seededPostUrl = '/g/show-your-build/open-source-mcp-router-we-shipped-last-week-20000000';
+  await page.goto(seededPostUrl);
   await dismissOverlays(page);
   await expect(page.getByText('Open-source MCP router we shipped last week')).toBeVisible();
 

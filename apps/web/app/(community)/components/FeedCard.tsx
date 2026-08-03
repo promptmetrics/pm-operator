@@ -203,7 +203,7 @@ export function FeedCard({ post, currentUserId, rank, onClickResult, variant = '
             {isUnanswered ? <Badge variant="amber">Unanswered</Badge> : null}
           </div>
 
-          <Link href={`/p/${post.id}`} onClick={() => onClickResult?.(post.id)} className="group block">
+          <Link href={`/g/${post.group.slug}/${post.slug}`} onClick={() => onClickResult?.(post.id)} className="group block">
             <h2
               id={`post-title-${post.id}`}
               className="font-serif text-base font-semibold leading-snug text-[var(--pm-ink)] group-hover:text-[var(--pm-coral-dark)]"
@@ -231,7 +231,7 @@ export function FeedCard({ post, currentUserId, rank, onClickResult, variant = '
 
         <div className="flex items-center gap-1">
           <Link
-            href={`/p/${post.id}`}
+            href={`/g/${post.group.slug}/${post.slug}`}
             className="whitespace-nowrap text-xs text-[var(--pm-muted)] hover:text-[var(--pm-ink)]"
           >
             {formatNumber(post.commentCount)} comments
@@ -290,7 +290,7 @@ export function FeedCard({ post, currentUserId, rank, onClickResult, variant = '
           </div>
 
           <Link
-            href={`/p/${post.id}`}
+            href={`/g/${post.group.slug}/${post.slug}`}
             onClick={() => onClickResult?.(post.id)}
             className="group block"
           >
@@ -341,7 +341,7 @@ export function FeedCard({ post, currentUserId, rank, onClickResult, variant = '
                 <span className="text-xs text-[var(--pm-muted)]">{formatNumber(likeCount)}</span>
               </Button>
 
-              <Link href={`/p/${post.id}`}>
+              <Link href={`/g/${post.group.slug}/${post.slug}`}>
                 <Button variant="ghost" size="sm" className="gap-1">
                   <MessageSquare className="h-4 w-4 text-[var(--pm-muted)]" aria-hidden="true" />
                   <span className="text-xs text-[var(--pm-muted)]">{formatNumber(post.commentCount)}</span>

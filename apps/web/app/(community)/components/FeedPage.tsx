@@ -207,6 +207,7 @@ export function FeedPage({
         if (!detail) return;
         const item: PostListItem = {
           id: detail.id,
+          slug: detail.slug,
           title: detail.title,
           type: detail.type,
           status: detail.status,

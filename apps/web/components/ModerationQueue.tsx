@@ -145,7 +145,9 @@ export function ModerationQueue() {
                     href={
                       flag.target.type === 'message'
                         ? `/messages/${flag.target.conversationId ?? ''}`
-                        : `/p/${flag.target.id}`
+                        : flag.target.group?.slug && flag.target.postSlug
+                          ? `/g/${flag.target.group.slug}/${flag.target.postSlug}`
+                          : `/p/${flag.target.id}`
                     }
                   >
                     <Button variant="secondary" size="sm">View</Button>

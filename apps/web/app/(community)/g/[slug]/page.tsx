@@ -203,7 +203,7 @@ export default async function GroupRoute({
                 </span>
                 <div className="min-w-0">
                   <Link
-                    href={`/p/${post.id}`}
+                    href={`/g/${post.group.slug}/${post.slug}`}
                     className="font-serif text-[15px] font-semibold leading-snug text-[var(--pm-ink)] hover:text-[var(--pm-coral-dark)]"
                   >
                     {post.title}

@@ -75,6 +75,7 @@ async function toPostListItem(
 ): Promise<PostListItem> {
   return {
     id: row.post.id,
+    slug: row.post.slug,
     title: row.post.title,
     type: row.post.type,
     status: row.post.status,
@@ -557,7 +558,7 @@ export async function listAcceptedSolutionsByAuthor(
       post: {
         id: post.id,
         title: post.title,
-        slug: post.id,
+        slug: post.slug,
         group: { slug: group.slug, name: group.name },
       },
     });
@@ -618,7 +619,7 @@ export async function listCommentsByAuthor(
     .limit(limit);
 
   const out: CommentDetail[] = [];
-  for (const { comment, author } of rows) {
+  for (const { comment, author, post, group } of rows) {
     out.push({
       id: comment.id,
       postId: comment.postId,
@@ -652,6 +653,8 @@ export async function listCommentsByAuthor(
         acceptedSolutions: 0,
         level: levelForScore(toNumber(author.reputationScore)).level,
       },
+      postSlug: post.slug,
+      groupSlug: group.slug,
     });
   }
   return out;

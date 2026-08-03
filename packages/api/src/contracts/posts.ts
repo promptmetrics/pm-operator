@@ -60,6 +60,7 @@ export const postSchema = z.object({
   id: z.string().uuid(),
   groupId: z.string().uuid(),
   authorId: z.string().uuid(),
+  slug: z.string(),
   title: z.string(),
   content: z.string(),
   contentPlain: z.string(),
@@ -80,6 +81,7 @@ export type Post = z.infer<typeof postSchema>;
 
 export const postListItemSchema = z.object({
   id: z.string().uuid(),
+  slug: z.string(),
   title: z.string(),
   type: postTypeSchema,
   status: postStatusSchema,

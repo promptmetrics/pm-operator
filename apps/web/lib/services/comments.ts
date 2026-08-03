@@ -254,10 +254,14 @@ export async function createComment(
   input: CreateCommentRequest,
   authorId: string
 ): Promise<CommentDetail> {
-  const post = await db.query.posts.findFirst({
-    where: eq(posts.id, postId),
-  });
-  if (!post) throw new Error('Post not found');
+  const postRow = await db
+    .select({ post: posts, group: groups })
+    .from(posts)
+    .innerJoin(groups, eq(posts.groupId, groups.id))
+    .where(eq(posts.id, postId))
+    .then((rows) => rows[0]);
+  if (!postRow) throw new Error('Post not found');
+  const { post, group } = postRow;
 
   const canComment =
     (await db.query.groupMemberships.findFirst({
@@ -317,7 +321,12 @@ export async function createComment(
       userId: post.authorId,
       actorId: authorId,
       type: 'comment',
-      payload: { postId, commentId: comment.id },
+      payload: {
+        postId,
+        commentId: comment.id,
+        groupSlug: group.slug,
+        postSlug: post.slug,
+      },
     });
   }
 
@@ -401,10 +410,17 @@ export async function acceptSolution(
   input: AcceptSolutionRequest,
   currentUserId: string
 ): Promise<Comment> {
-  const post = await db.query.posts.findFirst({
-    where: eq(posts.id, postId),
-  });
-  if (!post) throw new Error('Post not found');
+  const postRow = await db
+    .select({
+      post: posts,
+      group: groups,
+    })
+    .from(posts)
+    .innerJoin(groups, eq(posts.groupId, groups.id))
+    .where(eq(posts.id, postId))
+    .then((rows) => rows[0]);
+  if (!postRow) throw new Error('Post not found');
+  const { post, group } = postRow;
 
   const user = await db.query.users.findFirst({
     where: eq(users.id, currentUserId),
@@ -462,7 +478,12 @@ export async function acceptSolution(
     userId: comment.authorId,
     actorId: currentUserId,
     type: 'solution',
-    payload: { postId, commentId: comment.id },
+    payload: {
+      postId,
+      commentId: comment.id,
+      groupSlug: group.slug,
+      postSlug: post.slug,
+    },
   });
 
   // T8.4: notify the solver by email. Fire-and-forget — sendTransactional
@@ -473,7 +494,7 @@ export async function acceptSolution(
     userId: comment.authorId,
     dataVariables: {
       postTitle: post.title,
-      postUrl: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/p/${post.id}`,
+      postUrl: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/g/${group.slug}/${post.slug}`,
     },
   });
 

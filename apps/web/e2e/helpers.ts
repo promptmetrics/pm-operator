@@ -67,6 +67,15 @@ export function uniqueEmail(prefix = 'test') {
   return `${prefix}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}@example.com`;
 }
 
+function postSlugify(title: string, id: string): string {
+  const base = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 50);
+  return `${base || 'post'}-${id.slice(0, 8)}`;
+}
+
 export function slugify(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -250,12 +259,16 @@ export async function createPublishedPost(
   title?: string
 ): Promise<string> {
   const db = serviceDb();
+  const postTitle = title ?? `Test post ${Date.now()}`;
+  const id = randomUUID();
   const [post] = await db
     .insert(schema.posts)
     .values({
+      id,
       groupId,
       authorId,
-      title: title ?? `Test post ${Date.now()}`,
+      slug: postSlugify(postTitle, id),
+      title: postTitle,
       content: '<p>Test content</p>',
       contentPlain: 'Test content',
       type: 'discussion',
@@ -269,12 +282,16 @@ export async function createPublishedPost(
 
 export async function createHiddenPost(groupId: string, authorId: string): Promise<string> {
   const db = serviceDb();
+  const title = 'Hidden post placeholder test';
+  const id = randomUUID();
   const [post] = await db
     .insert(schema.posts)
     .values({
+      id,
       groupId,
       authorId,
-      title: 'Hidden post placeholder test',
+      slug: postSlugify(title, id),
+      title,
       content: '<p>Hidden content</p>',
       contentPlain: 'Hidden content',
       type: 'discussion',

@@ -10,8 +10,8 @@ test.skip(!process.env.RUN_PROD_E2E, 'Production E2E disabled in CI; set RUN_PRO
 test.use({ baseURL: 'https://operator.promptmetrics.dev' });
 
 test('anonymous post detail loads without 404/500', async ({ page }) => {
-  const seededPostId = '20000000-0000-4000-8000-000000000002';
-  await page.goto(`/p/${seededPostId}`);
+  const seededPostUrl = '/g/show-your-build/open-source-mcp-router-we-shipped-last-week-20000000';
+  await page.goto(seededPostUrl);
   await dismissOverlays(page);
   await expect(page.getByText('Open-source MCP router we shipped last week')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Comments' })).toBeVisible();

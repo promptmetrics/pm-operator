@@ -269,7 +269,7 @@ export function ProfileTabs({
                   {solutions.map((item) => (
                     <Card key={item.id} className="p-4">
                       <Link
-                        href={`/p/${item.post.id}`}
+                        href={`/g/${item.post.group.slug}/${item.post.slug}`}
                         className="mb-2 block font-medium hover:text-[var(--pm-coral-dark)]"
                       >
                         {item.post.title}
@@ -296,7 +296,11 @@ export function ProfileTabs({
                   {comments.map((comment) => (
                     <Card key={comment.id} className="p-4">
                       <Link
-                        href={`/p/${comment.postId}`}
+                        href={
+                          comment.groupSlug && comment.postSlug
+                            ? `/g/${comment.groupSlug}/${comment.postSlug}`
+                            : `/p/${comment.postId}`
+                        }
                         className="mb-2 block text-sm font-medium hover:text-[var(--pm-coral-dark)]"
                       >
                         Commented on a post

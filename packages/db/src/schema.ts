@@ -212,6 +212,8 @@ export const posts = pgTable(
     commentCount: integer('comment_count').default(0).notNull(),
     viewCount: integer('view_count').default(0).notNull(),
     isPinned: boolean('is_pinned').default(false).notNull(),
+    // SEO-friendly path segment; unique within a circle (e.g. "my-build-post-abc1234a").
+    slug: text('slug').notNull(),
     // Admin-set feature label (WS7/T7.2, migration 0012); null = not featured.
     featuredLabel: text('featured_label'),
     // FK added in migration 0001_numerous_killer_shrike.sql to avoid circular module load.
@@ -233,6 +235,8 @@ export const posts = pgTable(
       'gin',
       sql`lower(${table.contentPlain}) gin_trgm_ops`
     ),
+    // Slug uniqueness is scoped to the circle: /g/<groupSlug>/<postSlug>.
+    uniqueGroupSlugIdx: uniqueIndex('posts_group_slug_idx').on(table.groupId, table.slug),
   })
 ).enableRLS();
 

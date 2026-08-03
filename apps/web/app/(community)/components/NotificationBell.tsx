@@ -163,6 +163,7 @@ export function notificationText(n: Notification): string {
 export function notificationHref(n: Notification): string {
   const p = n.payload;
   if (p.conversationId) return `/messages/${p.conversationId}`;
+  if (p.groupSlug && p.postSlug) return `/g/${p.groupSlug}/${p.postSlug}`;
   if (p.groupSlug) return `/g/${p.groupSlug}`;
   if (p.postId) return `/p/${p.postId}`;
   if (p.actorSlug) return `/u/${p.actorSlug}`;

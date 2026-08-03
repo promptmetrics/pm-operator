@@ -621,7 +621,7 @@ export function PostDetailPage({
               {morePosts.map((p) => (
                 <Link
                   key={p.id}
-                  href={`/p/${p.id}`}
+                  href={`/g/${p.group.slug}/${p.slug}`}
                   className="block text-[var(--pm-ink)] hover:text-[var(--pm-coral-dark)]"
                 >
                   <span className="block text-[13px] font-semibold leading-snug">{p.title}</span>

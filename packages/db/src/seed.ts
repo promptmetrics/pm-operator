@@ -35,6 +35,15 @@ const db = drizzle(client, { schema });
 
 const now = new Date();
 
+function slugify(title: string, id: string): string {
+  const base = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 50);
+  return `${base || 'post'}-${id.slice(0, 8)}`;
+}
+
 // Deterministic UUIDs for idempotent seeding.
 // PostgreSQL's uuid type validates version/variant bits. Some prefixes only
 // have 3 groups; we pad to 4, then rewrite the 3rd group to start with 4 and
@@ -271,6 +280,7 @@ export async function seed() {
   await db.insert(posts)
     .values(seedPosts.map((p) => ({
       ...p,
+      slug: slugify(p.title, p.id),
       status: 'published' as const,
       isPinned: false,
       viewCount: 0,

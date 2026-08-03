@@ -76,7 +76,7 @@ test('debug like, comment, join, create on production', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Leave circle' })).toBeVisible();
 
   // 2. Open a seeded post and like it.
-  await page.goto('/p/20000000-0000-4000-8000-000000000002');
+  await page.goto('/g/show-your-build/open-source-mcp-router-we-shipped-last-week-20000000');
   await dismissOverlays(page);
   await expect(page.getByText('Open-source MCP router we shipped last week')).toBeVisible();
   const likeButton = page.getByRole('button', { name: /upvotes/i });

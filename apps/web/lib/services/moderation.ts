@@ -157,6 +157,7 @@ async function resolveFlagTarget(
         slug: row.group.slug,
         name: row.group.name,
       },
+      postSlug: row.post.slug,
     };
   }
 
@@ -224,6 +225,7 @@ async function resolveFlagTarget(
       slug: row.group.slug,
       name: row.group.name,
     },
+    postSlug: row.post.slug,
   };
 }
 

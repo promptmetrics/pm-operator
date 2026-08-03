@@ -32,12 +32,17 @@ export interface CommentDetail extends z.infer<typeof commentSchema> {
   author: z.infer<typeof publicUserProfileSchema>;
   replies?: CommentDetail[];
   viewerHasLiked?: boolean;
+  // Populated when comments are listed outside the post detail page (e.g. profile).
+  postSlug?: string;
+  groupSlug?: string;
 }
 
 export const commentDetailSchema: z.ZodType<CommentDetail> = commentSchema.extend({
   author: publicUserProfileSchema,
   replies: z.array(z.lazy(() => commentDetailSchema)).optional(),
   viewerHasLiked: z.boolean().optional(),
+  postSlug: z.string().optional(),
+  groupSlug: z.string().optional(),
 });
 
 export const commentSortSchema = z.enum(['new', 'top']);

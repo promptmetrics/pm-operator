@@ -1,7 +1,7 @@
 import { eq, and, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
-import type { CreateReactionRequest, Reaction } from '@pm-operator/api';
+import type { CreateReactionRequest, Reaction, NotificationPayload } from '@pm-operator/api';
 import { POINT_WEIGHTS, DAILY_CAPS } from '@pm-operator/api';
 import { toISO } from './shared';
 import { insertNotification } from './notifications';
@@ -98,15 +98,23 @@ export async function toggleReaction(
 
     let targetAuthorId: string | null = null;
     let groupId: string | null = null;
+    let postSlug: string | null = null;
+    let groupSlug: string | null = null;
 
     if (input.targetType === 'post') {
       const post = await db.query.posts.findFirst({
         where: eq(schema.posts.id, input.targetId),
-        columns: { authorId: true, groupId: true },
+        columns: { authorId: true, groupId: true, slug: true },
       });
       if (post) {
         targetAuthorId = post.authorId;
         groupId = post.groupId;
+        postSlug = post.slug;
+        const group = await db.query.groups.findFirst({
+          where: eq(schema.groups.id, post.groupId),
+          columns: { slug: true },
+        });
+        groupSlug = group?.slug ?? null;
       }
     } else {
       const comment = await db.query.comments.findFirst({
@@ -117,9 +125,17 @@ export async function toggleReaction(
         targetAuthorId = comment.authorId;
         const post = await db.query.posts.findFirst({
           where: eq(schema.posts.id, comment.postId),
-          columns: { groupId: true },
+          columns: { groupId: true, slug: true },
         });
-        groupId = post?.groupId ?? null;
+        if (post) {
+          groupId = post.groupId;
+          postSlug = post.slug;
+          const group = await db.query.groups.findFirst({
+            where: eq(schema.groups.id, post.groupId),
+            columns: { slug: true },
+          });
+          groupSlug = group?.slug ?? null;
+        }
       }
     }
 
@@ -138,14 +154,20 @@ export async function toggleReaction(
       });
 
       // Notify the target author.
+      const payload: NotificationPayload =
+        input.targetType === 'post'
+          ? { postId: input.targetId }
+          : {
+              postId: (await db.query.comments.findFirst({ where: eq(schema.comments.id, input.targetId), columns: { postId: true } }))?.postId,
+              commentId: input.targetId,
+            };
+      if (postSlug) payload.postSlug = postSlug;
+      if (groupSlug) payload.groupSlug = groupSlug;
       await insertNotification(db, {
         userId: targetAuthorId,
         actorId: userId,
         type: 'reaction',
-        payload:
-          input.targetType === 'post'
-            ? { postId: input.targetId }
-            : { postId: (await db.query.comments.findFirst({ where: eq(schema.comments.id, input.targetId), columns: { postId: true } }))?.postId, commentId: input.targetId },
+        payload,
       });
     }
   }

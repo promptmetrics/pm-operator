@@ -85,6 +85,9 @@ export const flagTargetPreviewSchema = z.object({
       name: z.string(),
     })
     .nullable(),
+  // Post slug so the moderation queue can build /g/<groupSlug>/<postSlug> links.
+  // Null for DM flags; present for post/comment flags when the post exists.
+  postSlug: z.string().nullable().optional(),
   // Present only for DM flags — the conversation the message belongs to, so the
   // moderation queue can link to /messages/:conversationId.
   conversationId: z.string().uuid().nullable().optional(),
