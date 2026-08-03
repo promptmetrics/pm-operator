@@ -25,6 +25,10 @@ interface CommentThreadProps {
   postAuthorId?: string;
   currentUserId?: string;
   acceptedCommentId?: string | null;
+  /** Whether the viewer is a member of the circle this post belongs to. */
+  viewerIsMember?: boolean;
+  /** Circle to join in order to engage with comments. */
+  group?: { slug: string; name: string; color: string | null };
   onChange: () => void;
 }
 
@@ -35,6 +39,10 @@ interface SingleCommentProps {
   currentUserId?: string;
   isAccepted: boolean;
   depth: number;
+  /** Whether the viewer is a member of the circle this post belongs to. */
+  viewerIsMember?: boolean;
+  /** Circle to join in order to engage with comments. */
+  group?: { slug: string; name: string; color: string | null };
   onChange: () => void;
 }
 
@@ -44,6 +52,8 @@ export function CommentThread({
   postAuthorId,
   currentUserId,
   acceptedCommentId,
+  viewerIsMember,
+  group,
   onChange,
 }: CommentThreadProps) {
   return (
@@ -57,6 +67,8 @@ export function CommentThread({
           currentUserId={currentUserId}
           isAccepted={acceptedCommentId === comment.id}
           depth={0}
+          viewerIsMember={viewerIsMember}
+          group={group}
           onChange={onChange}
         />
       ))}
@@ -71,6 +83,8 @@ function SingleComment({
   currentUserId,
   isAccepted,
   depth,
+  viewerIsMember,
+  group,
   onChange,
 }: SingleCommentProps) {
   const [replyOpen, setReplyOpen] = React.useState(false);
@@ -94,7 +108,7 @@ function SingleComment({
     currentUserId === postAuthorId && !comment.parentCommentId && !isAccepted && !isDeleted;
 
   const handleLike = async () => {
-    if (!currentUserId) return;
+    if (!currentUserId || !viewerIsMember) return;
     const previous = likeCount;
     setLiked((l) => !l);
     setLikeCount((c) => (liked ? c - 1 : c + 1));
@@ -330,7 +344,8 @@ function SingleComment({
                 aria-label={liked ? 'Unlike' : 'Like'}
                 aria-pressed={liked}
                 onClick={handleLike}
-                disabled={!currentUserId}
+                disabled={!currentUserId || !viewerIsMember}
+                title={!currentUserId ? 'Sign in to like' : !viewerIsMember ? 'Join the circle to like' : undefined}
                 className="gap-1"
               >
                 <Heart className={`h-4 w-4 ${liked ? 'fill-[var(--pm-coral)] text-[var(--pm-coral)]' : ''}`} aria-hidden="true" />
@@ -343,7 +358,8 @@ function SingleComment({
                   size="sm"
                   className="gap-1"
                   onClick={() => setReplyOpen((r) => !r)}
-                  disabled={!currentUserId}
+                  disabled={!currentUserId || !viewerIsMember}
+                  title={!currentUserId ? 'Sign in to reply' : !viewerIsMember ? 'Join the circle to reply' : undefined}
                 >
                   <MessageSquare className="h-4 w-4" aria-hidden="true" />
                   <span className="text-xs">Reply</span>
@@ -362,7 +378,7 @@ function SingleComment({
           ) : null}
         </div>
 
-        {replyOpen && depth === 0 ? (
+        {replyOpen && depth === 0 && viewerIsMember ? (
           <form onSubmit={submitReply} className="mt-2 flex flex-col gap-2">
             {uploadingImage ? <p className="text-xs text-[var(--pm-muted)]">Uploading image…</p> : null}
             <RichTextEditor
@@ -371,8 +387,13 @@ function SingleComment({
               placeholder="Write a reply..."
               onImageUpload={uploadImage}
             />
+            {!viewerIsMember ? (
+              <p className="rounded-lg border border-[var(--pm-amber)] bg-[var(--pm-amber-bg)]/30 p-2 text-xs text-[var(--pm-ink-2)]">
+                Join <Link href={`/g/${group?.slug}`} className="font-semibold hover:underline" style={{ color: group?.color ?? 'var(--pm-coral-dark)' }}>{group?.name}</Link> to reply.
+              </p>
+            ) : null}
             <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={submitting || uploadingImage}>Post reply</Button>
+              <Button type="submit" size="sm" disabled={submitting || uploadingImage || !viewerIsMember}>Post reply</Button>
               <Button type="button" variant="secondary" size="sm" onClick={() => setReplyOpen(false)}>
                 Cancel
               </Button>
@@ -391,6 +412,8 @@ function SingleComment({
                 currentUserId={currentUserId}
                 isAccepted={false}
                 depth={depth + 1}
+                viewerIsMember={viewerIsMember}
+                group={group}
                 onChange={onChange}
               />
             ))}
@@ -429,6 +452,10 @@ interface AcceptedSolutionCardProps {
   postId: string;
   postAuthorId?: string;
   currentUserId?: string;
+  /** Whether the viewer is a member of the circle this post belongs to. */
+  viewerIsMember?: boolean;
+  /** Circle to join in order to engage with comments. */
+  group?: { slug: string; name: string; color: string | null };
   onChange: () => void;
 }
 
@@ -442,6 +469,8 @@ export function AcceptedSolutionCard({
   postId,
   postAuthorId,
   currentUserId,
+  viewerIsMember,
+  group,
   onChange,
 }: AcceptedSolutionCardProps) {
   const [liked, setLiked] = React.useState(Boolean(comment.viewerHasLiked));
@@ -449,7 +478,7 @@ export function AcceptedSolutionCard({
   const { toast } = useToast();
 
   const handleLike = async () => {
-    if (!currentUserId) return;
+    if (!currentUserId || !viewerIsMember) return;
     const previous = likeCount;
     setLiked((l) => !l);
     setLikeCount((c) => (liked ? c - 1 : c + 1));
@@ -515,7 +544,8 @@ export function AcceptedSolutionCard({
           aria-label={liked ? 'Unlike' : 'Like'}
           aria-pressed={liked}
           onClick={handleLike}
-          disabled={!currentUserId}
+          disabled={!currentUserId || !viewerIsMember}
+          title={!currentUserId ? 'Sign in to like' : !viewerIsMember ? 'Join the circle to like' : undefined}
           className="gap-1"
         >
           <Heart
@@ -537,6 +567,8 @@ export function AcceptedSolutionCard({
               currentUserId={currentUserId}
               isAccepted={false}
               depth={1}
+              viewerIsMember={viewerIsMember}
+              group={group}
               onChange={onChange}
             />
           ))}

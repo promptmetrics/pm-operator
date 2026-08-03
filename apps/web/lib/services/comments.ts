@@ -275,7 +275,7 @@ export async function createComment(
       columns: { role: true },
     }))?.role === 'admin';
 
-  if (!canComment) throw new Error('Forbidden');
+  if (!canComment) throw new Error('Join the circle to comment on this post');
 
   if (input.parentCommentId) {
     const parent = await db.query.comments.findFirst({

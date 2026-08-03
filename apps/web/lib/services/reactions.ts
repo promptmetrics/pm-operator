@@ -45,7 +45,7 @@ export async function toggleReaction(
   userId: string
 ): Promise<{ reaction: Reaction | null; created: boolean }> {
   const canSee = await canSeeTarget(db, input.targetType, input.targetId, userId);
-  if (!canSee) throw new Error('Target not found');
+  if (!canSee) throw new Error('Join the circle to engage with this post');
 
   type ToggleRow = {
     id: string;

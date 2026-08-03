@@ -228,7 +228,7 @@ export function PostDetailPage({
   };
 
   const handleLike = async () => {
-    if (!currentUserId) return;
+    if (!currentUserId || !viewerIsMember) return;
     const previous = likeCount;
     setLiked((l) => !l);
     setLikeCount((c) => (liked ? c - 1 : c + 1));
@@ -395,11 +395,17 @@ export function PostDetailPage({
             </div>
           ) : null}
 
+          {!viewerIsMember && currentUserId ? (
+            <div className="rounded-lg border border-[var(--pm-amber)] bg-[var(--pm-amber-bg)]/30 p-3 text-sm text-[var(--pm-ink-2)]">
+              Join <Link href={`/g/${post.group.slug}`} className="font-semibold hover:underline" style={{ color: post.group.color ?? 'var(--pm-coral-dark)' }}>{post.group.name}</Link> to like or comment on this post.
+            </div>
+          ) : null}
+
           <div className="mt-5 flex flex-wrap items-center gap-2.5 border-t border-[var(--pm-line)] pt-4">
             <button
               type="button"
               onClick={handleLike}
-              disabled={!currentUserId}
+              disabled={!currentUserId || !viewerIsMember}
               aria-pressed={liked}
               className={`${pillClass} font-bold ${liked ? pillActive : 'border-[var(--pm-line)] text-[var(--pm-ink-2)] hover:border-[var(--pm-coral)] hover:text-[var(--pm-coral-dark)]'}`}
             >
@@ -490,6 +496,8 @@ export function PostDetailPage({
             postId={post.id}
             postAuthorId={post.authorId}
             currentUserId={currentUserId}
+            viewerIsMember={viewerIsMember}
+            group={post.group}
             onChange={loadComments}
           />
         ) : null}
@@ -513,7 +521,11 @@ export function PostDetailPage({
 
           {currentUserId ? (
             <div className="mb-5">
-              {!composerOpen && !body.trim() ? (
+              {!viewerIsMember ? (
+                <p className="rounded-lg border border-[var(--pm-amber)] bg-[var(--pm-amber-bg)]/30 p-3 text-sm text-[var(--pm-ink-2)]">
+                  Join <Link href={`/g/${post.group.slug}`} className="font-semibold hover:underline" style={{ color: post.group.color ?? 'var(--pm-coral-dark)' }}>{post.group.name}</Link> to leave a comment.
+                </p>
+              ) : !composerOpen && !body.trim() ? (
                 <div className="flex items-center gap-3">
                   <Avatar
                     src={viewer?.pictureUrl ?? undefined}
@@ -563,6 +575,8 @@ export function PostDetailPage({
               postAuthorId={post.authorId}
               currentUserId={currentUserId}
               acceptedCommentId={acceptedId}
+              viewerIsMember={viewerIsMember}
+              group={post.group}
               onChange={loadComments}
             />
           ) : !acceptedComment ? (
