@@ -31,10 +31,14 @@ export async function POST(request: Request) {
   if (body instanceof Response) return body;
   const { contentType, sizeBytes } = body as z.infer<typeof uploadRequestSchema>;
 
-  const path = `${session.userId}/${crypto.randomUUID()}`;
+  // Return the public, bucket-qualified path for storage in post/comment HTML.
+  // The actual Supabase object path is relative to the bucket, so the upload
+  // helper receives the path without the bucket prefix.
+  const storagePath = `${session.userId}/${crypto.randomUUID()}`;
+  const path = `/post-images/${storagePath}`;
   let uploadUrl: string;
   try {
-    uploadUrl = await getPostImageUploadUrl(path, contentType, sizeBytes);
+    uploadUrl = await getPostImageUploadUrl(storagePath, contentType, sizeBytes);
   } catch (err: any) {
     return error(ErrorCode.VALIDATION_ERROR, err.message || 'Invalid image', 400);
   }

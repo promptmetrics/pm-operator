@@ -135,10 +135,14 @@ export async function getPostImageReadUrl(path: string | null | undefined): Prom
   if (!path) return null;
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
 
+  // Stored HTML uses a leading bucket prefix for identification; strip it
+  // before asking Supabase, where the object path is relative to the bucket.
+  const relativePath = path.replace(/^(?:\/)?post-images\//, '');
+
   const supabase = getServiceSupabase();
   const { data, error } = await supabase.storage
     .from(POST_IMAGE_BUCKET)
-    .createSignedUrl(path, READ_TTL_SECONDS);
+    .createSignedUrl(relativePath, READ_TTL_SECONDS);
   if (error || !data?.signedUrl) {
     const isNotFound =
       error?.name === 'StorageApiError' &&

@@ -9,27 +9,31 @@ import { levelForScore } from '@pm-operator/api';
 import { toISO, toNumber, isAdminOrModerator } from './shared';
 import { autoFlagIfWatched } from './flags';
 
-const POST_IMAGE_PATH_PREFIX = 'post-images/';
+const POST_IMAGE_PATH_PREFIX = '/post-images/';
 
 /**
- * Resolve stored post-image paths (`post-images/<userId>/<uuid>`) to signed
+ * Resolve stored post-image paths (`/post-images/<userId>/<uuid>`) to signed
  * Supabase read URLs. External URLs and other paths are left as-is.
  */
 async function resolvePostImageUrls(html: string): Promise<string> {
   if (!html.includes(POST_IMAGE_PATH_PREFIX)) return html;
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const imgs = doc.querySelectorAll('img[src*="post-images/"]');
-  if (imgs.length === 0) return html;
 
-  const urls = await Promise.all(
-    Array.from(imgs).map((img) => getPostImageReadUrl(img.getAttribute('src')!))
-  );
-  imgs.forEach((img, i) => {
-    const signed = urls[i];
-    if (signed) img.setAttribute('src', signed);
+  const imgRe = /<img\b([^>]*?)src=["'](\/post-images\/[^"']+)["']([^>]*?)>/gi;
+  const paths: string[] = [];
+  html.replace(imgRe, (_full, _before, src) => {
+    paths.push(src);
+    return _full;
   });
-  return doc.body.innerHTML;
+  if (paths.length === 0) return html;
+
+  const signedUrls = await Promise.all(paths.map((src) => getPostImageReadUrl(src)));
+
+  let index = 0;
+  return html.replace(imgRe, (full, before, src, after) => {
+    const signed = signedUrls[index++];
+    const newSrc = signed || src;
+    return `<img${before}src="${newSrc}"${after}>`;
+  });
 }
 
 async function formatPostContent(
