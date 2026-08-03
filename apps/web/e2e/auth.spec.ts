@@ -7,6 +7,8 @@ import {
   serviceDb,
   dismissOverlays,
 } from './helpers';
+
+const TEST_PASSWORD = 'Password123!';
 import { users } from '@pm-operator/db';
 import { eq } from 'drizzle-orm';
 
@@ -100,4 +102,34 @@ test('returnUrl is preserved through login and onboarding', async ({ page }) => 
 
   await page.goto('/settings');
   await page.waitForURL('/settings');
+});
+
+test('real email login creates a missing profile row and shows the user as logged in', async ({ page }) => {
+  // Live auth flows hit Supabase Auth rate limits in CI; run locally only.
+  test.skip(Boolean(process.env.CI), 'Live auth flows are rate-limited in CI');
+
+  const user = await createTestUser({ onboardingComplete: true });
+  usersToClean.push(user.id);
+
+  // Simulate the reported bug: a Supabase session exists but the public.users
+  // row is missing, so the header renders the logged-out UI.
+  await serviceDb().delete(users).where(eq(users.id, user.id));
+
+  await page.goto('/login');
+  await page.locator('#email').fill(user.email);
+  await page.locator('#password').fill(TEST_PASSWORD);
+  await page.locator('button[type="submit"]').click();
+
+  // Successful sign-in plus ensureUserProfile should land on the default return URL.
+  await page.waitForURL('/feed');
+
+  // The header renders the logged-in user dropdown instead of the auth CTAs.
+  await expect(page.getByRole('button', { name: 'Create account' })).not.toBeVisible();
+  await expect(page.getByText('pts').first()).toBeVisible();
+
+  // /api/v1/me resolves because ensureUserProfile created the row during login.
+  const meRes = await page.request.get('/api/v1/me');
+  expect(meRes.status()).toBe(200);
+  const meBody = await meRes.json();
+  expect(meBody.data?.id).toBe(user.id);
 });

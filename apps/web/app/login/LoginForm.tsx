@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
 import { createAuthClient } from '@/auth/client';
+import { ensureUserProfile } from './actions';
 import { getAuthCallbackUrl } from '@/site-url';
 
 type Mode = 'sign-in' | 'sign-up';
@@ -76,6 +77,14 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         setErrors((prev) => ({ ...prev, form: error.message }));
+        return;
+      }
+
+      // Create the application-layer user row if this is a fresh signup.
+      // Without this row the header and /api/v1/me treat the session as logged-out.
+      const ensure = await ensureUserProfile();
+      if (ensure.error) {
+        setErrors((prev) => ({ ...prev, form: ensure.error }));
         return;
       }
 

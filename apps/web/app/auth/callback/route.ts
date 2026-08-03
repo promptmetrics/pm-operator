@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
+import { ensureUserRecord } from '@/lib/auth/ensure-user';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -38,6 +39,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(
       new URL(`/login?error=${encodeURIComponent(error.message)}`, request.url)
     );
+  }
+
+  // Ensure the application user row exists for OAuth sign-ins, matching the
+  // email/password signup path in LoginForm.tsx.
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (user && !userError) {
+    try {
+      await ensureUserRecord(user);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create profile';
+      return NextResponse.redirect(
+        new URL(`/login?error=${encodeURIComponent(message)}`, request.url)
+      );
+    }
   }
 
   return NextResponse.redirect(new URL(next, request.url));

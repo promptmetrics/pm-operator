@@ -237,8 +237,10 @@ export function FeedPage({
   );
 
   const showLeftRail = !groupSlug && (circles ?? []).length > 0;
-  const showComposer =
-    (showComposerStrip ?? !groupSlug) && Boolean(currentUserId) && writableGroups.length > 0;
+  // Composer visibility is driven by the caller on circle pages (membership /
+  // moderator / admin) and defaults to enabled on the global feed.
+  const composerEnabled = showComposerStrip ?? !groupSlug;
+  const showComposer = composerEnabled && Boolean(currentUserId) && writableGroups.length > 0;
 
   return (
     <div
@@ -329,7 +331,7 @@ export function FeedPage({
               {groupSlug ? 'Posts from this circle' : 'Questions, builds, and solutions from operators'}
             </p>
           </div>
-          {!showComposer && groupSlug && currentUserId && writableGroups.length > 0 ? (
+          {!showComposer && groupSlug && composerEnabled && writableGroups.length > 0 ? (
             <Button onClick={() => openComposer('question')} className="gap-1">
               <Plus className="h-4 w-4" aria-hidden="true" />
               New post

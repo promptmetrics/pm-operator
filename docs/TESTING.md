@@ -92,6 +92,21 @@ TEST_DB_ONLY=1 DATABASE_URL='postgresql://postgres:postgres@localhost:54329/post
 
 `packages/db/scripts/cleanup-test-debris.mjs` removes E2E/CI test debris (timestamped test users, groups, and GoTrue records) from a database as a one-off manual operation. It is dry-run by default (prints counts and sample rows), deletes only with `--execute`, and is never run in CI. It reads `DATABASE_URL` from the environment only — no `.env` loading — so the operator must paste the target URL deliberately.
 
+## Manual smoke checklist
+
+Run through these flows in Chrome after each deploy or significant change. They exercise the same surface as `e2e/logged-in-journey.spec.ts` but catch environment-specific issues (OAuth providers, email confirmation, CDN, etc.).
+
+| # | Flow | Steps | Expected result |
+|---|---|---|---|
+| 1 | **Registration** | Go to `/register`, fill a fresh email + password ≥ 8 chars, submit. | No form error; redirected to `/register/complete`; header shows the logged-in user dropdown instead of *Log in / Create account*. |
+| 2 | **Login** | Go to `/login`, sign in with an existing completed user. | Redirected to `/feed`; header shows the logged-in user dropdown. |
+| 3 | **Open a post** | From `/feed`, click any seeded post card. | URL becomes `/p/{id}`; post title, author, content, and comments load with no 404/500. |
+| 4 | **Like a post** | On a post detail page, click the ▲ upvote pill. | Pill shows `aria-pressed="true"` and the count increments by one. |
+| 5 | **Comment on a post** | Click *Add a comment…*, type in the editor, click *Post comment*. | The new comment text appears in the comment list. |
+| 6 | **Join a circle** | Go to a public circle you are not a member of (e.g. `/g/show-your-build`), click *Join circle*. | Button changes to *Leave circle* and the composer strip appears. |
+| 7 | **Create a new thread** | From a joined circle, click *Ask a question or show your build…*, fill a title ≥ 10 chars and a body, click *Post*. | Modal closes; the new thread title appears on the circle feed. |
+| 8 | **OAuth sanity** (optional) | Sign in with each configured OAuth provider. | Same as flow 2: session is established and a `public.users` row is created on first sign-in. |
+
 ## Known limitations
 
 - The concurrency spec currently creates 100 test users synchronously inside the test body, which can be slow. Future iterations should batch user creation or use a smaller concurrency level for faster feedback.

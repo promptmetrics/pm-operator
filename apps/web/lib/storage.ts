@@ -72,6 +72,14 @@ export async function getAvatarReadUrl(path: string | null | undefined): Promise
     .from(AVATAR_BUCKET)
     .createSignedUrl(path, READ_TTL_SECONDS);
   if (error || !data?.signedUrl) {
+    // Missing seed/placeholder avatars are not fatal; return null and let the
+    // UI fall back to initials. Other storage errors still surface loudly.
+    const isNotFound =
+      error?.name === 'StorageApiError' &&
+      (Number(error.statusCode) === 404 || /not found/i.test(error.message));
+    if (isNotFound) {
+      return null;
+    }
     throw error ?? new Error('Failed to create avatar read URL');
   }
   return data.signedUrl;
