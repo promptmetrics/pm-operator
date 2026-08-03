@@ -306,7 +306,7 @@ export async function joinGroup(
       if (!updatedInvite) throw new Error('Invite code fully redeemed');
     }
 
-    const [row] = await tx
+    const [inserted] = await tx
       .insert(schema.groupMemberships)
       .values({
         groupId: group.id,
@@ -318,10 +318,35 @@ export async function joinGroup(
       })
       .returning();
 
-    if (!row) throw new Error('Already a member of this group');
+    if (inserted) {
+      // New member: keep the denormalized count in sync. Do this inside the
+      // same transaction so a membership row never exists without the count.
+      await tx
+        .update(schema.groups)
+        .set({
+          memberCount: sql`${schema.groups.memberCount} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.groups.id, group.id));
+    }
 
-    return row;
+    // Idempotent: if the user is already a member (e.g. they joined during
+    // onboarding and the page still shows "Join circle"), return the existing
+    // membership instead of throwing.
+    return (
+      inserted ??
+      (await tx.query.groupMemberships.findFirst({
+        where: and(
+          eq(schema.groupMemberships.groupId, group.id),
+          eq(schema.groupMemberships.userId, userId)
+        ),
+      }))
+    );
   });
+
+  if (!membership) {
+    throw new Error('Failed to join circle');
+  }
 
   return {
     id: membership.id,
@@ -372,14 +397,24 @@ export async function leaveGroup(
     }
   }
 
-  await db
-    .delete(schema.groupMemberships)
-    .where(
-      and(
-        eq(schema.groupMemberships.groupId, group.id),
-        eq(schema.groupMemberships.userId, userId)
-      )
-    );
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(schema.groupMemberships)
+      .where(
+        and(
+          eq(schema.groupMemberships.groupId, group.id),
+          eq(schema.groupMemberships.userId, userId)
+        )
+      );
+
+    await tx
+      .update(schema.groups)
+      .set({
+        memberCount: sql`greatest(${schema.groups.memberCount} - 1, 0)`,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.groups.id, group.id));
+  });
 }
 
 export async function removeMember(
@@ -411,14 +446,24 @@ export async function removeMember(
     }
   }
 
-  await db
-    .delete(schema.groupMemberships)
-    .where(
-      and(
-        eq(schema.groupMemberships.groupId, group.id),
-        eq(schema.groupMemberships.userId, targetUserId)
-      )
-    );
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(schema.groupMemberships)
+      .where(
+        and(
+          eq(schema.groupMemberships.groupId, group.id),
+          eq(schema.groupMemberships.userId, targetUserId)
+        )
+      );
+
+    await tx
+      .update(schema.groups)
+      .set({
+        memberCount: sql`greatest(${schema.groups.memberCount} - 1, 0)`,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.groups.id, group.id));
+  });
 }
 
 export async function listGroupMembers(

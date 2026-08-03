@@ -26,6 +26,7 @@ import {
 } from '@pm-operator/ui/components/DropdownMenu';
 import { useToast } from '@pm-operator/ui/components/Toast';
 import { timeAgo, formatNumber } from '@/lib/format';
+import { apiErrorMessage } from '@/lib/api/client-errors';
 import type { PostListItem, SearchResult } from '@pm-operator/api';
 
 type PostItem = PostListItem | SearchResult;
@@ -132,14 +133,15 @@ export function FeedCard({ post, currentUserId, rank, onClickResult, variant = '
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ targetType: 'post', targetId: post.id, reactionType: 'like' }),
       });
-      if (!res.ok) throw new Error('Like failed');
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'Like failed'));
       const json = (await res.json()) as { data?: { removed?: boolean; id?: string } };
       const removed = json.data?.removed ?? !json.data?.id;
       setLiked(!removed);
       setLikeCount(removed ? previous - 1 : previous + 1);
-    } catch {
+    } catch (err: any) {
       setLiked((l) => !l);
       setLikeCount(previous);
+      toast({ title: err.message || 'Like failed', variant: 'error' });
     } finally {
       setToggling(false);
     }

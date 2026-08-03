@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@pm-operator/ui/components/Button';
 import { useToast } from '@pm-operator/ui/components/Toast';
+import { apiErrorMessage } from '@/lib/api/client-errors';
 
 interface GroupMembershipButtonProps {
   slug: string;
@@ -26,7 +27,7 @@ export function GroupMembershipButton({ slug, initialIsMember, isLoggedIn }: Gro
     try {
       if (isMember) {
         const res = await fetch(`/api/v1/groups/${slug}/membership`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Failed to leave circle');
+        if (!res.ok) throw new Error(await apiErrorMessage(res, 'Failed to leave circle'));
         setIsMember(false);
       } else {
         const res = await fetch(`/api/v1/groups/${slug}/membership`, {
@@ -34,7 +35,7 @@ export function GroupMembershipButton({ slug, initialIsMember, isLoggedIn }: Gro
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({}),
         });
-        if (!res.ok) throw new Error('Failed to join circle');
+        if (!res.ok) throw new Error(await apiErrorMessage(res, 'Failed to join circle'));
         setIsMember(true);
       }
       router.refresh();

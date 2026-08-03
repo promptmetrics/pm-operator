@@ -28,6 +28,7 @@ import { GroupMembershipButton } from './GroupMembershipButton';
 import { useRealtimePost } from './RealtimeProvider';
 import { timeAgo } from '@/lib/format';
 import { trackEvent } from '@/lib/analytics';
+import { apiErrorMessage } from '@/lib/api/client-errors';
 import { POINT_WEIGHTS } from '@pm-operator/api';
 import type { PostDetail, CommentDetail, CommentSort, PostListItem } from '@pm-operator/api';
 
@@ -194,7 +195,7 @@ export function PostDetailPage({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(patch),
       });
-      if (!res.ok) throw new Error('Update failed');
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'Update failed'));
       return true;
     } catch (err: any) {
       toast({ title: err.message || 'Update failed', variant: 'error' });
@@ -214,7 +215,7 @@ export function PostDetailPage({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ content: body }),
       });
-      if (!res.ok) throw new Error('Comment failed');
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'Comment failed'));
       trackEvent('first_comment', { postId: post.id });
       setBody('');
       setComposerOpen(false);
@@ -237,14 +238,15 @@ export function PostDetailPage({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ targetType: 'post', targetId: post.id, reactionType: 'like' }),
       });
-      if (!res.ok) throw new Error('Like failed');
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'Like failed'));
       const json = (await res.json()) as { data?: { removed?: boolean; id?: string } };
       const removed = json.data?.removed ?? !json.data?.id;
       setLiked(!removed);
       setLikeCount(removed ? previous - 1 : previous + 1);
-    } catch {
+    } catch (err: any) {
       setLiked((l) => !l);
       setLikeCount(previous);
+      toast({ title: err.message || 'Like failed', variant: 'error' });
     }
   };
 
@@ -259,7 +261,7 @@ export function PostDetailPage({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ postId: post.id }),
       });
-      if (!res.ok) throw new Error('Bookmark failed');
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'Bookmark failed'));
       const json = (await res.json()) as { data?: { bookmarked?: boolean } };
       setBookmarked(Boolean(json.data?.bookmarked));
     } catch {
@@ -293,7 +295,7 @@ export function PostDetailPage({
   const handleDeletePost = async () => {
     const res = await fetch(`/api/v1/posts/${post.id}`, { method: 'DELETE' });
     if (!res.ok) {
-      toast({ title: 'Delete failed', variant: 'error' });
+      toast({ title: await apiErrorMessage(res, 'Delete failed'), variant: 'error' });
       return;
     }
     toast({ title: 'Post deleted' });

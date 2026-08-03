@@ -8,6 +8,7 @@ import { Input } from '@pm-operator/ui/components/Input';
 import { Badge } from '@pm-operator/ui/components/Badge';
 import { RichTextEditor } from '@pm-operator/ui/editor/RichTextEditor';
 import { trackEvent } from '@/lib/analytics';
+import { apiErrorMessage } from '@/lib/api/client-errors';
 import type { Group, PostType, CreatePostRequest } from '@pm-operator/api';
 
 interface CreatePostModalProps {
@@ -114,8 +115,7 @@ export function CreatePostModal({
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const json = (await res.json()) as { error?: { message?: string } };
-        throw new Error(json.error?.message || 'Failed to create post');
+        throw new Error(await apiErrorMessage(res, 'Failed to create post'));
       }
       trackEvent('first_post', { groupSlug, type });
       onOpenChange(false);

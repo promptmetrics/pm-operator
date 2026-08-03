@@ -13,6 +13,7 @@ import { useToast } from '@pm-operator/ui/components/Toast';
 import { RichTextEditor } from '@pm-operator/ui/editor/RichTextEditor';
 import { timeAgo } from '@/lib/format';
 import { trackEvent } from '@/lib/analytics';
+import { apiErrorMessage } from '@/lib/api/client-errors';
 import { FlagDialog } from './FlagDialog';
 import { POINT_WEIGHTS } from '@pm-operator/api';
 import type { CommentDetail } from '@pm-operator/api';
@@ -101,14 +102,15 @@ function SingleComment({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ targetType: 'comment', targetId: comment.id, reactionType: 'like' }),
       });
-      if (!res.ok) throw new Error('Like failed');
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'Like failed'));
       const json = (await res.json()) as { data?: { removed?: boolean; id?: string } };
       const removed = json.data?.removed ?? !json.data?.id;
       setLiked(!removed);
       setLikeCount(removed ? previous - 1 : previous + 1);
-    } catch {
+    } catch (err: any) {
       setLiked((l) => !l);
       setLikeCount(previous);
+      toast({ title: err.message || 'Like failed', variant: 'error' });
     }
   };
 
@@ -122,7 +124,7 @@ function SingleComment({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ content: replyBody, parentCommentId: comment.id }),
       });
-      if (!res.ok) throw new Error('Reply failed');
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'Reply failed'));
       trackEvent('first_comment', { postId, parentCommentId: comment.id });
       setReplyBody('');
       setReplyOpen(false);
@@ -144,7 +146,7 @@ function SingleComment({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ content: editBody }),
       });
-      if (!res.ok) throw new Error('Edit failed');
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'Edit failed'));
       setEditing(false);
       onChange();
     } catch (err: any) {
@@ -157,7 +159,7 @@ function SingleComment({
   const handleDelete = async () => {
     try {
       const res = await fetch(`/api/v1/comments/${comment.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Delete failed');
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'Delete failed'));
       onChange();
     } catch (err: any) {
       toast({ title: err.message || 'Delete failed', variant: 'error' });
@@ -171,7 +173,7 @@ function SingleComment({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ commentId: comment.id }),
       });
-      if (!res.ok) throw new Error('Accept failed');
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'Accept failed'));
       onChange();
     } catch (err: any) {
       toast({ title: err.message || 'Accept failed', variant: 'error' });
@@ -411,6 +413,7 @@ export function AcceptedSolutionCard({
 }: AcceptedSolutionCardProps) {
   const [liked, setLiked] = React.useState(Boolean(comment.viewerHasLiked));
   const [likeCount, setLikeCount] = React.useState(comment.upvotes);
+  const { toast } = useToast();
 
   const handleLike = async () => {
     if (!currentUserId) return;
@@ -423,14 +426,15 @@ export function AcceptedSolutionCard({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ targetType: 'comment', targetId: comment.id, reactionType: 'like' }),
       });
-      if (!res.ok) throw new Error('Like failed');
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'Like failed'));
       const json = (await res.json()) as { data?: { removed?: boolean; id?: string } };
       const removed = json.data?.removed ?? !json.data?.id;
       setLiked(!removed);
       setLikeCount(removed ? previous - 1 : previous + 1);
-    } catch {
+    } catch (err: any) {
       setLiked((l) => !l);
       setLikeCount(previous);
+      toast({ title: err.message || 'Like failed', variant: 'error' });
     }
   };
 

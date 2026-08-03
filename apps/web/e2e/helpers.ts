@@ -137,12 +137,45 @@ function cookieDomainFromBaseUrl(): string {
   return new URL(base).hostname;
 }
 
+function cookieIsSecure(): boolean {
+  const base = process.env.BASE_URL || 'http://localhost:3000';
+  return new URL(base).protocol === 'https:';
+}
+
 export async function dismissOverlays(page: Page): Promise<void> {
+  // Production uses Cloudflare Turnstile / challenge modals and cookie-consent
+  // dialogs that intercept pointer events. Remove / dismiss them aggressively
+  // before every interaction.
   await page.evaluate(() => {
-    document.querySelectorAll('.cf_modal_container, .turnstile-wrapper, [class*="cf-"]').forEach((el) => {
+    const selectors = [
+      '.cf_modal_container',
+      '.turnstile-wrapper',
+      '[class*="cf-"]',
+      'iframe[src*="challenges.cloudflare"]',
+      'div[data-cf-modals]',
+      // Common CMP / cookie-banner containers
+      '[data-testid="cookie-banner"]',
+      '[aria-label*="cookie"]',
+      '[aria-label*="Cookie"]',
+      '.cookie-banner',
+      '.cookie-settings',
+      '#cookie-settings',
+    ];
+    document.querySelectorAll(selectors.join(', ')).forEach((el) => {
       (el as HTMLElement).style.display = 'none';
       (el as HTMLElement).remove();
     });
+    document.querySelectorAll('iframe').forEach((el) => {
+      if (el.src.includes('cloudflare') || el.src.includes('turnstile')) {
+        el.remove();
+      }
+    });
+    // If a cookie-settings dialog is open, try to accept/close it.
+    const acceptBtn =
+      Array.from(document.querySelectorAll('button, [role="button"]')).find((el) =>
+        /accept all|confirm my choices|save preferences|got it|ok/i.test(el.textContent || '')
+      ) ?? null;
+    (acceptBtn as HTMLElement | null)?.click();
   });
 }
 
@@ -165,6 +198,7 @@ export async function signIn(page: Page, email: string, password: string): Promi
       path: '/',
       httpOnly: false,
       sameSite: 'Lax',
+      secure: cookieIsSecure(),
     },
   ]);
 

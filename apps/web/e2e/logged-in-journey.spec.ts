@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createTestUser, deleteTestUser, signIn } from './helpers';
+import { createTestUser, deleteTestUser, signIn, dismissOverlays } from './helpers';
 
 const usersToClean: string[] = [];
 
@@ -21,37 +21,40 @@ test('logged-in community journey', async ({ page }) => {
 
   // 1. Header reflects the authenticated user.
   await page.goto('/feed');
+  await dismissOverlays(page);
   await expect(page.getByText(user.username)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Create account' })).not.toBeVisible();
 
-  // 2. Open a seeded post and verify detail loads (no 500/404 crash).
+  // 2. Join the public circle first — membership gates likes, comments, and posts.
+  await page.goto('/g/show-your-build');
+  await dismissOverlays(page);
+  await page.getByRole('button', { name: 'Join circle' }).click();
+  await expect(page.getByRole('button', { name: 'Leave circle' })).toBeVisible();
+
+  // 3. Open a seeded post in the circle and verify detail loads.
   const seededPostId = '20000000-0000-4000-8000-000000000002';
-  await page.locator(`#post-title-${seededPostId}`).click();
-  await page.waitForURL(`/p/${seededPostId}`);
+  await page.goto(`/p/${seededPostId}`);
+  await dismissOverlays(page);
   await expect(page.getByText('Open-source MCP router we shipped last week')).toBeVisible();
 
-  // 3. Like the post.
+  // 4. Like the post.
   const likeButton = page.getByRole('button', { name: /upvotes/i });
   await expect(likeButton).toHaveAttribute('aria-pressed', 'false');
+  await dismissOverlays(page);
   await likeButton.click();
   await expect(likeButton).toHaveAttribute('aria-pressed', 'true');
 
-  // 4. Add a comment.
+  // 5. Add a comment.
+  await dismissOverlays(page);
   await page.getByRole('button', { name: /Add a comment/i }).click();
   const commentBody = `End-to-end comment ${Date.now()}`;
   await page.locator('.ProseMirror').fill(commentBody);
   await page.getByRole('button', { name: 'Post comment' }).click();
   await expect(page.getByText(commentBody)).toBeVisible();
 
-  // 5. Join a public circle the user is not yet a member of.
-  await page.goto('/g/show-your-build');
-  await page.getByRole('button', { name: 'Join circle' }).click();
-  await expect(page.getByRole('button', { name: 'Leave circle' })).toBeVisible();
-
-  // Refresh so the server re-evaluates membership and enables the composer.
-  await page.goto('/g/show-your-build');
-
   // 6. Create a new thread in the circle.
+  await page.goto('/g/show-your-build');
+  await dismissOverlays(page);
   await page.getByRole('button', { name: /Ask a question or show your build/i }).click();
   const postTitle = `E2E journey post ${Date.now()}`;
   await page.getByLabel('Title').fill(postTitle);
@@ -63,5 +66,6 @@ test('logged-in community journey', async ({ page }) => {
   // The modal closes and the new post appears in the circle feed.
   await expect(page.getByText('New post', { exact: true })).not.toBeVisible();
   await page.goto('/g/show-your-build');
+  await dismissOverlays(page);
   await expect(page.getByText(postTitle).first()).toBeVisible();
 });

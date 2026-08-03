@@ -11,6 +11,7 @@ import { useToast } from '@pm-operator/ui/components/Toast';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { Badge } from '@pm-operator/ui/components/Badge';
 import { createAuthClient } from '@/lib/auth/client';
+import { apiErrorMessage } from '@/lib/api/client-errors';
 import type { Group, UserPreferences, UserRole } from '@pm-operator/api';
 
 interface SettingsUser {
@@ -83,7 +84,7 @@ export function SettingsPage({ user, memberships }: SettingsPageProps) {
           preferences,
         }),
       });
-      if (!res.ok) throw new Error('Failed to save');
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'Failed to save'));
       setMessage('Saved');
     } catch (err: any) {
       setMessage(err.message || 'Failed to save');
@@ -95,7 +96,7 @@ export function SettingsPage({ user, memberships }: SettingsPageProps) {
   const leaveGroup = async (slug: string) => {
     try {
       const res = await fetch(`/api/v1/groups/${slug}/membership`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to leave circle');
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'Failed to leave circle'));
       window.location.reload();
     } catch (err: any) {
       toast({ title: err.message || 'Failed to leave circle', variant: 'error' });

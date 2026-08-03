@@ -6,6 +6,7 @@ import { Lock } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
 import { useToast } from '@pm-operator/ui/components/Toast';
+import { apiErrorMessage } from '@/lib/api/client-errors';
 
 interface InviteOnlyPreviewProps {
   slug: string;
@@ -37,8 +38,7 @@ export function InviteOnlyPreview({ slug, name, color, description, memberCount 
         body: JSON.stringify({ inviteCode: code.trim() }),
       });
       if (!res.ok) {
-        const err = (await res.json()) as { error?: { message?: string } };
-        throw new Error(err.error?.message || 'Invalid invite code');
+        throw new Error(await apiErrorMessage(res, 'Invalid invite code'));
       }
       toast({ title: `You joined ${name}`, variant: 'success' });
       router.refresh();
