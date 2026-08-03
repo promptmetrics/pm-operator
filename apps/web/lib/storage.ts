@@ -3,6 +3,7 @@ import 'server-only';
 import { createClient } from '@supabase/supabase-js';
 
 const AVATAR_BUCKET = 'avatars';
+const POST_IMAGE_BUCKET = 'post-images';
 const UPLOAD_TTL_SECONDS = 5 * 60;
 const READ_TTL_SECONDS = 60 * 60;
 
@@ -23,6 +24,24 @@ function allowedContentTypes(): Set<string> {
     );
   }
   return new Set(['image/jpeg', 'image/png', 'image/webp']);
+}
+
+// Post images share the same type/size rules as avatars for simplicity.
+function maxPostImageBytes(): number {
+  const env = Number(process.env.POST_IMAGE_MAX_BYTES);
+  return Number.isFinite(env) && env > 0 ? env : 5 * 1024 * 1024;
+}
+function allowedPostImageTypes(): Set<string> {
+  const env = process.env.POST_IMAGE_ALLOWED_TYPES;
+  if (env && env.trim()) {
+    return new Set(
+      env
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean)
+    );
+  }
+  return new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 }
 
 function getServiceSupabase() {
@@ -81,6 +100,53 @@ export async function getAvatarReadUrl(path: string | null | undefined): Promise
       return null;
     }
     throw error ?? new Error('Failed to create avatar read URL');
+  }
+  return data.signedUrl;
+}
+
+export function validatePostImageFile(sizeBytes: number, contentType: string): void {
+  const max = maxPostImageBytes();
+  if (sizeBytes > max) {
+    throw new Error(`Image must be ${Math.round(max / 1024 / 1024)} MB or smaller`);
+  }
+  const allowed = allowedPostImageTypes();
+  if (!allowed.has(contentType)) {
+    throw new Error(`Image must be one of: ${[...allowed].join(', ')}`);
+  }
+}
+
+export async function getPostImageUploadUrl(
+  path: string,
+  contentType: string,
+  sizeBytes: number
+): Promise<string> {
+  validatePostImageFile(sizeBytes, contentType);
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase.storage
+    .from(POST_IMAGE_BUCKET)
+    .createSignedUploadUrl(path, { expiresIn: UPLOAD_TTL_SECONDS } as any);
+  if (error || !data?.signedUrl) {
+    throw error ?? new Error('Failed to create image upload URL');
+  }
+  return data.signedUrl;
+}
+
+export async function getPostImageReadUrl(path: string | null | undefined): Promise<string | null> {
+  if (!path) return null;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase.storage
+    .from(POST_IMAGE_BUCKET)
+    .createSignedUrl(path, READ_TTL_SECONDS);
+  if (error || !data?.signedUrl) {
+    const isNotFound =
+      error?.name === 'StorageApiError' &&
+      (Number(error.statusCode) === 404 || /not found/i.test(error.message));
+    if (isNotFound) {
+      return null;
+    }
+    throw error ?? new Error('Failed to create image read URL');
   }
   return data.signedUrl;
 }

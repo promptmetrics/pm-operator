@@ -3,6 +3,7 @@
 import * as React from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
+import { type Editor } from '@pm-operator/ui/editor/RichTextEditor';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
 import { Badge } from '@pm-operator/ui/components/Badge';
@@ -38,6 +39,7 @@ export function CreatePostModal({
   const [tagInput, setTagInput] = React.useState('');
   const [repoUrl, setRepoUrl] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
+  const [uploadingImage, setUploadingImage] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -63,6 +65,33 @@ export function CreatePostModal({
   };
 
   const removeTag = (t: string) => setTags((prev) => prev.filter((x) => x !== t));
+
+  const uploadImage = async (file: File, editor: Editor) => {
+    setUploadingImage(true);
+    try {
+      const res = await fetch('/api/v1/uploads/post-image', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contentType: file.type, sizeBytes: file.size }),
+      });
+      if (!res.ok) {
+        const errJson = (await res.json()) as { error?: { message?: string } };
+        throw new Error(errJson.error?.message || 'Failed to start upload');
+      }
+      const { uploadUrl, path } = (await res.json()) as { uploadUrl: string; path: string };
+      const put = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': file.type },
+        body: file,
+      });
+      if (!put.ok) throw new Error('Failed to upload image');
+      editor.chain().focus().setImage({ src: path, alt: file.name }).run();
+    } catch (err: any) {
+      setError(err.message || 'Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -243,14 +272,18 @@ export function CreatePostModal({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-[var(--pm-ink)]">Body</label>
+              <label className="text-sm font-medium text-[var(--pm-ink)]">
+                Body
+                {uploadingImage ? <span className="ml-2 text-xs text-[var(--pm-muted)]">Uploading image…</span> : null}
+              </label>
               <RichTextEditor
                 value={body}
                 onChange={(html, text) => {
                   setBody(html);
                   setPlainText(text);
                 }}
-                placeholder="Add details..."
+                onImageUpload={uploadImage}
+                placeholder="Add details... (drag/paste images, or use toolbar for headings, lists, links, and YouTube)"
               />
               {error && body.trim().length === 0 ? (
                 <p className="text-sm text-[var(--pm-danger)]">{error}</p>
@@ -269,7 +302,7 @@ export function CreatePostModal({
                   Cancel
                 </Button>
               </Dialog.Close>
-              <Button type="submit" disabled={submitting || !groupSlug}>
+              <Button type="submit" disabled={submitting || !groupSlug || uploadingImage}>
                 {submitting ? 'Posting...' : 'Post'}
               </Button>
             </div>

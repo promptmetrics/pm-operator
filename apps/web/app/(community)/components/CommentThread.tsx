@@ -3,6 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { Heart, MessageSquare, CheckCircle2, Pencil, Trash2, MoreHorizontal, Flag } from 'lucide-react';
+import { type Editor } from '@pm-operator/ui/editor/RichTextEditor';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
@@ -79,6 +80,7 @@ function SingleComment({
   const [liked, setLiked] = React.useState(Boolean(comment.viewerHasLiked));
   const [likeCount, setLikeCount] = React.useState(comment.upvotes);
   const [submitting, setSubmitting] = React.useState(false);
+  const [uploadingImage, setUploadingImage] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [confirmAccept, setConfirmAccept] = React.useState(false);
   const { toast } = useToast();
@@ -180,17 +182,46 @@ function SingleComment({
     }
   };
 
+  const uploadImage = async (file: File, editor: Editor) => {
+    setUploadingImage(true);
+    try {
+      const res = await fetch('/api/v1/uploads/post-image', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contentType: file.type, sizeBytes: file.size }),
+      });
+      if (!res.ok) {
+        const errJson = (await res.json()) as { error?: { message?: string } };
+        throw new Error(errJson.error?.message || 'Failed to start upload');
+      }
+      const { uploadUrl, path } = (await res.json()) as { uploadUrl: string; path: string };
+      const put = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': file.type },
+        body: file,
+      });
+      if (!put.ok) throw new Error('Failed to upload image');
+      editor.chain().focus().setImage({ src: path, alt: file.name }).run();
+    } catch (err: any) {
+      toast({ title: err.message || 'Failed to upload image', variant: 'error' });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const inner = isDeleted ? (
     <p className="text-sm italic text-[var(--pm-muted)]">[deleted]</p>
   ) : editing ? (
     <form onSubmit={submitEdit} className="flex flex-col gap-2">
+      {uploadingImage ? <p className="text-xs text-[var(--pm-muted)]">Uploading image…</p> : null}
       <RichTextEditor
         value={editBody}
         onChange={(html) => setEditBody(html)}
         placeholder="Edit your comment..."
+        onImageUpload={uploadImage}
       />
       <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={submitting}>Save</Button>
+        <Button type="submit" size="sm" disabled={submitting || uploadingImage}>Save</Button>
         <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(false)}>
           Cancel
         </Button>
@@ -333,13 +364,15 @@ function SingleComment({
 
         {replyOpen && depth === 0 ? (
           <form onSubmit={submitReply} className="mt-2 flex flex-col gap-2">
+            {uploadingImage ? <p className="text-xs text-[var(--pm-muted)]">Uploading image…</p> : null}
             <RichTextEditor
               value={replyBody}
               onChange={(html) => setReplyBody(html)}
               placeholder="Write a reply..."
+              onImageUpload={uploadImage}
             />
             <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={submitting}>Post reply</Button>
+              <Button type="submit" size="sm" disabled={submitting || uploadingImage}>Post reply</Button>
               <Button type="button" variant="secondary" size="sm" onClick={() => setReplyOpen(false)}>
                 Cancel
               </Button>

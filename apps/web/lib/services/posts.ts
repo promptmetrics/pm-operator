@@ -2,11 +2,44 @@ import { eq, ne, and, or, sql, desc, asc, isNotNull, isNull, inArray, count } fr
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type { FeedQuery, FeedResponse, PostDetail, CreatePostRequest, PatchPostRequest, PostListItem } from '@pm-operator/api';
-import { getAvatarReadUrl } from '../storage';
+import { getAvatarReadUrl, getPostImageReadUrl } from '../storage';
 import { htmlToText } from '../html-to-text';
+import { sanitizeHtml } from '../sanitize-html';
 import { levelForScore } from '@pm-operator/api';
 import { toISO, toNumber, isAdminOrModerator } from './shared';
 import { autoFlagIfWatched } from './flags';
+
+const POST_IMAGE_PATH_PREFIX = 'post-images/';
+
+/**
+ * Resolve stored post-image paths (`post-images/<userId>/<uuid>`) to signed
+ * Supabase read URLs. External URLs and other paths are left as-is.
+ */
+async function resolvePostImageUrls(html: string): Promise<string> {
+  if (!html.includes(POST_IMAGE_PATH_PREFIX)) return html;
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const imgs = doc.querySelectorAll('img[src*="post-images/"]');
+  if (imgs.length === 0) return html;
+
+  const urls = await Promise.all(
+    Array.from(imgs).map((img) => getPostImageReadUrl(img.getAttribute('src')!))
+  );
+  imgs.forEach((img, i) => {
+    const signed = urls[i];
+    if (signed) img.setAttribute('src', signed);
+  });
+  return doc.body.innerHTML;
+}
+
+async function formatPostContent(
+  content: string | null,
+  isHidden: boolean
+): Promise<string> {
+  if (isHidden || !content) return '';
+  const sanitized = sanitizeHtml(content);
+  return resolvePostImageUrls(sanitized);
+}
 
 type FilterValue = FeedQuery['filter'];
 type SortValue = FeedQuery['sort'];
@@ -364,14 +397,16 @@ export async function getPostById(
   if (!row[0]) return null;
   const { post, group, author, acceptedSolutions, viewerHasLiked, viewerHasBookmarked } = row[0];
 
+  const isHidden = post.status === 'hidden' && post.authorId !== currentUserId && !isAdminOrModerator(author.role);
+
   return {
     id: post.id,
     slug: post.slug,
     groupId: post.groupId,
     authorId: post.authorId,
     title: post.title,
-    content: post.status === 'hidden' && post.authorId !== currentUserId && !isAdminOrModerator(author.role) ? '' : post.content,
-    contentPlain: post.status === 'hidden' && post.authorId !== currentUserId && !isAdminOrModerator(author.role) ? '' : post.contentPlain,
+    content: await formatPostContent(post.content, isHidden),
+    contentPlain: isHidden ? '' : post.contentPlain,
     type: post.type,
     status: post.status,
     tags: post.tags,
@@ -456,14 +491,16 @@ export async function getPostBySlug(
   if (!row[0]) return null;
   const { post, group, author, acceptedSolutions, viewerHasLiked, viewerHasBookmarked } = row[0];
 
+  const isHidden = post.status === 'hidden' && post.authorId !== currentUserId && !isAdminOrModerator(author.role);
+
   return {
     id: post.id,
     slug: post.slug,
     groupId: post.groupId,
     authorId: post.authorId,
     title: post.title,
-    content: post.status === 'hidden' && post.authorId !== currentUserId && !isAdminOrModerator(author.role) ? '' : post.content,
-    contentPlain: post.status === 'hidden' && post.authorId !== currentUserId && !isAdminOrModerator(author.role) ? '' : post.contentPlain,
+    content: await formatPostContent(post.content, isHidden),
+    contentPlain: isHidden ? '' : post.contentPlain,
     type: post.type,
     status: post.status,
     tags: post.tags,
