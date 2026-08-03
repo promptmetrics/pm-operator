@@ -88,6 +88,18 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
         return;
       }
 
+      // Fresh sign-ups (and any account that hasn't finished onboarding) must
+      // complete the onboarding wizard before they can interact with the
+      // community. Redirect them to /register/complete instead of the target page.
+      const meRes = await fetch('/api/v1/me');
+      if (meRes.ok) {
+        const me = (await meRes.json()) as { data?: { onboardingComplete?: boolean } } | undefined;
+        if (!me?.data?.onboardingComplete) {
+          router.push(`/register/complete?returnUrl=${encodeURIComponent(returnUrl)}`);
+          return;
+        }
+      }
+
       router.push(returnUrl);
     } finally {
       setIsLoading(false);

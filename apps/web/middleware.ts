@@ -4,10 +4,14 @@ import { NextResponse, type NextRequest } from 'next/server';
 const PUBLIC_FILE_REGEX = /\.(?:png|jpg|jpeg|gif|svg|ico|css|js|woff2?|ttf|eot)$/;
 
 const COMMUNITY_ROUTE_REGEX =
-  /^\/(g\/|p\/|u\/|leaderboards|settings|search|notifications|moderation)(\/|$)/;
+  /^\/(g\/|p\/|u\/|leaderboards|settings|search|notifications|moderation|messages)(\/|$)/;
+
+function isApiV1(request: NextRequest) {
+  return request.nextUrl.pathname.startsWith('/api/v1/');
+}
 
 function isApiV1Write(request: NextRequest) {
-  if (!request.nextUrl.pathname.startsWith('/api/v1/')) return false;
+  if (!isApiV1(request)) return false;
   const method = request.method;
   return method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE';
 }
@@ -33,6 +37,13 @@ function needsProtection(request: NextRequest) {
 
 function buildReturnUrl(request: NextRequest) {
   return encodeURIComponent(request.nextUrl.pathname + request.nextUrl.search);
+}
+
+function apiError(status: number, code: string, message: string) {
+  return NextResponse.json(
+    { error: { code, message } },
+    { status, headers: { 'Content-Type': 'application/json' } }
+  );
 }
 
 export async function middleware(request: NextRequest) {
@@ -70,12 +81,16 @@ export async function middleware(request: NextRequest) {
 
   const isProtected = needsProtection(request);
   const returnUrl = buildReturnUrl(request);
+  const isApi = isApiV1(request);
 
   if (!isProtected) {
     return response;
   }
 
   if (userError || !user) {
+    if (isApi) {
+      return apiError(401, 'UNAUTHORIZED', 'Authentication required');
+    }
     return NextResponse.redirect(new URL(`/login?returnUrl=${returnUrl}`, request.url));
   }
 
@@ -89,6 +104,9 @@ export async function middleware(request: NextRequest) {
   const onboardingComplete = Boolean(profile?.painful_tool_stack_task);
 
   if (!onboardingComplete) {
+    if (isApi) {
+      return apiError(403, 'ONBOARDING_INCOMPLETE', 'Complete onboarding before performing this action');
+    }
     return NextResponse.redirect(new URL(`/register/complete?returnUrl=${returnUrl}`, request.url));
   }
 

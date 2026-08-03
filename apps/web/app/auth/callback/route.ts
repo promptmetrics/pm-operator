@@ -2,6 +2,9 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { ensureUserRecord } from '@/lib/auth/ensure-user';
+import { createServiceDb } from '@/lib/db';
+import { eq } from 'drizzle-orm';
+import * as schema from '@pm-operator/db';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -54,6 +57,20 @@ export async function GET(request: NextRequest) {
       const message = err instanceof Error ? err.message : 'Failed to create profile';
       return NextResponse.redirect(
         new URL(`/login?error=${encodeURIComponent(message)}`, request.url)
+      );
+    }
+
+    // Newly created users (and any user that hasn't finished onboarding) must
+    // complete the onboarding wizard before they can like, comment, or join
+    // circles. Redirect them to /register/complete with the original returnUrl.
+    const db = createServiceDb();
+    const profile = await db.query.users.findFirst({
+      where: eq(schema.users.id, user.id),
+      columns: { painfulToolStackTask: true },
+    });
+    if (!profile?.painfulToolStackTask) {
+      return NextResponse.redirect(
+        new URL(`/register/complete?returnUrl=${encodeURIComponent(next)}`, request.url)
       );
     }
   }
