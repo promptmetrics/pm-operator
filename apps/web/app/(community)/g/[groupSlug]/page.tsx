@@ -44,10 +44,10 @@ export default async function GroupRoute({
   params,
   searchParams,
 }: {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ groupSlug: string }>;
   searchParams: Promise<PageSearchParams>;
 }) {
-  const { slug } = await params;
+  const { groupSlug: slug } = await params;
   const paramsQuery = await searchParams;
 
   const db = createServiceDb();
