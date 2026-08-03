@@ -11,8 +11,8 @@ on `operator.promptmetrics.dev`. All workstreams shipped, migrations 0014–0018
 PostHog analytics correctly wired, and the remaining interaction bugs (likes, comments,
 create post, join circle) are fixed, deployed, and verified via Playwright/Chromium.
 
-- Latest commit on `main`: `6c6a91d` — `fix(community): idempotent joins, synced member counts, and real API error messages`
-- Latest prod deploy: `dpl_6CfPZvxUWKfYk39YWDtivCoEmRDq` / `pm-operator-evwzamcgu` (Ready, live)
+- Latest commit on `main`: `14a95e0` — `fix(auth/onboarding): redirect new sign-ins to onboarding, return JSON for API auth failures`
+- Latest prod deploy: `dpl_215MtL5KJmf7o5W4b64nGrd7rLaR` / `pm-operator-97n1fa6yd` (Ready, live)
 - Migrations 0014–0018 applied to the prod DB
 - PostHog: `phc_` Project API key inlined in the client bundle + EU Cloud host — verified live
 - Supabase `avatars` Storage bucket: private, created/verified
@@ -65,6 +65,24 @@ create post, join circle) are fixed, deployed, and verified via Playwright/Chrom
    - Production verification (Chromium/Playwright) against `operator.promptmetrics.dev`:
      `logged-in-journey.spec.ts` ✓, `prod-debug.spec.ts` ✓, `prod-smoke.spec.ts` ✓
      (1 skipped). Local specs also pass.
+
+5. **Onboarding auth gap discovered & fixed (second follow-up):**
+   - User HAR showed `POST /api/v1/reactions` and `POST /api/v1/posts/.../comments`
+     returning **307 → `/register/complete?returnUrl=...`** with an HTML body, which
+     the client then tried to parse as JSON → `Unexpected token '<', "<!DOCTYPE "...`.
+   - Root cause: the user's account (`painfulToolStackTask=''`,
+     `onboardingComplete=false`) had never finished onboarding, so the middleware
+     rejected all write requests. The sign-up/OAuth flows were redirecting straight
+     to `/feed` (unprotected) without completing onboarding first.
+   - Fix:
+     - `middleware.ts` now returns `application/json` 401/403 for `/api/v1/*`
+       routes instead of HTML redirects, so the UI toasts a real error.
+     - `app/auth/callback/route.ts` and `app/login/LoginForm.tsx` now redirect to
+       `/register/complete?returnUrl=...` when `painfulToolStackTask` / onboarding
+       is incomplete.
+     - Added `/messages` to the protected community-route regex.
+   - Committed `14a95e0` and deployed → `dpl_215MtL5KJmf7o5W4b64nGrd7rLaR` /
+     `pm-operator-97n1fa6yd`. Production verification still passes.
 
 ## Decisions and why
 
@@ -167,10 +185,13 @@ create post, join circle) are fixed, deployed, and verified via Playwright/Chrom
 - Project memory: `~/.claude/projects/-Users-izzy-Documents-pm-operator/memory/`
   (`MEMORY.md` index + per-fact files)
 - Commits: `bd03dba` (WS8/WS9 ship) · `b20e21a` (deploy docs) · `34095cd` (PostHog key
-  doc-note + redeploy trigger) · `6c6a91d` (community bug fixes + E2E, current `main`)
+  doc-note + redeploy trigger) · `6c6a91d` (community bug fixes + E2E) · `85cdb13`
+  (CI gating for prod-only E2E) · `14a95e0` (onboarding auth gap + API JSON errors,
+  current `main`)
 - Deploys: `pm-operator-f2him2ska` (`bd03dba`) · `pm-operator-sd8eqlhn7` (`b20e21a`) ·
   `pm-operator-9540kdppw` (`34095cd`) · `dpl_6CfPZvxUWKfYk39YWDtivCoEmRDq`
-  / `pm-operator-evwzamcgu` (`6c6a91d`, current prod)
+  / `pm-operator-evwzamcgu` (`6c6a91d`) · `dpl_215MtL5KJmf7o5W4b64nGrd7rLaR`
+  / `pm-operator-97n1fa6yd` (`14a95e0`, current prod)
 - Supabase prod project ref: `hsiyhxhrqpooplwlrmll` (eu-west-1, ACTIVE_HEALTHY)
 - Vercel project: `pm-operator` (projectId `prj_8vK1ZOW1hA6WLLNBEvMhZgrsAdOY`,
   orgId `team_Lg6W6knXlq0wQOdkqZIPnGY4`). Vercel CLI is authenticated as `izzy-7941`.
