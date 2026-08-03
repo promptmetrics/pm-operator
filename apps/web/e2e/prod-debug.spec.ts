@@ -2,6 +2,10 @@ import { test, expect } from '@playwright/test';
 import { createTestUser, deleteTestUser, dismissOverlays } from './helpers';
 import { createClient } from '@supabase/supabase-js';
 
+// These specs drive the live production site and need production Supabase
+// credentials. Skip them unless explicitly requested.
+test.skip(!process.env.RUN_PROD_E2E, 'Production E2E disabled in CI; set RUN_PROD_E2E=1 to run');
+
 const usersToClean: string[] = [];
 
 test.describe.configure({ mode: 'serial' });

@@ -4,6 +4,9 @@ import { dismissOverlays } from './helpers';
 // Real-browser smoke test against the deployed production site. Does NOT use
 // admin APIs or injected cookies — it exercises the same flows an end user
 // would hit, including Supabase Auth rate limits and email confirmation.
+// Skip unless explicitly requested because CI uses the test Supabase project.
+test.skip(!process.env.RUN_PROD_E2E, 'Production E2E disabled in CI; set RUN_PROD_E2E=1 to run');
+
 test.use({ baseURL: 'https://operator.promptmetrics.dev' });
 
 test('anonymous post detail loads without 404/500', async ({ page }) => {
