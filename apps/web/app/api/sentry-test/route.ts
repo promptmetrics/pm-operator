@@ -1,0 +1,1 @@
+export async function GET() { throw new Error('Sentry test error from operator.promptmetrics.dev API route'); }
