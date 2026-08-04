@@ -141,13 +141,6 @@
       "when": 1785762425286,
       "tag": "0019_right_morg",
       "breakpoints": true
-    },
-    {
-      "idx": 20,
-      "version": "7",
-      "when": 1785850930585,
-      "tag": "0020_naive_ultimo",
-      "breakpoints": true
     }
   ]
 }
