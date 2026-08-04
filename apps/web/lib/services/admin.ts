@@ -1,4 +1,4 @@
-import { eq, and, or, sql, desc, count, like, inArray } from 'drizzle-orm';
+import { eq, and, or, sql, desc, count, like, inArray, gte, lte } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type {
@@ -485,4 +485,128 @@ export async function adminListAgentActions(
   }));
 
   return { actions, hasMore };
+}
+
+// Audit log
+export type AuditLogEntry = {
+  id: string;
+  adminId: string;
+  adminName: string | null;
+  adminUsername: string | null;
+  actionType: string;
+  targetType: string | null;
+  targetId: string | null;
+  details: Record<string, unknown>;
+  circleId: string | null;
+  createdAt: string;
+};
+
+export async function adminCreateAuditLog(
+  db: DrizzleClient,
+  input: {
+    adminId: string;
+    actionType: string;
+    targetType?: string;
+    targetId?: string;
+    details?: Record<string, unknown>;
+    circleId?: string;
+  }
+): Promise<AuditLogEntry> {
+  const [row] = await db
+    .insert(schema.auditLog)
+    .values({
+      adminId: input.adminId,
+      actionType: input.actionType as typeof schema.auditLog.$inferInsert['actionType'],
+      targetType: input.targetType ?? null,
+      targetId: input.targetId ?? null,
+      details: (input.details ?? {}) as Record<string, unknown>,
+      circleId: input.circleId ?? null,
+    })
+    .returning();
+
+  if (!row) throw new Error('Failed to create audit log entry');
+
+  const admin = await db.query.users.findFirst({
+    where: eq(schema.users.id, row.adminId),
+    columns: { username: true, fullName: true },
+  });
+
+  return {
+    id: row.id,
+    adminId: row.adminId,
+    adminName: admin?.fullName ?? null,
+    adminUsername: admin?.username ?? null,
+    actionType: row.actionType,
+    targetType: row.targetType,
+    targetId: row.targetId,
+    details: row.details as Record<string, unknown>,
+    circleId: row.circleId,
+    createdAt: toISO(row.createdAt),
+  };
+}
+
+export async function adminListAuditLogs(
+  db: DrizzleClient,
+  query: {
+    page?: number;
+    limit?: number;
+    adminId?: string;
+    actionType?: string;
+    targetType?: string;
+    circleId?: string;
+    startDate?: string;
+    endDate?: string;
+  }
+): Promise<{ logs: AuditLogEntry[]; hasMore: boolean }> {
+  const page = query.page ?? 1;
+  const limit = query.limit ?? 20;
+  const conditions: ReturnType<typeof eq | typeof like | typeof gte | typeof lte>[] = [];
+
+  if (query.adminId) conditions.push(eq(schema.auditLog.adminId, query.adminId));
+  if (query.actionType) conditions.push(eq(schema.auditLog.actionType, query.actionType as any));
+  if (query.targetType) conditions.push(eq(schema.auditLog.targetType, query.targetType));
+  if (query.circleId) conditions.push(eq(schema.auditLog.circleId, query.circleId));
+  if (query.startDate) conditions.push(gte(schema.auditLog.createdAt, new Date(query.startDate)));
+  if (query.endDate) conditions.push(lte(schema.auditLog.createdAt, new Date(query.endDate)));
+
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const offset = (page - 1) * limit;
+
+  const rows = await db.query.auditLog.findMany({
+    where,
+    orderBy: [desc(schema.auditLog.createdAt)],
+    limit: limit + 1,
+    offset,
+  });
+
+  const hasMore = rows.length > limit;
+  const slice = hasMore ? rows.slice(0, limit) : rows;
+
+  const adminIds = Array.from(new Set(slice.map((r) => r.adminId).filter(Boolean)));
+  const nameById = new Map<string, { username: string; fullName: string | null }>();
+  if (adminIds.length > 0) {
+    const admins = await db.query.users.findMany({
+      where: inArray(schema.users.id, adminIds),
+      columns: { id: true, username: true, fullName: true },
+    });
+    for (const a of admins) nameById.set(a.id, { username: a.username, fullName: a.fullName });
+  }
+
+  const logs: AuditLogEntry[] = slice.map((r) => {
+    const admin = r.adminId ? nameById.get(r.adminId) : undefined;
+    return {
+      id: r.id,
+      adminId: r.adminId,
+      adminName: admin?.fullName ?? null,
+      adminUsername: admin?.username ?? null,
+      actionType: r.actionType,
+      targetType: r.targetType,
+      targetId: r.targetId,
+      details: r.details as Record<string, unknown>,
+      circleId: r.circleId,
+      createdAt: toISO(r.createdAt),
+    };
+  });
+
+  return { logs, hasMore };
 }

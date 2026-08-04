@@ -18,7 +18,7 @@ import {
 import { sql } from 'drizzle-orm';
 
 // Enums
-export const userRoleEnum = pgEnum('user_role', ['member', 'moderator', 'admin']);
+export const userRoleEnum = pgEnum('user_role', ['member', 'moderator', 'admin', 'banned']);
 export const groupVisibilityEnum = pgEnum('group_visibility', ['public', 'invite_only', 'paid']);
 export const membershipStatusEnum = pgEnum('membership_status', ['active', 'cancelled', 'past_due', 'expired']);
 export const tierIntervalEnum = pgEnum('tier_interval', ['month', 'year', 'one_time']);
@@ -54,6 +54,12 @@ export const inviteRoleEnum = pgEnum('invite_role', ['member', 'moderator', 'adm
 export const flagStatusEnum = pgEnum('flag_status', ['open', 'resolved', 'dismissed']);
 export const notificationTypeEnum = pgEnum('notification_type', ['comment', 'reaction', 'solution', 'invite', 'flag', 'flag_resolved', 'mention', 'badge', 'new_follower', 'new_message']);
 export const dailyStatTypeEnum = pgEnum('daily_stat_type', ['posts_read', 'likes_given']);
+export const auditActionTypeEnum = pgEnum('audit_action_type', [
+  'user_role_changed', 'user_banned', 'content_hidden', 'flag_resolved',
+  'flag_dismissed', 'circle_created', 'circle_updated', 'circle_deleted',
+  'badge_created', 'badge_awarded', 'event_created', 'event_deleted',
+  'watched_phrase_added', 'watched_phrase_deleted', 'user_warned',
+]);
 
 // Sentinel UUID used for global leaderboard rows in user_scores.
 // Migration 0001_numerous_killer_shrike.sql seeds a matching groups row so the FK is satisfied.
@@ -599,3 +605,14 @@ export const messages = pgTable(
     ),
   })
 ).enableRLS();
+
+export const auditLog = pgTable('audit_log', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  adminId: uuid('admin_id').notNull().references(() => users.id, { onDelete: 'set null' }),
+  actionType: auditActionTypeEnum('action_type').notNull(),
+  targetType: text('target_type'),
+  targetId: uuid('target_id'),
+  details: jsonb('details').default(sql`'{}'::jsonb`).notNull(),
+  circleId: uuid('circle_id').references(() => groups.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}).enableRLS();
