@@ -1,11 +1,17 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Card } from '@pm-operator/ui/components/Card';
 import { Input } from '@pm-operator/ui/components/Input';
-import { Trash2 } from 'lucide-react';
+import { CalendarDays, List, Trash2, Calendar, Filter, Search } from 'lucide-react';
 import type { Event } from '@pm-operator/api';
+import DataTable from '@/components/admin/DataTable';
+import LoadingState from '@/components/admin/LoadingState';
+import EmptyState from '@/components/admin/EmptyState';
+import ErrorState from '@/components/admin/ErrorState';
+import EventCalendar, { type CalendarEvent } from '@/components/admin/EventCalendar';
 
 // datetime-local gives "YYYY-MM-DDTHH:mm"; new Date(...).toISOString() yields a
 // z.string().datetime()-compatible value for the API.
@@ -16,10 +22,17 @@ function toLocalInput(iso: string): string {
 }
 
 export default function AdminEventsPage() {
+  const router = useRouter();
   const [events, setEvents] = React.useState<Event[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [message, setMessage] = React.useState('');
+  const [view, setView] = React.useState<'list' | 'calendar'>('list');
+  const [filterUpcoming, setFilterUpcoming] = React.useState(true);
+  const [search, setSearch] = React.useState('');
+  const [currentMonth, setCurrentMonth] = React.useState(new Date());
+  const [showCreateForm, setShowCreateForm] = React.useState(false);
+
   const [form, setForm] = React.useState({
     title: '',
     groupSlug: '',
@@ -29,12 +42,14 @@ export default function AdminEventsPage() {
     location: '',
     url: '',
     capacity: '',
+    recurrence: 'none' as 'none' | 'daily' | 'weekly' | 'monthly',
   });
 
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/events?upcoming=true&limit=100');
+      const params = new URLSearchParams({ upcoming: String(filterUpcoming), limit: '100' });
+      const res = await fetch(`/api/v1/events?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load events');
       const json = (await res.json()) as { data?: { events: Event[] } };
       setEvents(json.data?.events ?? []);
@@ -43,7 +58,7 @@ export default function AdminEventsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filterUpcoming]);
 
   React.useEffect(() => {
     load();
@@ -87,7 +102,9 @@ export default function AdminEventsPage() {
         location: '',
         url: '',
         capacity: '',
+        recurrence: 'none',
       });
+      setShowCreateForm(false);
       await load();
     } catch (err: any) {
       setMessage(err.message || 'Failed to create event');
@@ -107,93 +124,264 @@ export default function AdminEventsPage() {
     }
   };
 
+  // Filter and sort
+  const filtered = React.useMemo(() => {
+    let result = [...events];
+
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (e) =>
+          e.title.toLowerCase().includes(q) ||
+          (e.description ?? '').toLowerCase().includes(q) ||
+          (e.location ?? '').toLowerCase().includes(q)
+      );
+    }
+
+    result.sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+    return result;
+  }, [events, search]);
+
+  // Calendar events
+  const calendarEvents: CalendarEvent[] = React.useMemo(
+    () =>
+      filtered.map((e) => ({
+        id: e.id,
+        title: e.title,
+        startsAt: e.startsAt,
+        endsAt: e.endsAt,
+        groupId: e.groupId,
+        groupName: null,
+      })),
+    [filtered]
+  );
+
+  const columns = [
+    {
+      key: 'title',
+      label: 'Title',
+      sortable: true,
+      render: (row: Event) => (
+        <button
+          type="button"
+          onClick={() => router.push(`/admin/events/${row.id}`)}
+          className="font-medium text-[var(--pm-ink)] hover:text-[var(--pm-coral)]"
+        >
+          {row.title}
+        </button>
+      ),
+    },
+    {
+      key: 'startsAt',
+      label: 'Date/Time',
+      sortable: true,
+      render: (row: Event) => (
+        <span className="text-sm text-[var(--pm-muted)]">
+          {new Date(row.startsAt).toLocaleDateString()}
+          {' '}
+          {new Date(row.startsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      ),
+    },
+    {
+      key: 'location',
+      label: 'Location',
+      render: (row: Event) => (
+        <span className="text-sm text-[var(--pm-muted)]">{row.location || '-'}</span>
+      ),
+    },
+    {
+      key: 'capacity',
+      label: 'Capacity',
+      render: (row: Event) => (
+        <span className="text-sm">{row.capacity ? `${row.capacity}` : 'Unlimited'}</span>
+      ),
+    },
+    {
+      key: 'scope',
+      label: 'Scope',
+      render: (row: Event) => (
+        <span className="text-xs rounded-full bg-[var(--pm-paper-2)] px-2 py-0.5">
+          {row.groupId ? 'Circle' : 'Global'}
+        </span>
+      ),
+    },
+  ];
+
   return (
-    <div className="mx-auto max-w-5xl">
-      <h1 className="mb-6 text-2xl font-semibold">Events</h1>
-
-      <Card className="mb-6 p-6">
-        <h2 className="mb-4 text-lg font-medium">Create event</h2>
-        <form onSubmit={create} className="grid gap-4 sm:grid-cols-2">
-          <Input
-            label="Title"
-            value={form.title}
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            required
-          />
-          <Input
-            label="Circle slug (optional — leave blank for a global event)"
-            value={form.groupSlug}
-            onChange={(e) => setForm((f) => ({ ...f, groupSlug: e.target.value }))}
-          />
-          <Input
-            label="Starts at"
-            type="datetime-local"
-            value={form.startsAt}
-            onChange={(e) => setForm((f) => ({ ...f, startsAt: e.target.value }))}
-            required
-          />
-          <Input
-            label="Ends at (optional)"
-            type="datetime-local"
-            value={form.endsAt}
-            onChange={(e) => setForm((f) => ({ ...f, endsAt: e.target.value }))}
-          />
-          <Input
-            label="Location (optional)"
-            value={form.location}
-            onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
-          />
-          <Input
-            label="URL (optional)"
-            value={form.url}
-            onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
-          />
-          <Input
-            label="Capacity (optional)"
-            type="number"
-            value={form.capacity}
-            onChange={(e) => setForm((f) => ({ ...f, capacity: e.target.value }))}
-          />
-          <Input
-            label="Description (optional)"
-            value={form.description}
-            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-          />
-          <div className="flex items-end">
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Creating...' : 'Create event'}
-            </Button>
+    <div className="mx-auto max-w-6xl">
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Events</h1>
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex rounded-lg border border-[var(--pm-line)] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setView('list')}
+              className={`flex items-center gap-1 px-3 py-2 text-sm transition-colors ${
+                view === 'list'
+                  ? 'bg-[var(--pm-coral)] text-[var(--pm-on-ink)]'
+                  : 'bg-[var(--pm-paper-inset)] text-[var(--pm-muted)] hover:text-[var(--pm-ink)]'
+              }`}
+            >
+              <List className="h-4 w-4" />
+              List
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('calendar')}
+              className={`flex items-center gap-1 px-3 py-2 text-sm transition-colors ${
+                view === 'calendar'
+                  ? 'bg-[var(--pm-coral)] text-[var(--pm-on-ink)]'
+                  : 'bg-[var(--pm-paper-inset)] text-[var(--pm-muted)] hover:text-[var(--pm-ink)]'
+              }`}
+            >
+              <Calendar className="h-4 w-4" />
+              Calendar
+            </button>
           </div>
-        </form>
-        {message ? <p className="mt-4 text-sm text-[var(--pm-danger)]">{message}</p> : null}
-      </Card>
-
-      {loading && events.length === 0 ? (
-        <p className="text-[var(--pm-muted)]">Loading...</p>
-      ) : events.length === 0 ? (
-        <p className="text-[var(--pm-muted)]">No upcoming events.</p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {events.map((event) => (
-            <Card key={event.id} className="flex items-center justify-between p-4">
-              <div className="min-w-0">
-                <p className="font-medium">{event.title}</p>
-                <p className="text-sm text-[var(--pm-muted)]">
-                  {new Date(event.startsAt).toLocaleString()}
-                  {event.location ? ` · ${event.location}` : ''}
-                  {event.groupId ? ' · circle-scoped' : ' · global'}
-                </p>
-              </div>
-              <Button
-                variant="secondary"
-                onClick={() => remove(event.id)}
-                aria-label="Delete event"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </Card>
-          ))}
+          <Button onClick={() => setShowCreateForm(!showCreateForm)}>
+            {showCreateForm ? 'Cancel' : 'Create event'}
+          </Button>
         </div>
+      </div>
+
+      {message ? (
+        <p className="mb-4 text-sm text-[var(--pm-danger)]">{message}</p>
+      ) : null}
+
+      {/* Create event form */}
+      {showCreateForm && (
+        <Card className="mb-6 p-6">
+          <h2 className="mb-4 text-lg font-medium">Create event</h2>
+          <form onSubmit={create} className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="Title"
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              required
+            />
+            <Input
+              label="Circle slug (optional)"
+              value={form.groupSlug}
+              onChange={(e) => setForm((f) => ({ ...f, groupSlug: e.target.value }))}
+            />
+            <Input
+              label="Starts at"
+              type="datetime-local"
+              value={form.startsAt}
+              onChange={(e) => setForm((f) => ({ ...f, startsAt: e.target.value }))}
+              required
+            />
+            <Input
+              label="Ends at (optional)"
+              type="datetime-local"
+              value={form.endsAt}
+              onChange={(e) => setForm((f) => ({ ...f, endsAt: e.target.value }))}
+            />
+            <Input
+              label="Location (optional)"
+              value={form.location}
+              onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+            />
+            <Input
+              label="URL (optional)"
+              value={form.url}
+              onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
+            />
+            <Input
+              label="Capacity (optional)"
+              type="number"
+              value={form.capacity}
+              onChange={(e) => setForm((f) => ({ ...f, capacity: e.target.value }))}
+            />
+            <div>
+              <label className="mb-1 block text-sm font-medium">Recurrence</label>
+              <select
+                value={form.recurrence}
+                onChange={(e) => setForm((f) => ({ ...f, recurrence: e.target.value as typeof form.recurrence }))}
+                className="h-10 w-full rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-3 text-sm"
+              >
+                <option value="none">None</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            <Input
+              label="Description (optional)"
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            />
+            <div className="flex items-end">
+              <Button type="submit" disabled={saving}>
+                {saving ? 'Creating...' : 'Create event'}
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
+
+      {/* Filters */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--pm-muted)]" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search events..."
+            className="h-10 w-full rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] pl-9 pr-3 text-sm"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-[var(--pm-muted)]" />
+          <button
+            type="button"
+            onClick={() => setFilterUpcoming(!filterUpcoming)}
+            className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              filterUpcoming
+                ? 'bg-[var(--pm-coral)] text-[var(--pm-on-ink)]'
+                : 'bg-[var(--pm-paper-inset)] text-[var(--pm-muted)] hover:text-[var(--pm-ink)]'
+            }`}
+          >
+            {filterUpcoming ? 'Upcoming' : 'Past'}
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      {loading && events.length === 0 ? (
+        <LoadingState rows={5} type="table" />
+      ) : view === 'calendar' ? (
+        <EventCalendar
+          events={calendarEvents}
+          currentMonth={currentMonth}
+          onMonthChange={setCurrentMonth}
+          onEventClick={(ev) => router.push(`/admin/events/${ev.id}`)}
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={<CalendarDays className="h-12 w-12" />}
+          title="No events found"
+          message={search ? 'Try a different search term.' : filterUpcoming ? 'No upcoming events.' : 'No past events.'}
+        />
+      ) : (
+        <Card>
+          <DataTable
+            columns={columns}
+            data={filtered as any}
+            rowKey="id"
+            actions={[
+              {
+                label: 'Delete',
+                icon: <Trash2 className="h-4 w-4" />,
+                danger: true,
+                onClick: (row) => remove((row as unknown as Event).id),
+              },
+            ]}
+          />
+        </Card>
       )}
     </div>
   );
