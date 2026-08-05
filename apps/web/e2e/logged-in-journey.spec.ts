@@ -56,6 +56,7 @@ test('logged-in community journey', async ({ page }) => {
   await page.goto('/g/show-your-build');
   await dismissOverlays(page);
   await page.getByRole('button', { name: /Ask a question or show your build/i }).click();
+  await expect(page).toHaveURL(/\/post\/new/);
   const postTitle = `E2E journey post ${Date.now()}`;
   await page.getByLabel('Title').fill(postTitle);
   // The composer defaults to the current circle; make sure it stayed selected.
@@ -63,8 +64,8 @@ test('logged-in community journey', async ({ page }) => {
   await page.locator('.ProseMirror').fill('<p>End-to-end journey content</p>');
   await page.getByRole('button', { name: 'Post' }).click();
 
-  // The modal closes and the new post appears in the circle feed.
-  await expect(page.getByText('New post', { exact: true })).not.toBeVisible();
+  // After posting, the user lands on the new post detail or the circle feed.
+  await expect(page).toHaveURL(/\/g\/show-your-build\/e2e-journey-post/);
   await page.goto('/g/show-your-build');
   await dismissOverlays(page);
   await expect(page.getByText(postTitle).first()).toBeVisible();

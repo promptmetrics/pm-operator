@@ -1,80 +1,86 @@
-# Plan: Spec Pipeline for operator.promptmetrics.dev
+# Plan: Convert create-post modal to a page and fix long-form editing
 
-## 1. Goal
-Produce a complete, validated product and technical specification for `operator.promptmetrics.dev`: a PromptMetrics-branded community platform combining Skool-style circles/groups with daily.dev-style feed, gamification, and agent access.
+## Problem
+The current create-post experience is a Radix Dialog (`CreatePostModal.tsx`) centered on screen with no max-height or internal scrolling. When the body grows (long posts, images, lists), the modal extends past the viewport and the **Post** button becomes unreachable. The user also wants the composer on its own page instead of in a modal, and wants to paste formatted text with links.
 
-## 2. What we know
-- **Existing frontend:** `iiizzzyyy/promptmetrics-website` is a Next.js 16 App Router marketing site with a mature Paper-v3 design system (Tailwind v4, custom tokens, Radix primitives, TipTap editor, Redux Toolkit, Sentry).
-- **Backend design doc:** `community-backend-design.md` proposes Next.js full-stack API routes + Supabase (Postgres, Auth, Realtime, Storage) + Drizzle ORM, replacing NodeBB.
-- **Target repo:** `promptmetrics/pm-operator` (currently empty).
-- **Access model:** Public-read, gated private groups; engagement requires login/registration.
-- **Agent interface:** MCP server + REST API. User specifically referenced Anthropic’s 2026-07-28 MCP SDK update.
-- **Scale:** 10–50 active users in 6 months; launch as soon as built.
-- **Compliance:** EU data residency required; production-grade.
+## Current state
+- `apps/web/app/(community)/components/CreatePostModal.tsx` — the full form (title, circle, type, tags, rich body, repo link, submit).
+- `apps/web/app/(community)/components/FeedPage.tsx` — opens the modal via `createOpen` state and three `openComposer()` triggers:
+  1. Mobile/tablet **New post** button on group pages.
+  2. Composer strip text box and **Question** / **Show a build** buttons.
+  3. Onboarding auto-open (`/feed?compose=1`).
+- `apps/web/app/(community)/feed/page.tsx` and `apps/web/app/(community)/g/[groupSlug]/page.tsx` — pass `writableGroups` and `groupSlug` to `FeedPage`.
+- `packages/ui/src/editor/RichTextEditor.tsx` — TipTap-based editor with `Link` extension (`autolink: true`). HTML paste falls through to TipTap default behavior.
 
-## 3. Key decisions and recommendations
+## Goal
+1. Make long posts editable without losing the submit button.
+2. Move the composer from a modal to its own page.
+3. Keep/verify formatted paste with links.
 
-### 3.1 Frontend integration — reuse Paper-v3 design system, not shadcn/ui
-- **Option A: Extract Paper-v3 design system into a shared `packages/ui` in a new monorepo.**
-  - *Pros:* True single source of truth; community site and marketing site share tokens, components, and TipTap config.
-  - *Cons:* Upfront migration cost; must untangle marketing-site-specific code from reusable primitives.
-- **Option B: Add a new `(community)` route group inside `promptmetrics-website`.**
-  - *Pros:* Fastest path to launch; no package publishing; can reuse existing auth/CMS patterns.
-  - *Cons:* Community concerns (dynamic, auth-required) leak into a currently static/ISR marketing site; couples community release to marketing-site deploys.
-- **Option C: Standalone Next.js app in `pm-operator` that copies/tailwinds Paper-v3 tokens and imports selected components via git submodule or published package.**
-  - *Pros:* Clean separation; independent deploy; easier to open-source or move later.
-  - *Cons:* Duplication risk; version drift between sites.
+## Proposed approach
 
-**Recommendation:** Option A via a pnpm monorepo in `pm-operator` with `apps/web` (community), `apps/website` (migrated marketing site, optional), and `packages/ui` + `packages/db` + `packages/mcp`. We extract reusable Paper-v3 tokens/components into `packages/ui` first, then build the community app on top. This is more initial work but prevents the community site from looking like a different product.
+### 1. Add a dedicated `/post/new` page
+Create `apps/web/app/(community)/post/new/page.tsx` (server component) that:
+- Loads the current session and `getWritableGroups()`.
+- Reads `?group=` and `?type=` query params to pre-select circle/post type (replaces the modal's `defaultGroupSlug` / `defaultType`).
+- Renders a new client component `CreatePostForm` with the groups list.
+- If the user has no writable groups, redirect to `/feed` with a toast or show an empty state.
 
-**Pushback on shadcn/ui:** shadcn is a set of copy-paste Radix components. Paper-v3 already uses Radix primitives and has its own tokens. Adding shadcn on top would introduce a second visual language and double the styling surface. Better to componentize the existing Paper-v3 primitives into `packages/ui`.
+**Route choice:** `/post/new` keeps the URL short, mirrors common patterns, and avoids colliding with existing `/g/...` and `/p/...` routes. `/p/new` would be shorter but `/p/[id]` already exists; `/post/new` is unambiguous.
 
-### 3.2 Agent interface — stable MCP v1.x with migration path to 2.0
-- The 2026-07-28 Anthropic blog post describes a protocol shift (request/response, `Mcp-Method`/`Mcp-Name` headers, MRTR, deprecated SSE). The current TypeScript SDK has a `2.0.0-alpha.2` and a stable `v1.29.0`.
-- **Recommendation:** Build the MCP server on stable SDK v1.x with the stdio + HTTP transport options, and architect tool/resource handlers so the protocol-layer code is thin. Plan a 2.0 migration as a separate track after launch. Do NOT build production on an alpha SDK.
-- The existing `/mcp-actions.json` endpoint in Paper-v3 is a lightweight custom discovery format. We can keep it as a transitional bridge and expose the full MCP server under a separate path (e.g., `/mcp` or `/api/mcp`).
+### 2. Extract a reusable `CreatePostForm` client component
+- Move the form logic out of `CreatePostModal.tsx` into `apps/web/app/(community)/components/CreatePostForm.tsx`.
+- Keep the same fields, validation, image upload, and `onCreated` callback.
+- Make the layout a normal page layout:
+  - Full-width page container (`max-w-2xl mx-auto`) inside the existing community layout.
+  - Sticky action bar at the bottom with **Cancel** / **Post** so the submit button is always reachable.
+  - Body editor area gets `min-h-[40vh] max-h-[60vh] overflow-y-auto` (or similar) so long content scrolls independently.
+- On success, call `onCreated()` (which will `router.push('/feed')` or `router.push('/g/<slug>')`).
+- On cancel, navigate back (`router.back()` or to `/feed`).
 
-### 3.3 EU data residency
-- Supabase supports EU regions (e.g., `eu-central-1`). The plan must specify project region, DPA, and data handling for avatars/attachments.
-- Vercel Edge traffic can still serve globally, but Postgres + Auth must be EU-hosted.
+### 3. Update triggers to navigate instead of opening the modal
+In `FeedPage.tsx`:
+- Replace the three `openComposer()` calls with `router.push('/post/new?group=<slug>&type=<type>')`.
+- Remove `CreatePostModal` import and the modal state (`createOpen`, `composerType`).
+- Remove `onCreated={() => router.refresh()}` — the new page will navigate after create.
+- Keep the composer strip visible logic unchanged.
 
-### 3.4 Infrastructure validation priorities
-Because the user wants full tech/infrastructure validation but skipped commercial validation, the spec pipeline will stress:
-1. Supabase regional compliance and free-tier limits vs. production-grade.
-2. Next.js App Router full-stack viability for the API surface.
-3. MCP server architecture and auth model.
-4. Realtime feed/notifications with Supabase Realtime at low scale.
-5. Gamification engine correctness (points, leaderboards, badges) and race conditions.
-6. Migration from NodeBB (no data, but cutover plan).
+For onboarding (`/feed?compose=1`):
+- In `FeedRoute`, detect `params.compose === '1'` and return a server-side redirect to `/post/new` (or pre-open the composer). A redirect is cleaner because the composer is now a page.
+- Alternatively, keep `autoOpenComposer` and have `FeedPage` redirect client-side. Server-side redirect is preferred.
 
-## 4. Proposed workflow
-Run the `/spec-pipeline` skill in **fast-track commercial + deep technical** mode:
-- **Phase 1:** Refine concept and scan landscape (parallel PM + researcher agents).
-- **Phase 3 (skip Phase 2 commercial validation):** User journeys, technical concept, AI/agent feasibility.
-- **Phase 4:** Business model lightweight + deep technical feasibility and competitive positioning.
-- **Phase 5:** PRD, technical spec, UX spec, roadmap.
+### 4. Remove or repurpose `CreatePostModal.tsx`
+- Delete `CreatePostModal.tsx`.
+- If any other code imports it, update those imports.
 
-Use multiple subagents in parallel to validate the proposed stack:
-- Software Architect: validate Next.js full-stack + Supabase + Drizzle.
-- AI Engineer: validate MCP server design and SDK choice.
-- UX Researcher: synthesize daily.dev + Skool UX into PromptMetrics context.
-- Product Manager: PRD, roadmap, prioritization.
+### 5. Fix the immediate modal scrolling (transition safety)
+Since the modal will be deleted, the scrolling fix comes for free with the page layout. If we want a minimal interim fix before the full page conversion, we could add `max-h-[90vh] overflow-y-auto` to `Dialog.Content`, but that is throwaway work. Better to ship the page directly.
 
-## 5. Deliverables
-All written to `/Users/izzy/Documents/pm-operator/specs/`:
-- `01-concept-brief.md`
-- `02-validation-report.md` (technical validation, not commercial)
-- `03-concept-development.md`
-- `04-feasibility-analysis.md`
-- `05-prd.md`
-- `06-technical-spec.md`
-- `07-ux-spec.md`
-- `08-roadmap.md`
-- `SPEC_LOG.md`
+### 6. Paste formatted text with links
+`RichTextEditor` already uses TipTap with `Link.configure({ autolink: true })`. TipTap's default paste handler accepts HTML from the clipboard, so formatted text and links from Google Docs, Notion, etc. should already work. The current `handlePaste` only intercepts image files and returns `false` for everything else, leaving HTML paste to TipTap.
 
-## 6. Open questions to resolve during the pipeline
-1. Exact Supabase region and project naming.
-2. Whether the marketing site will be migrated into the same monorepo now or later.
-3. MCP server deployment target: Next.js API route, Supabase Edge Function, or standalone service.
-4. Beta invite flow: manual admin approval or automated rubric check.
-5. Content moderation: human-in-the-loop only, or automated watched-phrase rejection.
+To be safe, I will:
+- Verify by reading the editor config (already done) and confirm no `clipboardTextSerializer` or paste handler is blocking HTML.
+- If testing reveals gaps, add `Markdown` paste handling or the `Link` extension's `linkOnPaste: true` option, but that is likely unnecessary. We will not change the editor unless testing proves a gap.
+
+## Files to change
+1. **Create:** `apps/web/app/(community)/post/new/page.tsx`
+2. **Create:** `apps/web/app/(community)/components/CreatePostForm.tsx`
+3. **Delete:** `apps/web/app/(community)/components/CreatePostModal.tsx`
+4. **Edit:** `apps/web/app/(community)/components/FeedPage.tsx` — remove modal, change triggers to `router.push`.
+5. **Edit:** `apps/web/app/(community)/feed/page.tsx` — handle `compose=1` via redirect.
+6. **Edit:** `apps/web/app/(community)/g/[groupSlug]/page.tsx` — no changes needed (it already passes `writableGroups` and `groupSlug` to `FeedPage`), but verify `FeedPage` prop usage stays intact.
+7. **Optional:** `packages/ui/src/editor/RichTextEditor.tsx` — only if paste testing shows a gap.
+
+## Testing plan
+1. Run the dev server and open `/post/new` directly.
+2. Paste a long block of formatted text (with headings, lists, and a hyperlink) into the body.
+3. Confirm the editor scrolls and the **Post** button remains visible/sticky.
+4. Create a post and confirm redirect to `/feed` or `/g/<slug>`.
+5. From `/feed`, click the composer strip buttons and confirm navigation to `/post/new` with correct `group`/`type` params.
+6. From a group page, click **New post** and confirm pre-selected group.
+7. Verify pasted links are preserved and clickable.
+
+## Open question for approval
+- Should the new page live at `/post/new`, `/feed/new`, `/compose`, or somewhere else? **Recommendation:** `/post/new` (short, unambiguous, consistent with `/g/...` and `/p/...`).
+- After posting, should we redirect to the new post detail page or back to the feed/circle? **Recommendation:** redirect to the created post (`/g/<groupSlug>/<postSlug>`) so the user sees their post immediately.

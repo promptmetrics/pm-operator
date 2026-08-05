@@ -97,12 +97,13 @@ test('debug like, comment, join, create on production', async ({ page }) => {
   await page.goto('/g/show-your-build');
   await dismissOverlays(page);
   await page.getByRole('button', { name: /Ask a question or show your build/i }).click();
+  await expect(page).toHaveURL(/\/post\/new/);
   const postTitle = `Debug post ${Date.now()}`;
   await page.getByLabel('Title').fill(postTitle);
   await page.locator('#circle-select').selectOption('show-your-build');
   await page.locator('.ProseMirror').fill('<p>Debug body</p>');
   await page.getByRole('button', { name: 'Post' }).click();
-  await page.waitForTimeout(500);
+  await expect(page).toHaveURL(/\/g\/show-your-build\/debug-post/);
   await page.goto('/g/show-your-build');
   await expect(page.getByText(postTitle).first()).toBeVisible();
 

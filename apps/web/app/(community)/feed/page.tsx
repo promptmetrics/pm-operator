@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import * as schema from '@pm-operator/db';
 import { createServiceDb } from '@/lib/db';
@@ -67,9 +68,11 @@ export default async function FeedRoute({ searchParams }: { searchParams: Promis
   // T8.10: when a user lands here straight from finishing onboarding
   // (?welcome=1), surface a success toast naming the circles they joined
   // (stored in preferences by the step-2 action). "Write your first post" adds
-  // &compose=1 to auto-open the composer. The names come from the existing
-  // `viewer` query (preferences column added above) — zero extra queries, so the
-  // pool budget for this page is unchanged.
+  // &compose=1; since the composer is now its own page, redirect there.
+  if (params.compose === '1') {
+    redirect('/post/new');
+  }
+
   const welcome = params.welcome === '1';
   const joinedNames =
     welcome && viewer
@@ -94,7 +97,6 @@ export default async function FeedRoute({ searchParams }: { searchParams: Promis
       viewerUsername={viewer?.username}
       digestBanner={digest ? <WeeklyDigestBanner digest={digest} /> : null}
       welcomeBanner={welcome ? <WelcomeToast names={joinedNames} /> : null}
-      autoOpenComposer={params.compose === '1'}
     />
   );
 }

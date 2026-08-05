@@ -12,7 +12,6 @@ import { Select } from '@pm-operator/ui/components/Select';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { useToast } from '@pm-operator/ui/components/Toast';
 import { FeedCard } from './FeedCard';
-import { CreatePostModal } from './CreatePostModal';
 import { useRealtimeGroup } from './RealtimeProvider';
 import type {
   FeedFilter,
@@ -54,8 +53,6 @@ interface FeedPageProps {
   digestBanner?: React.ReactNode;
   /** Post-onboarding welcome toast (T8.10); rendered only on /feed?welcome=1. */
   welcomeBanner?: React.ReactNode;
-  /** Open the post composer on mount (T8.10 "Write your first post" → ?compose=1). */
-  autoOpenComposer?: boolean;
 }
 
 const FILTERS: { label: string; value: FeedFilter; swatch?: string }[] = [
@@ -92,7 +89,6 @@ export function FeedPage({
   showComposerStrip,
   digestBanner,
   welcomeBanner,
-  autoOpenComposer,
 }: FeedPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -105,13 +101,13 @@ export function FeedPage({
     return Number.isFinite(initialPage) && initialPage > 0 ? initialPage : 1;
   });
   const [loading, setLoading] = React.useState(false);
-  const [createOpen, setCreateOpen] = React.useState(false);
-  const [composerType, setComposerType] = React.useState<PostType>('question');
   const { toast } = useToast();
 
-  const openComposer = (type: PostType) => {
-    setComposerType(type);
-    setCreateOpen(true);
+  const composeHref = (type: PostType) => {
+    const params = new URLSearchParams();
+    if (groupSlug) params.set('group', groupSlug);
+    params.set('type', type);
+    return `/post/new?${params.toString()}`;
   };
 
   React.useEffect(() => {
@@ -119,13 +115,6 @@ export function FeedPage({
     setCursor(initialCursor);
     setPage(1);
   }, [initialPosts, initialCursor]);
-
-  // T8.10: "Write your first post" from onboarding lands on /feed?compose=1 —
-  // open the composer once on mount so the user can start writing immediately.
-  React.useEffect(() => {
-    if (autoOpenComposer) openComposer('question');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const routeWith = (nextFilter: FeedFilter, nextSort: FeedSort) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -333,7 +322,7 @@ export function FeedPage({
             </p>
           </div>
           {!showComposer && groupSlug && composerEnabled && writableGroups.length > 0 ? (
-            <Button onClick={() => openComposer('question')} className="gap-1">
+            <Button onClick={() => router.push(composeHref('question'))} className="gap-1">
               <Plus className="h-4 w-4" aria-hidden="true" />
               New post
             </Button>
@@ -345,16 +334,16 @@ export function FeedPage({
             <Avatar alt={viewerUsername ?? 'You'} fallback={viewerUsername ?? undefined} size="sm" />
             <button
               type="button"
-              onClick={() => openComposer('question')}
+              onClick={() => router.push(composeHref('question'))}
               className="min-w-0 flex-1 cursor-text truncate rounded-[var(--pm-radius-pill)] border border-[var(--pm-line)] bg-[var(--pm-paper)] px-4 py-2 text-left text-sm text-[var(--pm-muted-soft)]"
             >
               Ask a question or show your build…
             </button>
             <div className="hidden items-center gap-2 sm:flex">
-              <Button variant="secondary" onClick={() => openComposer('question')}>
+              <Button variant="secondary" onClick={() => router.push(composeHref('question'))}>
                 Question
               </Button>
-              <Button onClick={() => openComposer('build')}>Show a build</Button>
+              <Button onClick={() => router.push(composeHref('build'))}>Show a build</Button>
             </div>
           </div>
         ) : null}
@@ -509,16 +498,6 @@ export function FeedPage({
         )}
       </aside>
 
-      <CreatePostModal
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        groups={writableGroups}
-        defaultGroupSlug={groupSlug}
-        defaultType={composerType}
-        onCreated={() => {
-          router.refresh();
-        }}
-      />
     </div>
   );
 }

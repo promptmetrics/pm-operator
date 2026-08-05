@@ -16,6 +16,8 @@ export interface RichTextEditorProps {
   id?: string;
   disabled?: boolean;
   className?: string;
+  /** Extra classes applied to the editable content area (the ProseMirror wrapper). */
+  contentClassName?: string;
   /** Called when the user drops, pastes, or selects an image. Handler should upload the file and insert it. */
   onImageUpload?: (file: File, editor: TipTapEditor) => void | Promise<void>;
 }
@@ -27,6 +29,7 @@ export function RichTextEditor({
   id,
   disabled = false,
   className,
+  contentClassName,
   onImageUpload,
 }: RichTextEditorProps) {
   const onChangeRef = React.useRef(onChange);
@@ -138,7 +141,7 @@ export function RichTextEditor({
       <RichTextToolbar editor={editor} onImageUpload={onImageUpload ? handleToolbarImageUpload : undefined} />
       <EditorContent
         editor={editor}
-        className="rounded-b-lg"
+        className={`rounded-b-lg ${contentClassName ?? ""}`}
         placeholder={placeholder ?? ""}
         aria-placeholder={placeholder ?? ""}
       />
