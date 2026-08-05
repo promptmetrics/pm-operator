@@ -1,4 +1,4 @@
-import { eq, and, or, sql, desc, count, like, inArray } from 'drizzle-orm';
+import { eq, and, or, sql, desc, count, like, inArray, gte, lte } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type {
@@ -441,11 +441,13 @@ function truncatePreview(value: unknown): string {
 
 export async function adminListAgentActions(
   db: DrizzleClient,
-  query: { clientId?: string; toolName?: string; page: number; limit: number }
+  query: { clientId?: string; toolName?: string; startDate?: string; endDate?: string; page: number; limit: number }
 ): Promise<{ actions: AgentActionListItem[]; hasMore: boolean }> {
-  const conditions = [];
+  const conditions: ReturnType<typeof eq | typeof gte | typeof lte>[] = [];
   if (query.clientId) conditions.push(eq(schema.agentActions.clientId, query.clientId));
   if (query.toolName) conditions.push(eq(schema.agentActions.toolName, query.toolName));
+  if (query.startDate) conditions.push(gte(schema.agentActions.createdAt, new Date(query.startDate)));
+  if (query.endDate) conditions.push(lte(schema.agentActions.createdAt, new Date(query.endDate)));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const offset = (query.page - 1) * query.limit;
 
@@ -485,4 +487,307 @@ export async function adminListAgentActions(
   }));
 
   return { actions, hasMore };
+}
+
+// Audit log types
+export interface AuditLogEntry {
+  id: string;
+  adminId: string;
+  adminName: string | null;
+  adminUsername: string | null;
+  actionType: string;
+  targetType: string | null;
+  targetId: string | null;
+  details: Record<string, unknown>;
+  circleId: string | null;
+  createdAt: string;
+}
+
+export async function adminCreateAuditLog(
+  db: DrizzleClient,
+  input: {
+    adminId: string;
+    actionType: string;
+    targetType?: string;
+    targetId?: string;
+    details?: Record<string, unknown>;
+    circleId?: string;
+  }
+): Promise<AuditLogEntry> {
+  const [row] = await db
+    .insert(schema.auditLog)
+    .values({
+      adminId: input.adminId,
+      actionType: input.actionType as typeof schema.auditLog.$inferInsert['actionType'],
+      targetType: input.targetType ?? null,
+      targetId: input.targetId ?? null,
+      details: (input.details ?? {}) as Record<string, unknown>,
+      circleId: input.circleId ?? null,
+    })
+    .returning();
+
+  if (!row) throw new Error('Failed to create audit log entry');
+
+  const admin = await db.query.users.findFirst({
+    where: eq(schema.users.id, row.adminId),
+    columns: { username: true, fullName: true },
+  });
+
+  return {
+    id: row.id,
+    adminId: row.adminId,
+    adminName: admin?.fullName ?? null,
+    adminUsername: admin?.username ?? null,
+    actionType: row.actionType,
+    targetType: row.targetType,
+    targetId: row.targetId,
+    details: row.details as Record<string, unknown>,
+    circleId: row.circleId,
+    createdAt: toISO(row.createdAt),
+  };
+}
+
+export async function adminListAuditLogs(
+  db: DrizzleClient,
+  query: {
+    page?: number;
+    limit?: number;
+    adminId?: string;
+    actionType?: string;
+    targetType?: string;
+    circleId?: string;
+    startDate?: string;
+    endDate?: string;
+  }
+): Promise<{ logs: AuditLogEntry[]; hasMore: boolean }> {
+  const page = query.page ?? 1;
+  const limit = query.limit ?? 20;
+  const conditions: ReturnType<typeof eq | typeof like | typeof gte | typeof lte>[] = [];
+
+  if (query.adminId) conditions.push(eq(schema.auditLog.adminId, query.adminId));
+  if (query.actionType) conditions.push(eq(schema.auditLog.actionType, query.actionType as any));
+  if (query.targetType) conditions.push(eq(schema.auditLog.targetType, query.targetType));
+  if (query.circleId) conditions.push(eq(schema.auditLog.circleId, query.circleId));
+  if (query.startDate) conditions.push(gte(schema.auditLog.createdAt, new Date(query.startDate)));
+  if (query.endDate) conditions.push(lte(schema.auditLog.createdAt, new Date(query.endDate)));
+
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const offset = (page - 1) * limit;
+
+  const rows = await db.query.auditLog.findMany({
+    where,
+    orderBy: [desc(schema.auditLog.createdAt)],
+    limit: limit + 1,
+    offset,
+  });
+
+  const hasMore = rows.length > limit;
+  const slice = hasMore ? rows.slice(0, limit) : rows;
+
+  const adminIds = Array.from(new Set(slice.map((r) => r.adminId).filter(Boolean)));
+  const nameById = new Map<string, { username: string; fullName: string | null }>();
+  if (adminIds.length > 0) {
+    const admins = await db.query.users.findMany({
+      where: inArray(schema.users.id, adminIds),
+      columns: { id: true, username: true, fullName: true },
+    });
+    for (const a of admins) nameById.set(a.id, { username: a.username, fullName: a.fullName });
+  }
+
+  const logs: AuditLogEntry[] = slice.map((r) => {
+    const admin = r.adminId ? nameById.get(r.adminId) : undefined;
+    return {
+      id: r.id,
+      adminId: r.adminId,
+      adminName: admin?.fullName ?? null,
+      adminUsername: admin?.username ?? null,
+      actionType: r.actionType,
+      targetType: r.targetType,
+      targetId: r.targetId,
+      details: r.details as Record<string, unknown>,
+      circleId: r.circleId,
+      createdAt: toISO(r.createdAt),
+    };
+  });
+
+  return { logs, hasMore };
+}
+
+// Settings
+export interface CommunitySettings {
+  branding: {
+    name: string;
+    logoUrl: string | null;
+    coverUrl: string | null;
+    faviconUrl: string | null;
+  };
+  privacy: {
+    defaultVisibility: string;
+    publicRegistration: boolean;
+    emailConfirmation: boolean;
+  };
+  onboarding: {
+    welcomeMessage: string;
+    defaultCircles: string[];
+  };
+  notifications: {
+    defaultPreferences: Record<string, boolean>;
+  };
+  moderation: {
+    autoModEnabled: boolean;
+    minAccountAgeDays: number;
+    minReputation: number;
+    defaultFlagAction: string;
+  };
+  analytics: {
+    posthogKey: string | null;
+    dataRetentionDays: number;
+    widgetToggles: Record<string, boolean>;
+  };
+}
+
+const DEFAULT_SETTINGS: CommunitySettings = {
+  branding: {
+    name: 'PromptMetrics',
+    logoUrl: null,
+    coverUrl: null,
+    faviconUrl: null,
+  },
+  privacy: {
+    defaultVisibility: 'public',
+    publicRegistration: true,
+    emailConfirmation: false,
+  },
+  onboarding: {
+    welcomeMessage: 'Welcome to the community!',
+    defaultCircles: [],
+  },
+  notifications: {
+    defaultPreferences: {
+      emailNotifications: true,
+      weeklyDigest: true,
+      newsletter: false,
+    },
+  },
+  moderation: {
+    autoModEnabled: true,
+    minAccountAgeDays: 0,
+    minReputation: 0,
+    defaultFlagAction: 'auto_flag',
+  },
+  analytics: {
+    posthogKey: null,
+    dataRetentionDays: 90,
+    widgetToggles: {
+      activeUsers: true,
+      topPosts: true,
+      engagementRate: true,
+    },
+  },
+};
+
+export async function adminGetSettings(
+  db: DrizzleClient
+): Promise<CommunitySettings> {
+  const rows = await db.query.communitySettings.findMany();
+  const stored: Record<string, unknown> = {};
+  for (const row of rows) {
+    stored[row.key] = row.value;
+  }
+
+  return {
+    branding: { ...DEFAULT_SETTINGS.branding, ...(stored.branding as Partial<typeof DEFAULT_SETTINGS.branding> ?? {}) },
+    privacy: { ...DEFAULT_SETTINGS.privacy, ...(stored.privacy as Partial<typeof DEFAULT_SETTINGS.privacy> ?? {}) },
+    onboarding: { ...DEFAULT_SETTINGS.onboarding, ...(stored.onboarding as Partial<typeof DEFAULT_SETTINGS.onboarding> ?? {}) },
+    notifications: { ...DEFAULT_SETTINGS.notifications, ...(stored.notifications as Partial<typeof DEFAULT_SETTINGS.notifications> ?? {}) },
+    moderation: { ...DEFAULT_SETTINGS.moderation, ...(stored.moderation as Partial<typeof DEFAULT_SETTINGS.moderation> ?? {}) },
+    analytics: {
+      ...DEFAULT_SETTINGS.analytics,
+      ...(stored.analytics as Partial<typeof DEFAULT_SETTINGS.analytics> ?? {}),
+      posthogKey: stored.analytics && typeof stored.analytics === 'object' && 'posthogKey' in (stored.analytics as Record<string, unknown>)
+        ? (stored.analytics as Record<string, unknown>).posthogKey as string
+        : DEFAULT_SETTINGS.analytics.posthogKey,
+    },
+  };
+}
+
+export async function adminUpdateSettings(
+  db: DrizzleClient,
+  section: string,
+  values: Record<string, unknown>
+): Promise<void> {
+  const existing = await db.query.communitySettings.findFirst({
+    where: eq(schema.communitySettings.key, section),
+  });
+
+  if (existing) {
+    const merged = { ...(existing.value as Record<string, unknown>), ...values };
+    await db
+      .update(schema.communitySettings)
+      .set({ value: merged, updatedAt: new Date() })
+      .where(eq(schema.communitySettings.key, section));
+  } else {
+    await db
+      .insert(schema.communitySettings)
+      .values({ key: section, value: values });
+  }
+}
+
+// MCP clients
+export async function adminListMcpClients(db: DrizzleClient) {
+  const rows = await db.query.mcpClients.findMany({
+    orderBy: [desc(schema.mcpClients.createdAt)],
+  });
+  return rows.map((c) => ({
+    id: c.id,
+    clientId: c.clientId,
+    name: c.name,
+    scopes: c.scopes,
+    isActive: c.isActive,
+    createdAt: c.createdAt.toISOString(),
+  }));
+}
+
+export async function adminRevokeMcpClient(
+  db: DrizzleClient,
+  clientId: string
+): Promise<void> {
+  const existing = await db.query.mcpClients.findFirst({
+    where: eq(schema.mcpClients.clientId, clientId),
+  });
+  if (!existing) throw new Error('MCP client not found');
+
+  await db
+    .update(schema.mcpClients)
+    .set({ isActive: false })
+    .where(eq(schema.mcpClients.clientId, clientId));
+}
+
+// Agent actions error rate
+export async function adminGetAgentActionErrorRate(
+  db: DrizzleClient
+): Promise<{ errorRate: number; total: number; errored: number }> {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const total = await db
+    .select({ count: count() })
+    .from(schema.agentActions)
+    .where(gte(schema.agentActions.createdAt, since))
+    .then((r) => Number(r[0]?.count ?? 0));
+
+  const errored = await db
+    .select({ count: count() })
+    .from(schema.agentActions)
+    .where(
+      and(
+        gte(schema.agentActions.createdAt, since),
+        sql`${schema.agentActions.error} IS NOT NULL`
+      )
+    )
+    .then((r) => Number(r[0]?.count ?? 0));
+
+  return {
+    errorRate: total > 0 ? Math.round((errored / total) * 100) : 0,
+    total,
+    errored,
+  };
 }
