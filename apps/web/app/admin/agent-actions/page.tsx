@@ -5,6 +5,7 @@ import { Button } from '@pm-operator/ui/components/Button';
 import { Card, CardContent } from '@pm-operator/ui/components/Card';
 import { Input } from '@pm-operator/ui/components/Input';
 import type { AgentActionListItem } from '@pm-operator/api';
+import { Download, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 // T8.12 (ADMIN-5): admin-only, list-only audit of MCP agent actions. No
 // create/update/delete — purely for triaging tool calls, errors, and latency.
@@ -14,18 +15,31 @@ export default function AdminAgentActionsPage() {
   const [actions, setActions] = React.useState<AgentActionListItem[]>([]);
   const [clientId, setClientId] = React.useState('');
   const [toolName, setToolName] = React.useState('');
+  const [startDate, setStartDate] = React.useState('');
+  const [endDate, setEndDate] = React.useState('');
   const [page, setPage] = React.useState(1);
   const [hasMore, setHasMore] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState('');
+  const [errorRate, setErrorRate] = React.useState<{ errorRate: number; total: number; errored: number } | null>(null);
+
+  const buildParams = React.useCallback(
+    (p: number) => {
+      const params = new URLSearchParams({ page: String(p) });
+      if (clientId) params.set('clientId', clientId);
+      if (toolName) params.set('toolName', toolName);
+      if (startDate) params.set('startDate', startDate);
+      if (endDate) params.set('endDate', endDate);
+      return params;
+    },
+    [clientId, toolName, startDate, endDate]
+  );
 
   const load = React.useCallback(async () => {
     setLoading(true);
     setMessage('');
     try {
-      const params = new URLSearchParams({ page: String(page) });
-      if (clientId) params.set('clientId', clientId);
-      if (toolName) params.set('toolName', toolName);
+      const params = buildParams(page);
       const res = await fetch(`/api/v1/admin/agent-actions?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load agent actions');
       const json = (await res.json()) as {
@@ -39,17 +53,70 @@ export default function AdminAgentActionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [clientId, toolName, page]);
+  }, [buildParams, page]);
+
+  const loadErrorRate = React.useCallback(async () => {
+    try {
+      const res = await fetch('/api/v1/admin/agent-actions?includeErrorRate=true&page=1&limit=1');
+      if (!res.ok) return;
+      const json = (await res.json()) as {
+        data?: { errorRate: { errorRate: number; total: number; errored: number } };
+      };
+      if (json.data?.errorRate) setErrorRate(json.data.errorRate);
+    } catch {
+      // Non-critical — silently ignore
+    }
+  }, []);
 
   React.useEffect(() => {
     const t = setTimeout(load, 300);
     return () => clearTimeout(t);
   }, [load]);
 
+  React.useEffect(() => {
+    loadErrorRate();
+  }, [loadErrorRate]);
+
   // Reset to page 1 when filters change.
   React.useEffect(() => {
     setPage(1);
-  }, [clientId, toolName]);
+  }, [clientId, toolName, startDate, endDate]);
+
+  const exportCsv = () => {
+    const headers = ['ID', 'Client ID', 'User', 'Tool Name', 'Error', 'Duration (ms)', 'Input Preview', 'Output Preview', 'Created At'];
+    const rows = actions.map((a) => [
+      a.id,
+      a.clientId,
+      a.username ?? a.userId ?? '',
+      a.toolName,
+      a.error ?? '',
+      a.durationMs !== null ? String(a.durationMs) : '',
+      a.inputPreview.replace(/"/g, '""'),
+      a.outputPreview.replace(/"/g, '""'),
+      a.createdAt,
+    ]);
+
+    const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `agent-actions-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const TrendIcon = errorRate && errorRate.errorRate > 0
+    ? TrendingUp
+    : errorRate && errorRate.errorRate === 0
+      ? TrendingDown
+      : Minus;
+
+  const trendColor = errorRate && errorRate.errorRate > 10
+    ? 'var(--pm-danger)'
+    : errorRate && errorRate.errorRate > 0
+      ? 'var(--pm-coral)'
+      : 'var(--pm-green)';
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -58,8 +125,28 @@ export default function AdminAgentActionsPage() {
         Audit log of MCP tool calls logged by the operator. List only — no edits.
       </p>
 
+      {/* Error rate summary */}
+      {errorRate !== null && (
+        <Card className="mb-6 p-4">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <TrendIcon className="h-5 w-5" style={{ color: trendColor }} />
+              <span className="text-lg font-semibold" style={{ color: trendColor }}>
+                {errorRate.errorRate}%
+              </span>
+              <span className="text-sm text-[var(--pm-muted)]">
+                of tool calls errored in last 24h
+              </span>
+            </div>
+            <span className="text-xs text-[var(--pm-muted)]">
+              ({errorRate.errored} / {errorRate.total} calls)
+            </span>
+          </div>
+        </Card>
+      )}
+
       <Card className="mb-6 p-6">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Input
             label="Client ID"
             value={clientId}
@@ -72,6 +159,24 @@ export default function AdminAgentActionsPage() {
             onChange={(e) => setToolName(e.target.value)}
             placeholder="Filter by tool name"
           />
+          <Input
+            label="Start date"
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+          <Input
+            label="End date"
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+        </div>
+        <div className="mt-4 flex justify-end">
+          <Button variant="secondary" onClick={exportCsv} disabled={actions.length === 0}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
         </div>
       </Card>
 

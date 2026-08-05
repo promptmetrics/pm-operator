@@ -54,6 +54,22 @@ export const inviteRoleEnum = pgEnum('invite_role', ['member', 'moderator', 'adm
 export const flagStatusEnum = pgEnum('flag_status', ['open', 'resolved', 'dismissed']);
 export const notificationTypeEnum = pgEnum('notification_type', ['comment', 'reaction', 'solution', 'invite', 'flag', 'flag_resolved', 'mention', 'badge', 'new_follower', 'new_message']);
 export const dailyStatTypeEnum = pgEnum('daily_stat_type', ['posts_read', 'likes_given']);
+export const auditActionTypeEnum = pgEnum('audit_action_type', [
+  'settings_update',
+  'user_role_change',
+  'group_create',
+  'group_update',
+  'group_delete',
+  'badge_create',
+  'badge_award',
+  'tier_create',
+  'tier_update',
+  'watched_phrase_create',
+  'watched_phrase_delete',
+  'points_award',
+  'mcp_client_revoke',
+  'community_delete',
+]);
 
 // Sentinel UUID used for global leaderboard rows in user_scores.
 // Migration 0001_numerous_killer_shrike.sql seeds a matching groups row so the FK is satisfied.
@@ -559,6 +575,26 @@ export const conversations = pgTable(
   () => ({})
 ).enableRLS();
 
+// Admin audit log
+export const auditLog = pgTable(
+  'audit_log',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'set null' }),
+    action: text('action').notNull(),
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id'),
+    metadata: jsonb('metadata').default(sql`'{}'::jsonb`).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    actorCreatedIdx: index('audit_log_actor_created_idx').on(table.actorId, table.createdAt),
+    targetIdx: index('audit_log_target_idx').on(table.targetType, table.targetId),
+  })
+).enableRLS();
+
 export const conversationParticipants = pgTable(
   'conversation_participants',
   {
@@ -599,3 +635,46 @@ export const messages = pgTable(
     ),
   })
 ).enableRLS();
+
+// Audit log for admin/moderator actions (Sprint 3: Moderation & Content).
+export const auditLogActionEnum = pgEnum('audit_log_action', [
+  'flag_resolved',
+  'flag_dismissed',
+  'post_approved',
+  'post_declined',
+  'user_warned',
+  'user_banned',
+  'content_hidden',
+]);
+
+export const auditLogs = pgTable(
+  'audit_logs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'set null' }),
+    action: auditLogActionEnum('action').notNull(),
+    targetType: targetTypeEnum('target_type'),
+    targetId: uuid('target_id'),
+    targetUserId: uuid('target_user_id').references(() => users.id, { onDelete: 'set null' }),
+    circleId: uuid('circle_id').references(() => groups.id, { onDelete: 'set null' }),
+    details: jsonb('details').default(sql`'{}'::jsonb`).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    actorIdx: index('audit_logs_actor_idx').on(table.actorId, table.createdAt),
+    actionIdx: index('audit_logs_action_idx').on(table.action, table.createdAt),
+    targetIdx: index('audit_logs_target_idx').on(table.targetType, table.targetId),
+    circleIdx: index('audit_logs_circle_idx').on(table.circleId, table.createdAt),
+  })
+).enableRLS();
+
+export const communitySettings = pgTable('community_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  key: text('key').notNull().unique(),
+  value: jsonb('value').default(sql`'{}'::jsonb`).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}).enableRLS();
+
+

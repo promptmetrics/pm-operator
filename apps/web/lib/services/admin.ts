@@ -1,4 +1,4 @@
-import { eq, and, or, sql, desc, count, like, inArray } from 'drizzle-orm';
+import { eq, and, or, sql, desc, asc, count, like, inArray, gte, lte, isNull } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type {
@@ -441,11 +441,13 @@ function truncatePreview(value: unknown): string {
 
 export async function adminListAgentActions(
   db: DrizzleClient,
-  query: { clientId?: string; toolName?: string; page: number; limit: number }
+  query: { clientId?: string; toolName?: string; startDate?: string; endDate?: string; page: number; limit: number }
 ): Promise<{ actions: AgentActionListItem[]; hasMore: boolean }> {
-  const conditions = [];
+  const conditions: ReturnType<typeof eq | typeof gte | typeof lte>[] = [];
   if (query.clientId) conditions.push(eq(schema.agentActions.clientId, query.clientId));
   if (query.toolName) conditions.push(eq(schema.agentActions.toolName, query.toolName));
+  if (query.startDate) conditions.push(gte(schema.agentActions.createdAt, new Date(query.startDate)));
+  if (query.endDate) conditions.push(lte(schema.agentActions.createdAt, new Date(query.endDate)));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const offset = (query.page - 1) * query.limit;
 
@@ -486,3 +488,727 @@ export async function adminListAgentActions(
 
   return { actions, hasMore };
 }
+
+// Audit log
+export async function adminCreateAuditLog(
+  db: DrizzleClient,
+  input: {
+    actorId: string;
+    action: string;
+    targetType?: string | null;
+    targetId?: string | null;
+    targetUserId?: string | null;
+    circleId?: string | null;
+    details?: Record<string, unknown>;
+  }
+): Promise<void> {
+  await db.insert(schema.auditLogs).values({
+    actorId: input.actorId,
+    action: input.action as any,
+    targetType: input.targetType as any ?? null,
+    targetId: input.targetId ?? null,
+    targetUserId: input.targetUserId ?? null,
+    circleId: input.circleId ?? null,
+    details: (input.details ?? {}) as any,
+  });
+}
+export async function adminGetGroup(
+  db: DrizzleClient,
+  id: string
+): Promise<{
+  group: Group;
+  stats: { members: number; posts: number; comments: number; activity30d: number };
+  members: any[];
+  settings: any;
+}> {
+  const group = await db.query.groups.findFirst({
+    where: eq(schema.groups.id, id),
+  });
+  if (!group) throw new Error('Group not found');
+
+  const [memberCount] = await db
+    .select({ count: count() })
+    .from(schema.groupMemberships)
+    .where(eq(schema.groupMemberships.groupId, id));
+
+  const [postCount] = await db
+    .select({ count: count() })
+    .from(schema.posts)
+    .where(and(eq(schema.posts.groupId, id), eq(schema.posts.status, 'published')));
+
+  const [commentCount] = await db
+    .select({ count: count() })
+    .from(schema.comments)
+    .innerJoin(schema.posts, eq(schema.comments.postId, schema.posts.id))
+    .where(eq(schema.posts.groupId, id));
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [activityCount] = await db
+    .select({ count: count() })
+    .from(schema.posts)
+    .where(
+      and(
+        eq(schema.posts.groupId, id),
+        gte(schema.posts.createdAt, thirtyDaysAgo)
+      )
+    );
+
+  const members = await db
+    .select({
+      id: schema.groupMemberships.id,
+      userId: schema.groupMemberships.userId,
+      username: schema.users.username,
+      userslug: schema.users.userslug,
+      pictureUrl: schema.users.pictureUrl,
+      role: schema.groupMemberships.role,
+      reputationScore: schema.users.reputationScore,
+      joinedAt: schema.groupMemberships.joinedAt,
+    })
+    .from(schema.groupMemberships)
+    .innerJoin(schema.users, eq(schema.groupMemberships.userId, schema.users.id))
+    .where(eq(schema.groupMemberships.groupId, id))
+    .orderBy(desc(schema.groupMemberships.joinedAt));
+
+  return {
+    group: {
+      id: group.id,
+      slug: group.slug,
+      name: group.name,
+      description: group.description,
+      color: group.color,
+      visibility: group.visibility,
+      requiredTierId: group.requiredTierId,
+      memberCount: group.memberCount,
+      createdBy: group.createdBy,
+      createdAt: toISO(group.createdAt),
+      updatedAt: toISO(group.updatedAt),
+    },
+    stats: {
+      members: Number(memberCount.count),
+      posts: Number(postCount.count),
+      comments: Number(commentCount.count),
+      activity30d: Number(activityCount.count),
+    },
+    members: members.map((m) => ({
+      id: m.id,
+      userId: m.userId,
+      username: m.username,
+      userslug: m.userslug,
+      pictureUrl: m.pictureUrl,
+      role: m.role,
+      reputationScore: toNumber(m.reputationScore),
+      joinedAt: toISO(m.joinedAt),
+    })),
+    settings: {
+      postApproval: false,
+    },
+  };
+}
+
+export async function adminUpdateGroup(
+  db: DrizzleClient,
+  id: string,
+  input: {
+    name?: string;
+    description?: string;
+    color?: string;
+    visibility?: string;
+    requiredTierId?: string | null;
+    postApproval?: boolean;
+    icon?: string;
+  }
+): Promise<Group> {
+  const existing = await db.query.groups.findFirst({
+    where: eq(schema.groups.id, id),
+  });
+  if (!existing) throw new Error('Group not found');
+
+  const update: Record<string, unknown> = { updatedAt: new Date() };
+  if (input.name !== undefined) update.name = input.name;
+  if (input.description !== undefined) update.description = input.description;
+  if (input.color !== undefined) update.color = input.color;
+  if (input.visibility !== undefined) update.visibility = input.visibility;
+  if ('requiredTierId' in input) update.requiredTierId = input.requiredTierId;
+
+  const [group] = await db
+    .update(schema.groups)
+    .set(update)
+    .where(eq(schema.groups.id, id))
+    .returning();
+
+  if (!group) throw new Error('Failed to update group');
+
+  return {
+    id: group.id,
+    slug: group.slug,
+    name: group.name,
+    description: group.description,
+    color: group.color,
+    visibility: group.visibility,
+    requiredTierId: group.requiredTierId,
+    memberCount: group.memberCount,
+    createdBy: group.createdBy,
+    createdAt: toISO(group.createdAt),
+    updatedAt: toISO(group.updatedAt),
+  };
+}
+
+export async function adminDeleteGroup(
+  db: DrizzleClient,
+  id: string
+): Promise<{ deleted: boolean; cascadeCounts?: { posts: number; members: number } }> {
+  const existing = await db.query.groups.findFirst({
+    where: eq(schema.groups.id, id),
+  });
+  if (!existing) throw new Error('Group not found');
+
+  const [postCount] = await db
+    .select({ count: count() })
+    .from(schema.posts)
+    .where(eq(schema.posts.groupId, id));
+
+  const [memberCount] = await db
+    .select({ count: count() })
+    .from(schema.groupMemberships)
+    .where(eq(schema.groupMemberships.groupId, id));
+
+  const cascadeCounts = {
+    posts: Number(postCount.count),
+    members: Number(memberCount.count),
+  };
+
+  await db.delete(schema.groups).where(eq(schema.groups.id, id));
+
+  return { deleted: true, cascadeCounts };
+}
+
+// User detail
+export async function adminGetUser(
+  db: DrizzleClient,
+  id: string
+): Promise<{
+  user: any;
+  activity: any[];
+  badges: any[];
+  memberships: any[];
+  moderationHistory: any[];
+}> {
+  const user = await db.query.users.findFirst({
+    where: eq(schema.users.id, id),
+  });
+  if (!user) throw new Error('User not found');
+
+  const recentPosts = await db.query.posts.findMany({
+    where: eq(schema.posts.authorId, id),
+    orderBy: [desc(schema.posts.createdAt)],
+    limit: 20,
+    columns: {
+      id: true,
+      title: true,
+      slug: true,
+      type: true,
+      status: true,
+      groupId: true,
+      createdAt: true,
+    },
+  });
+
+  const recentComments = await db.query.comments.findMany({
+    where: eq(schema.comments.authorId, id),
+    orderBy: [desc(schema.comments.createdAt)],
+    limit: 20,
+    columns: {
+      id: true,
+      content: true,
+      postId: true,
+      createdAt: true,
+    },
+  });
+
+  const userBadges = await db
+    .select({
+      id: schema.userBadges.id,
+      badgeId: schema.userBadges.badgeId,
+      slug: schema.badges.slug,
+      name: schema.badges.name,
+      description: schema.badges.description,
+      iconUrl: schema.badges.iconUrl,
+      awardedAt: schema.userBadges.awardedAt,
+    })
+    .from(schema.userBadges)
+    .innerJoin(schema.badges, eq(schema.userBadges.badgeId, schema.badges.id))
+    .where(eq(schema.userBadges.userId, id))
+    .orderBy(desc(schema.userBadges.awardedAt));
+
+  const memberships = await db
+    .select({
+      id: schema.groupMemberships.id,
+      groupId: schema.groupMemberships.groupId,
+      groupSlug: schema.groups.slug,
+      groupName: schema.groups.name,
+      groupColor: schema.groups.color,
+      role: schema.groupMemberships.role,
+      joinedAt: schema.groupMemberships.joinedAt,
+    })
+    .from(schema.groupMemberships)
+    .innerJoin(schema.groups, eq(schema.groupMemberships.groupId, schema.groups.id))
+    .where(eq(schema.groupMemberships.userId, id))
+    .orderBy(desc(schema.groupMemberships.joinedAt));
+
+  const flags = await db.query.flags.findMany({
+    where: and(
+      eq(schema.flags.targetType, 'post' as any),
+      eq(schema.flags.targetId, id)
+    ),
+    orderBy: [desc(schema.flags.createdAt)],
+    limit: 20,
+  });
+
+  return {
+    user: {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      userslug: user.userslug,
+      fullName: user.fullName,
+      pictureUrl: user.pictureUrl,
+      aboutMe: user.aboutMe,
+      role: user.role,
+      reputationScore: toNumber(user.reputationScore),
+      streakDays: user.streakDays,
+      lastActiveAt: toISO(user.lastActiveAt),
+      createdAt: toISO(user.createdAt),
+    },
+    activity: [
+      ...recentPosts.map((p) => ({
+        type: 'post' as const,
+        id: p.id,
+        title: p.title,
+        slug: p.slug,
+        groupId: p.groupId,
+        status: p.status,
+        createdAt: toISO(p.createdAt),
+      })),
+      ...recentComments.map((c) => ({
+        type: 'comment' as const,
+        id: c.id,
+        content: c.content.slice(0, 200),
+        postId: c.postId,
+        createdAt: toISO(c.createdAt),
+      })),
+    ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    badges: userBadges.map((ub) => ({
+      id: ub.id,
+      badgeId: ub.badgeId,
+      slug: ub.slug,
+      name: ub.name,
+      description: ub.description,
+      iconUrl: ub.iconUrl,
+      awardedAt: toISO(ub.awardedAt),
+    })),
+    memberships: memberships.map((m) => ({
+      id: m.id,
+      groupId: m.groupId,
+      groupSlug: m.groupSlug,
+      groupName: m.groupName,
+      groupColor: m.groupColor,
+      role: m.role,
+      joinedAt: toISO(m.joinedAt),
+    })),
+    moderationHistory: flags.map((f) => ({
+      id: f.id,
+      reason: f.reason,
+      status: f.status,
+      autoFlagged: f.autoFlagged,
+      createdAt: toISO(f.createdAt),
+    })),
+  };
+}
+
+export async function adminDeleteUser(
+  db: DrizzleClient,
+  id: string
+): Promise<{ deleted: boolean }> {
+  const existing = await db.query.users.findFirst({
+    where: eq(schema.users.id, id),
+  });
+  if (!existing) throw new Error('User not found');
+
+  // Anonymize user data (GDPR)
+  const anonymizedEmail = `deleted-${id.slice(0, 8)}@anonymized.pm`;
+  await db
+    .update(schema.users)
+    .set({
+      email: anonymizedEmail,
+      username: `deleted-${id.slice(0, 8)}`,
+      userslug: `deleted-${id.slice(0, 8)}`,
+      fullName: null,
+      pictureUrl: null,
+      aboutMe: null,
+      painfulToolStackTask: '',
+      role: 'member',
+      reputationScore: '0',
+      streakDays: 0,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.users.id, id));
+
+  return { deleted: true };
+}
+
+// Invites
+export async function adminListInvites(
+  db: DrizzleClient,
+  query: { circleId?: string; status?: string; page: number; limit: number }
+): Promise<{ invites: any[]; hasMore: boolean }> {
+  const conditions: any[] = [];
+  if (query.circleId) conditions.push(eq(schema.groupInvites.groupId, query.circleId));
+  if (query.status === 'active') {
+    conditions.push(
+      or(
+        isNull(schema.groupInvites.expiresAt),
+        gte(schema.groupInvites.expiresAt, new Date())
+      )
+    );
+  } else if (query.status === 'expired') {
+    conditions.push(
+      and(
+        sql`${schema.groupInvites.expiresAt} IS NOT NULL`,
+        lte(schema.groupInvites.expiresAt, new Date())
+      )
+    );
+  }
+
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const offset = (query.page - 1) * query.limit;
+
+  const rows = await db
+    .select({
+      id: schema.groupInvites.id,
+      groupId: schema.groupInvites.groupId,
+      groupSlug: schema.groups.slug,
+      groupName: schema.groups.name,
+      code: schema.groupInvites.code,
+      inviterId: schema.groupInvites.inviterId,
+      maxUses: schema.groupInvites.maxUses,
+      usedCount: schema.groupInvites.usedCount,
+      expiresAt: schema.groupInvites.expiresAt,
+      role: schema.groupInvites.role,
+      createdAt: schema.groupInvites.createdAt,
+    })
+    .from(schema.groupInvites)
+    .innerJoin(schema.groups, eq(schema.groupInvites.groupId, schema.groups.id))
+    .where(where ?? sql`TRUE`)
+    .orderBy(desc(schema.groupInvites.createdAt))
+    .limit(query.limit + 1)
+    .offset(offset);
+
+  const hasMore = rows.length > query.limit;
+  const slice = hasMore ? rows.slice(0, query.limit) : rows;
+
+  const invites = slice.map((i) => ({
+    id: i.id,
+    groupId: i.groupId,
+    groupSlug: i.groupSlug,
+    groupName: i.groupName,
+    code: i.code,
+    inviterId: i.inviterId,
+    maxUses: i.maxUses,
+    usedCount: i.usedCount,
+    expiresAt: i.expiresAt ? toISO(i.expiresAt) : null,
+    role: i.role,
+    createdAt: toISO(i.createdAt),
+  }));
+
+  return { invites, hasMore };
+}
+
+export async function adminCreateInvite(
+  db: DrizzleClient,
+  input: {
+    groupId: string;
+    maxUses: number;
+    expiresAt?: string;
+    role: string;
+    inviterId: string;
+  }
+): Promise<any> {
+  const group = await db.query.groups.findFirst({
+    where: eq(schema.groups.id, input.groupId),
+  });
+  if (!group) throw new Error('Group not found');
+
+  const code = generateInviteCode();
+
+  const [invite] = await db
+    .insert(schema.groupInvites)
+    .values({
+      groupId: input.groupId,
+      code,
+      inviterId: input.inviterId,
+      maxUses: input.maxUses,
+      usedCount: 0,
+      expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+      role: input.role as any,
+    })
+    .returning();
+
+  if (!invite) throw new Error('Failed to create invite');
+
+  return {
+    id: invite.id,
+    groupId: invite.groupId,
+    code: invite.code,
+    inviterId: invite.inviterId,
+    maxUses: invite.maxUses,
+    usedCount: invite.usedCount,
+    expiresAt: invite.expiresAt ? toISO(invite.expiresAt) : null,
+    role: invite.role,
+    createdAt: toISO(invite.createdAt),
+  };
+}
+
+export async function adminRevokeInvite(
+  db: DrizzleClient,
+  id: string
+): Promise<void> {
+  const existing = await db.query.groupInvites.findFirst({
+    where: eq(schema.groupInvites.id, id),
+  });
+  if (!existing) throw new Error('Invite not found');
+
+  await db
+    .update(schema.groupInvites)
+    .set({ expiresAt: new Date(0), updatedAt: new Date() })
+    .where(eq(schema.groupInvites.id, id));
+}
+
+function generateInviteCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let code = '';
+  for (let i = 0; i < 12; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+export interface CommunitySettings {
+  branding: {
+    name: string;
+    logoUrl: string | null;
+    coverUrl: string | null;
+    faviconUrl: string | null;
+  };
+  privacy: {
+    defaultVisibility: string;
+    publicRegistration: boolean;
+    emailConfirmation: boolean;
+  };
+  onboarding: {
+    welcomeMessage: string;
+    defaultCircles: string[];
+  };
+  notifications: {
+    defaultPreferences: Record<string, boolean>;
+  };
+  moderation: {
+    autoModEnabled: boolean;
+    minAccountAgeDays: number;
+    minReputation: number;
+    defaultFlagAction: string;
+  };
+  analytics: {
+    posthogKey: string | null;
+    dataRetentionDays: number;
+    widgetToggles: Record<string, boolean>;
+  };
+}
+
+const DEFAULT_SETTINGS: CommunitySettings = {
+  branding: {
+    name: 'PromptMetrics',
+    logoUrl: null,
+    coverUrl: null,
+    faviconUrl: null,
+  },
+  privacy: {
+    defaultVisibility: 'public',
+    publicRegistration: true,
+    emailConfirmation: false,
+  },
+  onboarding: {
+    welcomeMessage: 'Welcome to the community!',
+    defaultCircles: [],
+  },
+  notifications: {
+    defaultPreferences: {
+      emailNotifications: true,
+      weeklyDigest: true,
+      newsletter: false,
+    },
+  },
+  moderation: {
+    autoModEnabled: true,
+    minAccountAgeDays: 0,
+    minReputation: 0,
+    defaultFlagAction: 'auto_flag',
+  },
+  analytics: {
+    posthogKey: null,
+    dataRetentionDays: 90,
+    widgetToggles: {
+      activeUsers: true,
+      topPosts: true,
+      engagementRate: true,
+    },
+  },
+};
+
+export async function adminGetSettings(
+  db: DrizzleClient
+): Promise<CommunitySettings> {
+  const rows = await db.query.communitySettings.findMany();
+  const stored: Record<string, unknown> = {};
+  for (const row of rows) {
+    stored[row.key] = row.value;
+  }
+
+  return {
+    branding: { ...DEFAULT_SETTINGS.branding, ...(stored.branding as Partial<typeof DEFAULT_SETTINGS.branding> ?? {}) },
+    privacy: { ...DEFAULT_SETTINGS.privacy, ...(stored.privacy as Partial<typeof DEFAULT_SETTINGS.privacy> ?? {}) },
+    onboarding: { ...DEFAULT_SETTINGS.onboarding, ...(stored.onboarding as Partial<typeof DEFAULT_SETTINGS.onboarding> ?? {}) },
+    notifications: { ...DEFAULT_SETTINGS.notifications, ...(stored.notifications as Partial<typeof DEFAULT_SETTINGS.notifications> ?? {}) },
+    moderation: { ...DEFAULT_SETTINGS.moderation, ...(stored.moderation as Partial<typeof DEFAULT_SETTINGS.moderation> ?? {}) },
+    analytics: {
+      ...DEFAULT_SETTINGS.analytics,
+      ...(stored.analytics as Partial<typeof DEFAULT_SETTINGS.analytics> ?? {}),
+      posthogKey: stored.analytics && typeof stored.analytics === 'object' && 'posthogKey' in (stored.analytics as Record<string, unknown>)
+        ? (stored.analytics as Record<string, unknown>).posthogKey as string
+        : DEFAULT_SETTINGS.analytics.posthogKey,
+    },
+  };
+}
+
+export async function adminUpdateSettings(
+  db: DrizzleClient,
+  section: string,
+  values: Record<string, unknown>
+): Promise<void> {
+  const existing = await db.query.communitySettings.findFirst({
+    where: eq(schema.communitySettings.key, section),
+  });
+
+  if (existing) {
+    const merged = { ...(existing.value as Record<string, unknown>), ...values };
+    await db
+      .update(schema.communitySettings)
+      .set({ value: merged, updatedAt: new Date() })
+      .where(eq(schema.communitySettings.key, section));
+  } else {
+    await db
+      .insert(schema.communitySettings)
+      .values({ key: section, value: values });
+  }
+}
+
+// MCP clients
+export async function adminListMcpClients(db: DrizzleClient) {
+  const rows = await db.query.mcpClients.findMany({
+    orderBy: [desc(schema.mcpClients.createdAt)],
+  });
+  return rows.map((c) => ({
+    id: c.id,
+    clientId: c.clientId,
+    name: c.name,
+    scopes: c.scopes,
+    isActive: c.isActive,
+    createdAt: c.createdAt.toISOString(),
+  }));
+}
+
+export async function adminRevokeMcpClient(
+  db: DrizzleClient,
+  clientId: string
+): Promise<void> {
+  const existing = await db.query.mcpClients.findFirst({
+    where: eq(schema.mcpClients.clientId, clientId),
+  });
+  if (!existing) throw new Error('MCP client not found');
+
+  await db
+    .update(schema.mcpClients)
+    .set({ isActive: false })
+    .where(eq(schema.mcpClients.clientId, clientId));
+}
+
+// Agent actions error rate
+export async function adminGetAgentActionErrorRate(
+  db: DrizzleClient
+): Promise<{ errorRate: number; total: number; errored: number }> {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const total = await db
+    .select({ count: count() })
+    .from(schema.agentActions)
+    .where(gte(schema.agentActions.createdAt, since))
+    .then((r) => Number(r[0]?.count ?? 0));
+
+  const errored = await db
+    .select({ count: count() })
+    .from(schema.agentActions)
+    .where(
+      and(
+        gte(schema.agentActions.createdAt, since),
+        sql`${schema.agentActions.error} IS NOT NULL`
+      )
+    )
+    .then((r) => Number(r[0]?.count ?? 0));
+
+  return {
+    errorRate: total > 0 ? Math.round((errored / total) * 100) : 0,
+    total,
+    errored,
+  };
+}
+export async function adminListAuditLogs(
+  db: DrizzleClient,
+  query: {
+    page?: number;
+    limit?: number;
+    moderatorId?: string;
+    actionType?: string;
+    targetType?: string;
+    circleId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }
+): Promise<{ logs: any[]; hasMore: boolean }> {
+  const page = query.page ?? 1;
+  const limit = query.limit ?? 20;
+  const conditions: any[] = [];
+
+  if (query.moderatorId) conditions.push(eq(schema.auditLogs.actorId, query.moderatorId));
+  if (query.actionType) conditions.push(eq(schema.auditLogs.action, query.actionType as any));
+  if (query.targetType) conditions.push(eq(schema.auditLogs.targetType, query.targetType as any));
+  if (query.circleId) conditions.push(eq(schema.auditLogs.circleId, query.circleId));
+  if (query.dateFrom) conditions.push(gte(schema.auditLogs.createdAt, new Date(query.dateFrom)));
+  if (query.dateTo) conditions.push(lte(schema.auditLogs.createdAt, new Date(query.dateTo)));
+
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const offset = (page - 1) * limit;
+
+  const rows = await db.query.auditLogs.findMany({
+    where,
+    orderBy: [desc(schema.auditLogs.createdAt)],
+    limit: limit + 1,
+    offset,
+    with: {
+      actorId: true,
+    },
+  });
+
+  const hasMore = rows.length > limit;
+  const slice = hasMore ? rows.slice(0, limit) : rows;
+
+  return { logs: slice, hasMore };
+}
+
+
