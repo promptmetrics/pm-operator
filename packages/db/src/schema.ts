@@ -599,3 +599,37 @@ export const messages = pgTable(
     ),
   })
 ).enableRLS();
+
+// Audit log for admin/moderator actions (Sprint 3: Moderation & Content).
+export const auditLogActionEnum = pgEnum('audit_log_action', [
+  'flag_resolved',
+  'flag_dismissed',
+  'post_approved',
+  'post_declined',
+  'user_warned',
+  'user_banned',
+  'content_hidden',
+]);
+
+export const auditLogs = pgTable(
+  'audit_logs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'set null' }),
+    action: auditLogActionEnum('action').notNull(),
+    targetType: targetTypeEnum('target_type'),
+    targetId: uuid('target_id'),
+    targetUserId: uuid('target_user_id').references(() => users.id, { onDelete: 'set null' }),
+    circleId: uuid('circle_id').references(() => groups.id, { onDelete: 'set null' }),
+    details: jsonb('details').default(sql`'{}'::jsonb`).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    actorIdx: index('audit_logs_actor_idx').on(table.actorId, table.createdAt),
+    actionIdx: index('audit_logs_action_idx').on(table.action, table.createdAt),
+    targetIdx: index('audit_logs_target_idx').on(table.targetType, table.targetId),
+    circleIdx: index('audit_logs_circle_idx').on(table.circleId, table.createdAt),
+  })
+).enableRLS();

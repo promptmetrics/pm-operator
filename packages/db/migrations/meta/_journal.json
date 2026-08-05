@@ -141,6 +141,20 @@
       "when": 1785762425286,
       "tag": "0019_right_morg",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1785900000000,
+      "tag": "0021_audit_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1785852851901,
+      "tag": "0022_peaceful_wallflower",
+      "breakpoints": true
     }
   ]
 }
