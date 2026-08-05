@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       action: 'create_invite',
       targetType: 'invite',
       targetId: invite.id,
-      metadata: { groupId: body.groupId, role: body.role },
+      details: { groupId: body.groupId, role: body.role },
     });
     return ok(invite, undefined, 201);
   } catch (err: any) {

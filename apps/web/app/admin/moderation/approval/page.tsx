@@ -5,9 +5,9 @@ import { Button } from '@pm-operator/ui/components/Button';
 import { Card, CardContent } from '@pm-operator/ui/components/Card';
 import { Input } from '@pm-operator/ui/components/Input';
 import { useToast } from '@pm-operator/ui/components/Toast';
-import { LoadingState } from '@/components/admin/LoadingState';
-import { EmptyState } from '@/components/admin/EmptyState';
-import { ErrorState } from '@/components/admin/ErrorState';
+import LoadingState from '@/components/admin/LoadingState';
+import EmptyState from '@/components/admin/EmptyState';
+import ErrorState from '@/components/admin/ErrorState';
 import { Check, X, Clock, FileText } from 'lucide-react';
 
 interface ApprovalPost {
@@ -82,7 +82,7 @@ export default function ApprovalPage() {
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} onRetry={load} />;
-  if (posts.length === 0) return <EmptyState message="No posts pending approval" />;
+  if (posts.length === 0) return <EmptyState title="Approval Queue" message="No posts pending approval" />;
 
   return (
     <div className="mx-auto max-w-5xl">

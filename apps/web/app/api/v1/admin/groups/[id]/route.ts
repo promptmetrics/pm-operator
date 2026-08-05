@@ -56,7 +56,7 @@ export async function PATCH(
       action: 'update_group',
       targetType: 'group',
       targetId: id,
-      metadata: { changes: Object.keys(body) },
+      details: { changes: Object.keys(body) },
     });
     return ok(group);
   } catch (err: any) {
@@ -83,7 +83,7 @@ export async function DELETE(
       action: 'delete_group',
       targetType: 'group',
       targetId: id,
-      metadata: { cascadeCounts: result.cascadeCounts },
+      details: { cascadeCounts: result.cascadeCounts },
     });
     return ok(result);
   } catch (err: any) {

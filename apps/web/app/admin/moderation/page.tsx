@@ -9,9 +9,9 @@ import { ConfirmDialog } from '@pm-operator/ui/components/ConfirmDialog';
 import { useToast } from '@pm-operator/ui/components/Toast';
 import { FlagCard, type FlagCardFlag } from '@/components/admin/FlagCard';
 import { ModerationActions } from '@/components/admin/ModerationActions';
-import { LoadingState } from '@/components/admin/LoadingState';
-import { EmptyState } from '@/components/admin/EmptyState';
-import { ErrorState } from '@/components/admin/ErrorState';
+import LoadingState from '@/components/admin/LoadingState';
+import EmptyState from '@/components/admin/EmptyState';
+import ErrorState from '@/components/admin/ErrorState';
 import { Filter, Flag, CheckCheck, X } from 'lucide-react';
 
 type FlagStatus = 'open' | 'resolved' | 'dismissed';
@@ -225,7 +225,7 @@ export default function ModerationPage() {
       {/* Flag list */}
       <div className="flex flex-col gap-4">
         {flags.length === 0 ? (
-          <EmptyState message={`No ${status} flags`} icon={Flag} />
+          <EmptyState title="Moderation Queue" message={`No ${status} flags`} icon={<Flag />} />
         ) : (
           <>
             {/* Select all checkbox */}

@@ -71,8 +71,8 @@ export async function PATCH(request: Request) {
     await adminUpdateSettings(getDb(), body.section, body.values);
 
     await adminCreateAuditLog(getDb(), {
-      adminId: session.userId,
-      actionType: 'settings_update',
+      actorId: session.userId,
+      action: "settings_update",
       targetType: 'settings',
       details: { section: body.section, changedKeys: Object.keys(body.values) },
     });

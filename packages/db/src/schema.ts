@@ -677,14 +677,4 @@ export const communitySettings = pgTable('community_settings', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }).enableRLS();
 
-export const auditLog = pgTable('audit_log', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  adminId: uuid('admin_id').notNull().references(() => users.id, { onDelete: 'set null' }),
-  actionType: auditActionTypeEnum('action_type').notNull(),
-  targetType: text('target_type'),
-  targetId: uuid('target_id'),
-  details: jsonb('details').default(sql`'{}'::jsonb`).notNull(),
-  circleId: uuid('circle_id').references(() => groups.id, { onDelete: 'set null' }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}).enableRLS();
 

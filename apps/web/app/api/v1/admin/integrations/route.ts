@@ -43,8 +43,8 @@ export async function DELETE(request: Request) {
     await adminRevokeMcpClient(getDb(), clientId);
 
     await adminCreateAuditLog(getDb(), {
-      adminId: session.userId,
-      actionType: 'mcp_client_revoke',
+      actorId: session.userId,
+      action: "mcp_client_revoke",
       targetType: 'mcp_client',
       targetId: clientId,
       details: { clientId },

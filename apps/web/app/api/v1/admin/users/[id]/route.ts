@@ -56,7 +56,7 @@ export async function PATCH(
       action: 'update_user_role',
       targetType: 'user',
       targetId: id,
-      metadata: { newRole: body.role },
+      details: { newRole: body.role },
     });
     return ok({ success: true });
   } catch (err: any) {
@@ -83,7 +83,7 @@ export async function DELETE(
       action: 'delete_user',
       targetType: 'user',
       targetId: id,
-      metadata: { gdpr: true },
+      details: { gdpr: true },
     });
     return ok(result);
   } catch (err: any) {

@@ -4,9 +4,9 @@ import * as React from 'react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
 import { Select } from '@pm-operator/ui/components/Select';
-import { LoadingState } from '@/components/admin/LoadingState';
-import { EmptyState } from '@/components/admin/EmptyState';
-import { ErrorState } from '@/components/admin/ErrorState';
+import LoadingState from '@/components/admin/LoadingState';
+import EmptyState from '@/components/admin/EmptyState';
+import ErrorState from '@/components/admin/ErrorState';
 import { Card, CardContent } from '@pm-operator/ui/components/Card';
 import { Search, Filter, Clock, Shield, User, Circle } from 'lucide-react';
 
@@ -138,7 +138,7 @@ export default function HistoryPage() {
 
       {/* Logs table */}
       {logs.length === 0 ? (
-        <EmptyState message="No moderation history found" />
+        <EmptyState title="Moderation History" message="No moderation history found" />
       ) : (
         <div className="flex flex-col gap-3">
           {logs.map((log) => {
