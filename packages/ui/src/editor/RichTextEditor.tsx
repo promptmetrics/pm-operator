@@ -38,6 +38,7 @@ export function RichTextEditor({
   }, [onChange]);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const fileInputId = React.useId();
 
   const editor = useEditor({
     extensions: [
@@ -118,10 +119,6 @@ export function RichTextEditor({
     }
   }, [editor, value]);
 
-  const handleToolbarImageUpload = React.useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
   const handleFileChange = React.useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -138,7 +135,7 @@ export function RichTextEditor({
         disabled ? "opacity-50" : ""
       } ${className ?? ""}`}
     >
-      <RichTextToolbar editor={editor} onImageUpload={onImageUpload ? handleToolbarImageUpload : undefined} />
+      <RichTextToolbar editor={editor} fileInputId={onImageUpload ? fileInputId : undefined} />
       <EditorContent
         editor={editor}
         className={`rounded-b-lg ${contentClassName ?? ""}`}
@@ -146,6 +143,7 @@ export function RichTextEditor({
         aria-placeholder={placeholder ?? ""}
       />
       <input
+        id={fileInputId}
         ref={fileInputRef}
         type="file"
         accept="image/*"

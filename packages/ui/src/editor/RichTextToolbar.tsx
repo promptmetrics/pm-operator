@@ -21,7 +21,7 @@ function cn(...classes: (string | false | null | undefined)[]) {
 
 export interface RichTextToolbarProps {
   editor: Editor | null;
-  onImageUpload?: () => void;
+  fileInputId?: string;
 }
 
 interface ToolbarButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -47,7 +47,7 @@ function ToolbarButton({ active, className, children, ...props }: ToolbarButtonP
   );
 }
 
-export function RichTextToolbar({ editor, onImageUpload }: RichTextToolbarProps) {
+export function RichTextToolbar({ editor, fileInputId }: RichTextToolbarProps) {
   if (!editor) return null;
 
   const setLink = () => {
@@ -175,13 +175,16 @@ export function RichTextToolbar({ editor, onImageUpload }: RichTextToolbarProps)
         <Unlink className="h-4 w-4" aria-hidden="true" />
       </ToolbarButton>
 
-      <ToolbarButton
+      <label
+        htmlFor={fileInputId}
         aria-label="Add image"
-        onClick={onImageUpload}
-        disabled={!onImageUpload}
+        className={cn(
+          "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pm-coral)] focus-visible:ring-offset-2",
+          fileInputId ? "text-[var(--pm-ink)] hover:bg-[var(--pm-paper-2)]" : "pointer-events-none opacity-50"
+        )}
       >
         <ImageIcon className="h-4 w-4" aria-hidden="true" />
-      </ToolbarButton>
+      </label>
 
       <ToolbarButton
         aria-label="Add YouTube video"

@@ -40,7 +40,6 @@ export function CreatePostForm({
   const [coverPreviewUrl, setCoverPreviewUrl] = React.useState<string | null>(null);
   const [uploadingCover, setUploadingCover] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const coverInputRef = React.useRef<HTMLInputElement>(null);
 
   const addTag = () => {
     const raw = tagInput.trim().replace(/^#/, '');
@@ -111,7 +110,6 @@ export function CreatePostForm({
     if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
     setCoverImageUrl(null);
     setCoverPreviewUrl(null);
-    if (coverInputRef.current) coverInputRef.current.value = '';
   };
 
   const handleCoverFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -306,11 +304,19 @@ export function CreatePostForm({
           </label>
           {coverPreviewUrl ? (
             <div className="relative w-fit max-w-full">
-              <img
-                src={coverPreviewUrl}
-                alt="Featured image preview"
-                className="max-h-[200px] rounded-lg border border-[var(--pm-line)] object-cover"
-              />
+              <label className="cursor-pointer">
+                <img
+                  src={coverPreviewUrl}
+                  alt="Featured image preview"
+                  className="max-h-[200px] rounded-lg border border-[var(--pm-line)] object-cover"
+                />
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="sr-only"
+                  onChange={handleCoverFileChange}
+                />
+              </label>
               <button
                 type="button"
                 onClick={removeCoverImage}
@@ -321,23 +327,18 @@ export function CreatePostForm({
               </button>
             </div>
           ) : (
-            <button
-              type="button"
-              disabled={uploadingCover}
-              onClick={() => coverInputRef.current?.click()}
-              className="flex items-center gap-2 self-start rounded-lg border border-[var(--pm-line)] px-3 py-2 text-sm text-[var(--pm-ink-2)] hover:border-[var(--pm-coral)] hover:text-[var(--pm-coral-dark)] disabled:opacity-60"
-            >
+            <label className="flex cursor-pointer items-center gap-2 self-start rounded-lg border border-[var(--pm-line)] px-3 py-2 text-sm text-[var(--pm-ink-2)] hover:border-[var(--pm-coral)] hover:text-[var(--pm-coral-dark)] has-[:disabled]:opacity-60">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                disabled={uploadingCover}
+                className="sr-only"
+                onChange={handleCoverFileChange}
+              />
               <ImageIcon className="h-4 w-4" aria-hidden="true" />
-              Add featured image
-            </button>
+              {uploadingCover ? 'Uploading…' : 'Add featured image'}
+            </label>
           )}
-          <input
-            ref={coverInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            className="sr-only"
-            onChange={handleCoverFileChange}
-          />
           <p className="text-xs text-[var(--pm-muted)]">Optional. Used when your post is shared on social media.</p>
         </div>
 
