@@ -47,6 +47,17 @@ To create GitHub issues from Sentry errors:
 2. Link the `pm-operator` repository.
 3. In the Sentry project settings, enable **Issue Tracking > GitHub** and configure the default repository.
 
+## Server-side errors in App Router route handlers
+
+Because Next.js App Router route handlers do not always inherit the SDK client initialized by `instrument.ts`, import the shared server init at the top of any route handler or server component that calls `Sentry.captureException`:
+
+```ts
+import '@/lib/sentry.server';
+import * as Sentry from '@sentry/nextjs';
+```
+
+The file is idempotent — calling `Sentry.init()` again is safe.
+
 ## Local behavior
 
 In development, the client SDK suppresses events by default to avoid consuming Sentry quota while iterating. Set `SENTRY_ENABLE_DEV=1` to send events from localhost.
