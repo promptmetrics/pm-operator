@@ -3,11 +3,13 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Shield, Flag, Circle, Eye, Award, Users, LayoutDashboard, CalendarDays, Terminal } from 'lucide-react';
+import { Shield, Flag, Circle, Eye, Award, Users, LayoutDashboard, CalendarDays, Terminal, CheckCircle, History } from 'lucide-react';
 
 const LINKS = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/moderation', label: 'Moderation', icon: Flag },
+  { href: '/admin/moderation/approval', label: 'Approval', icon: CheckCircle },
+  { href: '/admin/moderation/history', label: 'History', icon: History },
   { href: '/admin/groups', label: 'Circles', icon: Circle },
   { href: '/admin/events', label: 'Events', icon: CalendarDays },
   { href: '/admin/watched-phrases', label: 'Watched phrases', icon: Eye },

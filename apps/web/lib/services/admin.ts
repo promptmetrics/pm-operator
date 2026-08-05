@@ -1,4 +1,4 @@
-import { eq, and, or, sql, desc, count, like, inArray } from 'drizzle-orm';
+import { eq, and, or, sql, desc, count, like, inArray, gte, lte } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type {
@@ -485,4 +485,98 @@ export async function adminListAgentActions(
   }));
 
   return { actions, hasMore };
+}
+
+// Audit log
+export async function adminCreateAuditLog(
+  db: DrizzleClient,
+  input: {
+    actorId: string;
+    action: string;
+    targetType?: string | null;
+    targetId?: string | null;
+    targetUserId?: string | null;
+    circleId?: string | null;
+    details?: Record<string, unknown>;
+  }
+): Promise<void> {
+  await db.insert(schema.auditLogs).values({
+    actorId: input.actorId,
+    action: input.action as any,
+    targetType: input.targetType as any ?? null,
+    targetId: input.targetId ?? null,
+    targetUserId: input.targetUserId ?? null,
+    circleId: input.circleId ?? null,
+    details: (input.details ?? {}) as any,
+  });
+}
+
+export async function adminListAuditLogs(
+  db: DrizzleClient,
+  query: {
+    moderatorId?: string;
+    actionType?: string;
+    circleId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    page: number;
+    limit: number;
+  }
+): Promise<{ logs: any[]; hasMore: boolean }> {
+  const conditions: any[] = [];
+
+  if (query.moderatorId) {
+    conditions.push(eq(schema.auditLogs.actorId, query.moderatorId));
+  }
+  if (query.actionType) {
+    conditions.push(eq(schema.auditLogs.action, query.actionType as any));
+  }
+  if (query.circleId) {
+    conditions.push(eq(schema.auditLogs.circleId, query.circleId));
+  }
+  if (query.dateFrom) {
+    conditions.push(gte(schema.auditLogs.createdAt, new Date(query.dateFrom)));
+  }
+  if (query.dateTo) {
+    conditions.push(lte(schema.auditLogs.createdAt, new Date(query.dateTo)));
+  }
+
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const offset = (query.page - 1) * query.limit;
+
+  const rows = await db.query.auditLogs.findMany({
+    where,
+    orderBy: [desc(schema.auditLogs.createdAt)],
+    limit: query.limit + 1,
+    offset,
+  });
+
+  const hasMore = rows.length > query.limit;
+  const slice = hasMore ? rows.slice(0, query.limit) : rows;
+
+  // Resolve actor usernames
+  const actorIds = Array.from(new Set(slice.map((r) => r.actorId).filter(Boolean)));
+  const nameById = new Map<string, string>();
+  if (actorIds.length > 0) {
+    const users = await db.query.users.findMany({
+      where: inArray(schema.users.id, actorIds),
+      columns: { id: true, username: true },
+    });
+    for (const u of users) nameById.set(u.id, u.username);
+  }
+
+  const logs = slice.map((r) => ({
+    id: r.id,
+    actorId: r.actorId,
+    actorName: nameById.get(r.actorId) ?? null,
+    action: r.action,
+    targetType: r.targetType,
+    targetId: r.targetId,
+    targetUserId: r.targetUserId,
+    circleId: r.circleId,
+    details: r.details,
+    createdAt: toISO(r.createdAt),
+  }));
+
+  return { logs, hasMore };
 }
