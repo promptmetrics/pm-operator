@@ -54,6 +54,22 @@ export const inviteRoleEnum = pgEnum('invite_role', ['member', 'moderator', 'adm
 export const flagStatusEnum = pgEnum('flag_status', ['open', 'resolved', 'dismissed']);
 export const notificationTypeEnum = pgEnum('notification_type', ['comment', 'reaction', 'solution', 'invite', 'flag', 'flag_resolved', 'mention', 'badge', 'new_follower', 'new_message']);
 export const dailyStatTypeEnum = pgEnum('daily_stat_type', ['posts_read', 'likes_given']);
+export const auditActionTypeEnum = pgEnum('audit_action_type', [
+  'settings_update',
+  'user_role_change',
+  'group_create',
+  'group_update',
+  'group_delete',
+  'badge_create',
+  'badge_award',
+  'tier_create',
+  'tier_update',
+  'watched_phrase_create',
+  'watched_phrase_delete',
+  'points_award',
+  'mcp_client_revoke',
+  'community_delete',
+]);
 
 // Sentinel UUID used for global leaderboard rows in user_scores.
 // Migration 0001_numerous_killer_shrike.sql seeds a matching groups row so the FK is satisfied.
@@ -653,3 +669,22 @@ export const auditLogs = pgTable(
     circleIdx: index('audit_logs_circle_idx').on(table.circleId, table.createdAt),
   })
 ).enableRLS();
+
+export const communitySettings = pgTable('community_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  key: text('key').notNull().unique(),
+  value: jsonb('value').default(sql`'{}'::jsonb`).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}).enableRLS();
+
+export const auditLog = pgTable('audit_log', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  adminId: uuid('admin_id').notNull().references(() => users.id, { onDelete: 'set null' }),
+  actionType: auditActionTypeEnum('action_type').notNull(),
+  targetType: text('target_type'),
+  targetId: uuid('target_id'),
+  details: jsonb('details').default(sql`'{}'::jsonb`).notNull(),
+  circleId: uuid('circle_id').references(() => groups.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}).enableRLS();
+

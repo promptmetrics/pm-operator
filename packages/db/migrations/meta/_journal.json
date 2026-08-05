@@ -162,6 +162,13 @@
       "when": 1785852851901,
       "tag": "0022_peaceful_wallflower",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1785852801410,
+      "tag": "0023_goofy_charles_xavier",
+      "breakpoints": true
     }
   ]
 }
