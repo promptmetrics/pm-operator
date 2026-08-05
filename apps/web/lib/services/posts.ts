@@ -36,6 +36,11 @@ async function resolvePostImageUrls(html: string): Promise<string> {
   });
 }
 
+async function resolveCoverImageUrl(path: string | null | undefined): Promise<string | null> {
+  if (!path) return null;
+  return getPostImageReadUrl(path);
+}
+
 async function formatPostContent(
   content: string | null,
   isHidden: boolean
@@ -208,6 +213,7 @@ export async function toPostListItem(
     viewerHasLiked: Boolean(row.viewerHasLiked),
     viewerHasBookmarked: Boolean(row.viewerHasBookmarked),
     featuredLabel: row.post.featuredLabel,
+    coverImageUrl: await resolveCoverImageUrl(row.post.coverImageUrl),
   };
 }
 
@@ -411,6 +417,7 @@ export async function getPostById(
     title: post.title,
     content: await formatPostContent(post.content, isHidden),
     contentPlain: isHidden ? '' : post.contentPlain,
+    coverImageUrl: await resolveCoverImageUrl(post.coverImageUrl),
     type: post.type,
     status: post.status,
     tags: post.tags,
@@ -505,6 +512,7 @@ export async function getPostBySlug(
     title: post.title,
     content: await formatPostContent(post.content, isHidden),
     contentPlain: isHidden ? '' : post.contentPlain,
+    coverImageUrl: await resolveCoverImageUrl(post.coverImageUrl),
     type: post.type,
     status: post.status,
     tags: post.tags,
@@ -585,6 +593,7 @@ export async function createPost(
         contentPlain,
         type: input.type,
         tags: input.tags,
+        coverImageUrl: input.coverImageUrl,
       })
       .returning();
 
@@ -634,6 +643,7 @@ export async function updatePost(
   if (input.type !== undefined) update.type = input.type;
   if (input.tags !== undefined) update.tags = input.tags;
   if (input.status !== undefined) update.status = input.status;
+  if (input.coverImageUrl !== undefined) update.coverImageUrl = input.coverImageUrl;
   if (input.featuredLabel !== undefined) {
     // Featuring is a global-admin-only action (WS7/T7.2).
     if (user?.role !== 'admin') throw new Error('Forbidden');

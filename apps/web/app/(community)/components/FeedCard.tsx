@@ -305,6 +305,16 @@ export function FeedCard({ post, currentUserId, rank, onClickResult, variant = '
             </p>
           </Link>
 
+          {'coverImageUrl' in post && post.coverImageUrl ? (
+            <Link href={`/g/${post.group.slug}/${post.slug}`} onClick={() => onClickResult?.(post.id)}>
+              <img
+                src={post.coverImageUrl}
+                alt=""
+                className="mt-3 max-h-[240px] w-full rounded-lg border border-[var(--pm-line)] object-cover"
+              />
+            </Link>
+          ) : null}
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Link href={`/u/${post.author.userslug}`}>

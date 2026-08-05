@@ -14,7 +14,7 @@ export interface LevelBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 const sizeClasses: Record<LevelBadgeSize, string> = {
-  xs: "h-[14px] w-[14px] text-[8px]",
+  xs: "h-[10px] w-[10px] text-[7px]",
   sm: "h-[15px] w-[15px] text-[9px]",
   md: "h-[18px] w-[18px] text-[10px]",
 };

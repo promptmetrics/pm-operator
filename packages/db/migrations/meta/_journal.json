@@ -148,6 +148,13 @@
       "when": 1785928730495,
       "tag": "0020_lumpy_jocasta",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1785949925400,
+      "tag": "0022_special_iron_monger",
+      "breakpoints": true
     }
   ]
 }

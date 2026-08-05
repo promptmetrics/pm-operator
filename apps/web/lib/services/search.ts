@@ -4,6 +4,7 @@ import * as schema from '@pm-operator/db';
 import type { SearchQuery, SearchResponse, SearchResult, PostType } from '@pm-operator/api';
 import { levelForScore } from '@pm-operator/api';
 import { toISO, toNumber } from './shared';
+import { getPostImageReadUrl } from '../storage';
 
 function sanitizeTsQueryTerm(term: string): string | null {
   // Keep letters, numbers, and underscores; drop tsquery operators and punctuation.
@@ -135,28 +136,31 @@ export async function searchPosts(
   const last = results[results.length - 1];
   const nextCursor = hasMore && last ? toISO(last.post.createdAt) : undefined;
 
-  const mapped: SearchResult[] = results.map((r) => ({
-    id: r.post.id,
-    slug: r.post.slug,
-    title: r.post.title,
-    type: r.post.type,
-    status: r.post.status,
-    isSolved: r.post.acceptedCommentId !== null,
-    group: { slug: r.group.slug, name: r.group.name },
-    author: {
-      userslug: r.author.userslug,
-      username: r.author.username,
-      reputationScore: toNumber(r.author.reputationScore),
-      acceptedSolutions: toNumber(r.acceptedSolutions),
-      level: levelForScore(toNumber(r.author.reputationScore)).level,
-    },
-    upvotes: r.post.upvotes,
-    commentCount: r.post.commentCount,
-    viewCount: r.post.viewCount,
-    tags: r.post.tags,
-    createdAt: toISO(r.post.createdAt),
-    rank: Number(r.rank ?? 0),
-  }));
+  const mapped: SearchResult[] = await Promise.all(
+    results.map(async (r) => ({
+      id: r.post.id,
+      slug: r.post.slug,
+      title: r.post.title,
+      type: r.post.type,
+      status: r.post.status,
+      isSolved: r.post.acceptedCommentId !== null,
+      group: { slug: r.group.slug, name: r.group.name },
+      author: {
+        userslug: r.author.userslug,
+        username: r.author.username,
+        reputationScore: toNumber(r.author.reputationScore),
+        acceptedSolutions: toNumber(r.acceptedSolutions),
+        level: levelForScore(toNumber(r.author.reputationScore)).level,
+      },
+      upvotes: r.post.upvotes,
+      commentCount: r.post.commentCount,
+      viewCount: r.post.viewCount,
+      tags: r.post.tags,
+      createdAt: toISO(r.post.createdAt),
+      coverImageUrl: await getPostImageReadUrl(r.post.coverImageUrl),
+      rank: Number(r.rank ?? 0),
+    }))
+  );
 
   return { results: mapped, nextCursor };
 }

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ImageIcon, X } from 'lucide-react';
 import { type Editor } from '@pm-operator/ui/editor/RichTextEditor';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
@@ -36,7 +36,11 @@ export function CreatePostForm({
   const [repoUrl, setRepoUrl] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
   const [uploadingImage, setUploadingImage] = React.useState(false);
+  const [coverImageUrl, setCoverImageUrl] = React.useState<string | null>(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = React.useState<string | null>(null);
+  const [uploadingCover, setUploadingCover] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const coverInputRef = React.useRef<HTMLInputElement>(null);
 
   const addTag = () => {
     const raw = tagInput.trim().replace(/^#/, '');
@@ -73,6 +77,48 @@ export function CreatePostForm({
     } finally {
       setUploadingImage(false);
     }
+  };
+
+  const uploadCoverImage = async (file: File) => {
+    setUploadingCover(true);
+    try {
+      const res = await fetch('/api/v1/uploads/post-image', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contentType: file.type, sizeBytes: file.size }),
+      });
+      if (!res.ok) {
+        const errJson = (await res.json()) as { error?: { message?: string } };
+        throw new Error(errJson.error?.message || 'Failed to start upload');
+      }
+      const { uploadUrl, path } = (await res.json()) as { uploadUrl: string; path: string };
+      const put = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': file.type },
+        body: file,
+      });
+      if (!put.ok) throw new Error('Failed to upload image');
+      setCoverImageUrl(path);
+      setCoverPreviewUrl(URL.createObjectURL(file));
+    } catch (err: any) {
+      setError(err.message || 'Failed to upload featured image');
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
+  const removeCoverImage = () => {
+    if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
+    setCoverImageUrl(null);
+    setCoverPreviewUrl(null);
+    if (coverInputRef.current) coverInputRef.current.value = '';
+  };
+
+  const handleCoverFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    uploadCoverImage(file);
+    e.target.value = '';
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -116,6 +162,7 @@ export function CreatePostForm({
       content,
       type,
       tags,
+      coverImageUrl,
     };
 
     setSubmitting(true);
@@ -250,6 +297,48 @@ export function CreatePostForm({
             />
           </div>
           {tags.length >= 5 ? <p className="text-xs text-[var(--pm-danger)]">Use up to 5 tags.</p> : null}
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-[var(--pm-ink)]">
+            Featured image
+            {uploadingCover ? <span className="ml-2 text-xs text-[var(--pm-muted)]">Uploading…</span> : null}
+          </label>
+          {coverPreviewUrl ? (
+            <div className="relative w-fit max-w-full">
+              <img
+                src={coverPreviewUrl}
+                alt="Featured image preview"
+                className="max-h-[200px] rounded-lg border border-[var(--pm-line)] object-cover"
+              />
+              <button
+                type="button"
+                onClick={removeCoverImage}
+                aria-label="Remove featured image"
+                className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-[var(--pm-line)] bg-[var(--pm-paper)] text-[var(--pm-muted)] shadow-sm hover:text-[var(--pm-danger)]"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={uploadingCover}
+              onClick={() => coverInputRef.current?.click()}
+              className="flex items-center gap-2 self-start rounded-lg border border-[var(--pm-line)] px-3 py-2 text-sm text-[var(--pm-ink-2)] hover:border-[var(--pm-coral)] hover:text-[var(--pm-coral-dark)] disabled:opacity-60"
+            >
+              <ImageIcon className="h-4 w-4" aria-hidden="true" />
+              Add featured image
+            </button>
+          )}
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="sr-only"
+            onChange={handleCoverFileChange}
+          />
+          <p className="text-xs text-[var(--pm-muted)]">Optional. Used when your post is shared on social media.</p>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-1.5">

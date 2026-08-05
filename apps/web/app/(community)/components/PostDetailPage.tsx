@@ -360,6 +360,14 @@ export function PostDetailPage({
             {postTitle}
           </h1>
 
+          {post.coverImageUrl ? (
+            <img
+              src={post.coverImageUrl}
+              alt="Featured image"
+              className="mb-4 max-h-[420px] w-full rounded-lg border border-[var(--pm-line)] object-cover"
+            />
+          ) : null}
+
           <div className="mb-4 flex items-center gap-2.5 text-[13px] text-[var(--pm-muted)]">
             <Link href={`/u/${post.author.userslug}`}>
               <Avatar

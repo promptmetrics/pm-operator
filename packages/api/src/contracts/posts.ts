@@ -72,6 +72,7 @@ export const postSchema = z.object({
   viewCount: z.number().int().nonnegative(),
   isPinned: z.boolean(),
   featuredLabel: z.string().nullable(),
+  coverImageUrl: z.string().nullable().optional(),
   acceptedCommentId: z.string().uuid().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -106,6 +107,7 @@ export const postListItemSchema = z.object({
   viewerHasLiked: z.boolean().optional(),
   viewerHasBookmarked: z.boolean().optional(),
   featuredLabel: z.string().nullable().optional(),
+  coverImageUrl: z.string().nullable().optional(),
 });
 
 export type PostListItem = z.infer<typeof postListItemSchema>;
@@ -116,6 +118,7 @@ export const createPostRequestSchema = z.object({
   content: z.string().min(1),
   type: postTypeSchema.default(PostType.DISCUSSION),
   tags: z.array(z.string()).default([]),
+  coverImageUrl: z.string().nullable().optional(),
 });
 
 export type CreatePostRequest = z.infer<typeof createPostRequestSchema>;
@@ -126,6 +129,7 @@ export const patchPostRequestSchema = z.object({
   type: postTypeSchema.optional(),
   tags: z.array(z.string()).optional(),
   status: postStatusSchema.optional(),
+  coverImageUrl: z.string().nullable().optional(),
   // Global admins or group admins/moderators only (GROUP-7).
   isPinned: z.boolean().optional(),
   // Global admins only (WS7/T7.2); null clears the feature.

@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
 @import 'tailwindcss';
+@plugin '@tailwindcss/typography';
 
 /*
  * App-level layer only. The canonical Paper v3 tokens (--pm-* and the color

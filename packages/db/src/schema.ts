@@ -232,6 +232,8 @@ export const posts = pgTable(
     slug: text('slug').notNull(),
     // Admin-set feature label (WS7/T7.2, migration 0012); null = not featured.
     featuredLabel: text('featured_label'),
+    // Optional social/featured image. Stored as a /post-images/ path or external URL.
+    coverImageUrl: text('cover_image_url'),
     // FK added in migration 0001_numerous_killer_shrike.sql to avoid circular module load.
     acceptedCommentId: uuid('accepted_comment_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

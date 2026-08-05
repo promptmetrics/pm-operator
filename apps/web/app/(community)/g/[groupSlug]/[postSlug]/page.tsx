@@ -1,10 +1,51 @@
 import { eq, and } from 'drizzle-orm';
+import type { Metadata } from 'next';
 import * as schema from '@pm-operator/db';
 import { createServiceDb } from '@/lib/db';
 import { getSession } from '@/lib/auth/server';
 import { getPostBySlug, listGroupPosts } from '@/lib/services/posts';
 import { getAvatarReadUrl } from '@/lib/storage';
+import { resolvePostShareImage } from '@/lib/og-image';
 import { PostDetailPage } from '../../../components/PostDetailPage';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ groupSlug: string; postSlug: string }>;
+}): Promise<Metadata> {
+  const { groupSlug, postSlug } = await params;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptmetrics.dev';
+
+  const db = createServiceDb();
+  const post = await getPostBySlug(db, groupSlug, postSlug, undefined);
+
+  if (!post) {
+    return { title: 'Removed by moderator' };
+  }
+
+  const description = (post.contentPlain || post.title).slice(0, 160);
+  const image = await resolvePostShareImage(post.coverImageUrl, post.content);
+  const canonical = `${siteUrl}/g/${groupSlug}/${postSlug}`;
+
+  return {
+    title: post.title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title: post.title,
+      description,
+      url: canonical,
+      type: 'article',
+      images: image ? [{ url: image, alt: post.title }] : undefined,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.title,
+      description,
+      images: image ? [image] : undefined,
+    },
+  };
+}
 
 export default async function PostBySlugRoute({
   params,

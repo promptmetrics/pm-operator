@@ -66,7 +66,7 @@ export const Avatar = React.forwardRef<
   return (
     <span className="relative inline-flex shrink-0">
       {avatar}
-      <span className="absolute -bottom-1 -right-1">{badge}</span>
+      <span className="absolute -bottom-0.5 -right-0.5">{badge}</span>
     </span>
   );
 });
