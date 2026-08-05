@@ -5,6 +5,7 @@ import * as schema from '@pm-operator/db';
 import { createServiceDb } from '@/lib/db';
 import { getSession } from '@/lib/auth/server';
 import { AdminNav } from './components/AdminNav';
+import { AdminSidebar } from './components/AdminSidebar';
 
 export default async function AdminLayout({
   children,
@@ -27,9 +28,12 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
-      <main className="flex-1 px-4 py-6">{children}</main>
+    <div className="flex min-h-screen flex-row">
+      <AdminSidebar />
+      <div className="flex flex-1 flex-col overflow-y-auto">
+        <AdminNav />
+        <main className="flex-1 px-4 py-6">{children}</main>
+      </div>
     </div>
   );
 }
