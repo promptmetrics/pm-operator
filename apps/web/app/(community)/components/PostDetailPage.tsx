@@ -753,6 +753,7 @@ function EditPostDialog({
   const [title, setTitle] = React.useState(initialTitle);
   const [content, setContent] = React.useState(initialContent);
   const [saving, setSaving] = React.useState(false);
+  const [uploadingImage, setUploadingImage] = React.useState(false);
   const { toast } = useToast();
 
   React.useEffect(() => {
@@ -761,6 +762,33 @@ function EditPostDialog({
       setContent(initialContent);
     }
   }, [open, initialTitle, initialContent]);
+
+  const uploadImage = async (file: File, editor: import('@pm-operator/ui/editor/RichTextEditor').Editor) => {
+    setUploadingImage(true);
+    try {
+      const res = await fetch('/api/v1/uploads/post-image', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contentType: file.type, sizeBytes: file.size }),
+      });
+      if (!res.ok) {
+        const errJson = (await res.json()) as { error?: { message?: string } };
+        throw new Error(errJson.error?.message || 'Failed to start upload');
+      }
+      const { uploadUrl, path } = (await res.json()) as { uploadUrl: string; path: string };
+      const put = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': file.type },
+        body: file,
+      });
+      if (!put.ok) throw new Error('Failed to upload image');
+      editor.chain().focus().setImage({ src: path, alt: file.name }).run();
+    } catch (err: any) {
+      toast({ title: err.message || 'Failed to upload image', variant: 'error' });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -806,10 +834,12 @@ function EditPostDialog({
               placeholder="Post title"
               required
             />
+            {uploadingImage ? <p className="text-xs text-[var(--pm-muted)]">Uploading image…</p> : null}
             <RichTextEditor
               value={content}
               onChange={(html) => setContent(html)}
               placeholder="Post content..."
+              onImageUpload={uploadImage}
             />
             <div className="flex justify-end gap-2">
               <Dialog.Close asChild>
