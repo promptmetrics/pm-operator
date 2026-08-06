@@ -63,7 +63,12 @@ export function CreatePostForm({
         const errJson = (await res.json()) as { error?: { message?: string } };
         throw new Error(errJson.error?.message || 'Failed to start upload');
       }
-      const { uploadUrl, path } = (await res.json()) as { uploadUrl: string; path: string };
+      const json = (await res.json()) as { data?: { uploadUrl?: string; path?: string } };
+      const uploadUrl = json.data?.uploadUrl;
+      const path = json.data?.path;
+      if (!uploadUrl || !path) {
+        throw new Error('Server did not return an upload URL');
+      }
       const put = await fetch(uploadUrl, {
         method: 'PUT',
         headers: { 'content-type': file.type },
@@ -90,7 +95,12 @@ export function CreatePostForm({
         const errJson = (await res.json()) as { error?: { message?: string } };
         throw new Error(errJson.error?.message || 'Failed to start upload');
       }
-      const { uploadUrl, path } = (await res.json()) as { uploadUrl: string; path: string };
+      const json = (await res.json()) as { data?: { uploadUrl?: string; path?: string } };
+      const uploadUrl = json.data?.uploadUrl;
+      const path = json.data?.path;
+      if (!uploadUrl || !path) {
+        throw new Error('Server did not return an upload URL');
+      }
       const put = await fetch(uploadUrl, {
         method: 'PUT',
         headers: { 'content-type': file.type },
