@@ -13,31 +13,58 @@ ON CONFLICT (id) DO UPDATE SET
   allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- Owner-only upload. Object path is expected to be <auth.uid>/<filename>.
-CREATE POLICY post_images_owner_insert ON storage.objects
-  FOR INSERT
-  WITH CHECK (
-    bucket_id = 'post-images'
-    AND (storage.foldername(name))[1] = auth.uid()::text
-  );
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'post_images_owner_insert'
+  ) THEN
+    CREATE POLICY post_images_owner_insert ON storage.objects
+      FOR INSERT
+      WITH CHECK (
+        bucket_id = 'post-images'
+        AND (storage.foldername(name))[1] = auth.uid()::text
+      );
+  END IF;
+END
+$$;
 
 -- Owner-only update/replace.
-CREATE POLICY post_images_owner_update ON storage.objects
-  FOR UPDATE
-  USING (
-    bucket_id = 'post-images'
-    AND (storage.foldername(name))[1] = auth.uid()::text
-  )
-  WITH CHECK (
-    bucket_id = 'post-images'
-    AND (storage.foldername(name))[1] = auth.uid()::text
-  );
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'post_images_owner_update'
+  ) THEN
+    CREATE POLICY post_images_owner_update ON storage.objects
+      FOR UPDATE
+      USING (
+        bucket_id = 'post-images'
+        AND (storage.foldername(name))[1] = auth.uid()::text
+      )
+      WITH CHECK (
+        bucket_id = 'post-images'
+        AND (storage.foldername(name))[1] = auth.uid()::text
+      );
+  END IF;
+END
+$$;
 
 -- Owner-only delete.
-CREATE POLICY post_images_owner_delete ON storage.objects
-  FOR DELETE
-  USING (
-    bucket_id = 'post-images'
-    AND (storage.foldername(name))[1] = auth.uid()::text
-  );
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'post_images_owner_delete'
+  ) THEN
+    CREATE POLICY post_images_owner_delete ON storage.objects
+      FOR DELETE
+      USING (
+        bucket_id = 'post-images'
+        AND (storage.foldername(name))[1] = auth.uid()::text
+      );
+  END IF;
+END
+$$;
 
 -- No anonymous read policy; applications serve images via signed URLs.
