@@ -40,7 +40,16 @@ export async function POST(request: Request) {
   try {
     uploadUrl = await getPostImageUploadUrl(storagePath, contentType, sizeBytes);
   } catch (err: any) {
-    return error(ErrorCode.VALIDATION_ERROR, err.message || 'Invalid image', 400);
+    const message = err.message || 'Invalid image';
+    // Supabase returns a generic message when the bucket does not exist.
+    if (/related resource does not exist|bucket.*not found/i.test(message)) {
+      return error(
+        ErrorCode.VALIDATION_ERROR,
+        'Image storage is not configured. Ask an admin to run the post-images bucket migration.',
+        400
+      );
+    }
+    return error(ErrorCode.VALIDATION_ERROR, message, 400);
   }
 
   return ok({ uploadUrl, path });
