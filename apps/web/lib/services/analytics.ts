@@ -286,8 +286,11 @@ export async function getAdminDashboard(
 ): Promise<AdminDashboard> {
   const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
   const now = new Date();
-  const currentStart = new Date(now.getTime() - WEEK_MS);
-  const priorStart = new Date(now.getTime() - 2 * WEEK_MS);
+  // postgres.js cannot bind Date instances on the raw-SQL path db.execute
+  // uses (drizzle only maps Dates for typed column comparisons), so the
+  // window bounds are passed as ISO strings and cast server-side.
+  const currentStart = sql`${new Date(now.getTime() - WEEK_MS).toISOString()}::timestamptz`;
+  const priorStart = sql`${new Date(now.getTime() - 2 * WEEK_MS).toISOString()}::timestamptz`;
 
   // Wave 1: week-over-week aggregates (3 queries). Each statement covers both
   // windows via FILTER so the date predicate stays on created_at /

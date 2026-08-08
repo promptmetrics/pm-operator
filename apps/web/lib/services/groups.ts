@@ -58,10 +58,14 @@ export async function listGroups(
   db: DrizzleClient,
   currentUserId?: string
 ): Promise<Group[]> {
-  const rows = await db.query.groups.findMany({
-    where: groupVisibilityFilter(currentUserId),
-    orderBy: [schema.groups.createdAt],
-  });
+  // Core select builder, not db.query.groups.findMany: the relational query
+  // builder rewrites column refs inside raw sql fragments to the main table,
+  // which mangles groupVisibilityFilter's EXISTS into "groups"."group_id".
+  const rows = await db
+    .select()
+    .from(schema.groups)
+    .where(groupVisibilityFilter(currentUserId))
+    .orderBy(schema.groups.createdAt);
   return rows.map((g) => ({
     id: g.id,
     slug: g.slug,
