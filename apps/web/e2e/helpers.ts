@@ -334,6 +334,11 @@ export async function addGroupMember(
     });
 }
 
+export async function deleteFlag(flagId: string): Promise<void> {
+  const db = serviceDb();
+  await db.delete(schema.flags).where(eq(schema.flags.id, flagId));
+}
+
 export async function countPointEvents(
   userId: string,
   eventType?: string

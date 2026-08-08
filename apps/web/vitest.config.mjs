@@ -17,7 +17,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['e2e/concurrency.vitest.ts'],
+    include: ['e2e/*.vitest.ts'],
     globals: false,
   },
 });

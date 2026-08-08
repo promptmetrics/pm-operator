@@ -158,6 +158,23 @@ export function PostDetailPage({
     loadComments();
   }, [loadComments]);
 
+  // Deep-link anchors (moderation queue comment flags, T2F.2): comments load
+  // asynchronously, so the browser's native fragment scroll runs before any
+  // #comment-* element exists. Scroll manually once the target is rendered.
+  // Limitation: only the first page of root comments loads, so a flagged
+  // comment beyond the loaded window won't be in the DOM and the anchor
+  // silently no-ops (fetch-by-comment is Phase 3 scope).
+  const anchorScrolledRef = React.useRef(false);
+  React.useEffect(() => {
+    if (anchorScrolledRef.current) return;
+    const hash = window.location.hash;
+    if (!hash.startsWith('#comment-')) return;
+    const el = document.getElementById(hash.slice(1));
+    if (!el) return;
+    anchorScrolledRef.current = true;
+    el.scrollIntoView();
+  }, [comments, acceptedComment]);
+
   useRealtimePost(() => {
     // A new comment arrived; refetch to get nested structure and author details.
     loadComments();

@@ -33,7 +33,7 @@ export const POINT_WEIGHTS = {
   [PointEventType.SOLUTION_ACCEPTED]: 25,
   [PointEventType.LIKE_RECEIVED]: 2,
   [PointEventType.LIKE_GIVEN]: 1,
-  [PointEventType.INVITE_ACCEPTED]: 5,
+  [PointEventType.INVITE_ACCEPTED]: 15,
   [PointEventType.DAILY_VISIT]: 0.5,
   [PointEventType.POSTS_READ]: 0.5,
   [PointEventType.STREAK_BONUS]: 2,

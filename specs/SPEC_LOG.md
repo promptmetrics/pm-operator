@@ -211,3 +211,10 @@ Closes the open SPEC_LOG bullets "Follow + Message … spec addendum required" (
 - **GDPR runbook extended:** Section 3 export adds follows + sent messages + conversation memberships; Section 5 adds hard-delete follows (both directions), anonymize sent DM bodies, and orphan-conversation cleanup. Anonymize-retain is the DM erasure policy (decision 1A).
 - **Public follower lists deferred (decision 2A):** follower/following *counts* are public; the edge list is self-only via RLS in v1 (privacy-leaning; lift later with one policy change).
 - **DM email notifications in-app only (decision 4A):** `new_message` surfaces in the notification bell only; no Loops send in v1 (the `preferences.emailNotifications` gate can be wired later if requested).
+
+## 2026-08-08 — Invite reward raised to 15 (D-A)
+
+Source: `design/REDESIGN-PLAN.md` §4.9 (decision D-A). Approved by Izzy 2026-08-08.
+
+- `POINT_WEIGHTS.invite_accepted` raised from 5 to 15 (`packages/api/src/contracts/points.ts`). Supersedes the 2026-08-01 INVITE-3 addendum's weight of 5 and the `invite_accepted | 5` rows in `06-technical-spec.md` / `07-ux-spec.md`.
+- Existing `point_events` rows keep their historical values — **no backfill** (same rule as D1).

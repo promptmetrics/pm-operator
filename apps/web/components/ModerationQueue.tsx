@@ -255,8 +255,12 @@ export function ModerationQueue() {
                           flag.target.group?.slug &&
                           (flag.target as any).postSlug
                         ) {
+                          const anchor =
+                            flag.target.type === 'comment'
+                              ? `#comment-${flag.target.id}`
+                              : '';
                           window.open(
-                            `/g/${flag.target.group.slug}/${(flag.target as any).postSlug}`,
+                            `/g/${flag.target.group.slug}/${(flag.target as any).postSlug}${anchor}`,
                             '_blank'
                           );
                         }

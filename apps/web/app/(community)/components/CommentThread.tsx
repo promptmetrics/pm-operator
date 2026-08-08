@@ -249,7 +249,7 @@ function SingleComment({
   );
 
   return (
-    <li className={`flex gap-3 ${depth > 0 ? 'ml-8 border-l-2 border-[var(--pm-line)] pl-3' : ''}`} role="listitem">
+    <li id={`comment-${comment.id}`} className={`flex gap-3 ${depth > 0 ? 'ml-8 border-l-2 border-[var(--pm-line)] pl-3' : ''}`} role="listitem">
       <Link href={`/u/${comment.author.userslug}`}>
         <Avatar
           src={comment.author.pictureUrl ?? undefined}
@@ -502,6 +502,7 @@ export function AcceptedSolutionCard({
 
   return (
     <article
+      id={`comment-${comment.id}`}
       aria-label="Accepted solution"
       className="rounded-xl border border-[var(--pm-green)] bg-[var(--pm-paper-inset)] p-5 shadow-[var(--pm-shadow)]"
     >
