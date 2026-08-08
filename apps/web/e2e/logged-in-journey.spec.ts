@@ -35,7 +35,11 @@ test('logged-in community journey', async ({ page }) => {
   const seededPostUrl = '/g/show-your-build/open-source-mcp-router-we-shipped-last-week-20000000';
   await page.goto(seededPostUrl);
   await dismissOverlays(page);
-  await expect(page.getByText('Open-source MCP router we shipped last week')).toBeVisible();
+  // Heading role, not getByText: the async community layout makes Next.js
+  // stream the <title> tag into the body, which getByText also matches.
+  await expect(
+    page.getByRole('heading', { name: 'Open-source MCP router we shipped last week' })
+  ).toBeVisible();
 
   // 4. Like the post.
   const likeButton = page.getByRole('button', { name: /upvotes/i });
@@ -62,7 +66,9 @@ test('logged-in community journey', async ({ page }) => {
   // The composer defaults to the current circle; make sure it stayed selected.
   await page.locator('#circle-select').selectOption('show-your-build');
   await page.locator('.ProseMirror').fill('<p>End-to-end journey content</p>');
-  await page.getByRole('button', { name: 'Post' }).click();
+  // exact: true — the header search pill ("Search posts, circles, people…")
+  // also substring-matches "Post".
+  await page.getByRole('button', { name: 'Post', exact: true }).click();
 
   // After posting, the user lands on the new post detail or the circle feed.
   await expect(page).toHaveURL(/\/g\/show-your-build\/e2e-journey-post/);

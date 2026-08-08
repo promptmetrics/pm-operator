@@ -13,7 +13,9 @@ test('anonymous post detail loads without 404/500', async ({ page }) => {
   const seededPostUrl = '/g/show-your-build/open-source-mcp-router-we-shipped-last-week-20000000';
   await page.goto(seededPostUrl);
   await dismissOverlays(page);
-  await expect(page.getByText('Open-source MCP router we shipped last week')).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Open-source MCP router we shipped last week' })
+  ).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Comments' })).toBeVisible();
 });
 

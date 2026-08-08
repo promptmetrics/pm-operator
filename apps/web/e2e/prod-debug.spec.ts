@@ -78,7 +78,9 @@ test('debug like, comment, join, create on production', async ({ page }) => {
   // 2. Open a seeded post and like it.
   await page.goto('/g/show-your-build/open-source-mcp-router-we-shipped-last-week-20000000');
   await dismissOverlays(page);
-  await expect(page.getByText('Open-source MCP router we shipped last week')).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Open-source MCP router we shipped last week' })
+  ).toBeVisible();
   const likeButton = page.getByRole('button', { name: /upvotes/i });
   await expect(likeButton).toHaveAttribute('aria-pressed', 'false');
   await dismissOverlays(page);
@@ -102,7 +104,7 @@ test('debug like, comment, join, create on production', async ({ page }) => {
   await page.getByLabel('Title').fill(postTitle);
   await page.locator('#circle-select').selectOption('show-your-build');
   await page.locator('.ProseMirror').fill('<p>Debug body</p>');
-  await page.getByRole('button', { name: 'Post' }).click();
+  await page.getByRole('button', { name: 'Post', exact: true }).click();
   await expect(page).toHaveURL(/\/g\/show-your-build\/debug-post/);
   await page.goto('/g/show-your-build');
   await expect(page.getByText(postTitle).first()).toBeVisible();
