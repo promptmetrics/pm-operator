@@ -7,15 +7,18 @@ import { Bookmark, Check, Home, Mail, Newspaper, Trophy, Users } from 'lucide-re
 import { useRail } from './RailProvider';
 
 /**
- * Rail circle shape (Phase 1). Post counts are deliberately absent until the
- * groups-list stats API (Phase 2C) ships a cacheable aggregate — the rail
- * renders on every community navigation and its data budget must stay flat.
+ * Rail circle shape (Phase 1 + 3D). postsThisMonth comes from the shared
+ * groups-list-stats cache (300 s, merged in the community layout) — the rail
+ * renders on every community navigation and its data budget must stay flat,
+ * so counts are never queried per-circle.
  */
 export interface RailCircle {
+  id: string;
   slug: string;
   name: string;
   color: string | null;
   joined: boolean;
+  postsThisMonth: number;
 }
 
 const NAV_ITEMS = [
@@ -96,12 +99,22 @@ export function LeftRail({ circles }: { circles: RailCircle[] }) {
                         />
                         <span className="truncate">{circle.name}</span>
                       </span>
-                      {circle.joined ? (
-                        <span className="shrink-0 text-[var(--pm-green)]" title="Joined">
-                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                          <span className="sr-only">Joined</span>
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        <span
+                          data-testid={`rail-circle-count-${circle.slug}`}
+                          className="font-mono text-[11px] tabular-nums text-[var(--pm-muted)]"
+                          title="Posts this month"
+                        >
+                          {circle.postsThisMonth}
+                          <span className="sr-only"> posts this month</span>
                         </span>
-                      ) : null}
+                        {circle.joined ? (
+                          <span className="text-[var(--pm-green)]" title="Joined">
+                            <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span className="sr-only">Joined</span>
+                          </span>
+                        ) : null}
+                      </span>
                     </Link>
                   </li>
                 );

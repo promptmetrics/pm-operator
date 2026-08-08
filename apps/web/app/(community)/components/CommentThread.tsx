@@ -16,6 +16,7 @@ import { timeAgo } from '@/lib/format';
 import { trackEvent } from '@/lib/analytics';
 import { apiErrorMessage } from '@/lib/api/client-errors';
 import { FlagDialog } from './FlagDialog';
+import { LinkPreviewCard } from './LinkPreviewCard';
 import { POINT_WEIGHTS } from '@pm-operator/api';
 import type { CommentDetail } from '@pm-operator/api';
 
@@ -38,6 +39,8 @@ interface SingleCommentProps {
   postAuthorId?: string;
   currentUserId?: string;
   isAccepted: boolean;
+  /** Whether the post already has an accepted solution (hides Accept everywhere). */
+  postIsSolved: boolean;
   depth: number;
   /** Whether the viewer is a member of the circle this post belongs to. */
   viewerIsMember?: boolean;
@@ -56,6 +59,7 @@ export function CommentThread({
   group,
   onChange,
 }: CommentThreadProps) {
+  const postIsSolved = Boolean(acceptedCommentId);
   return (
     <ul className="flex flex-col gap-4" role="list" aria-label="Comments">
       {comments.map((comment) => (
@@ -66,6 +70,7 @@ export function CommentThread({
           postAuthorId={postAuthorId}
           currentUserId={currentUserId}
           isAccepted={acceptedCommentId === comment.id}
+          postIsSolved={postIsSolved}
           depth={0}
           viewerIsMember={viewerIsMember}
           group={group}
@@ -82,6 +87,7 @@ function SingleComment({
   postAuthorId,
   currentUserId,
   isAccepted,
+  postIsSolved,
   depth,
   viewerIsMember,
   group,
@@ -104,8 +110,12 @@ function SingleComment({
   const canEdit =
     (isAuthor && withinEditWindow(comment.createdAt)) || currentUserId === postAuthorId || false;
   const canDelete = isAuthor || currentUserId === postAuthorId || false;
+  // Accept is offered on top-level comments only, to the post author only,
+  // and only while the post has no accepted solution yet.
   const canAccept =
-    currentUserId === postAuthorId && !comment.parentCommentId && !isAccepted && !isDeleted;
+    currentUserId === postAuthorId && !comment.parentCommentId && !postIsSolved && !isDeleted;
+  const canFlag = Boolean(currentUserId) && !isAuthor && !isDeleted;
+  const flagTriggerRef = React.useRef<HTMLButtonElement>(null);
 
   const handleLike = async () => {
     if (!currentUserId || !viewerIsMember) return;
@@ -283,7 +293,7 @@ function SingleComment({
               ) : null}
             </div>
 
-            {canEdit || canDelete || canAccept ? (
+            {canEdit || canDelete || canAccept || canFlag ? (
               <DropdownMenu.Root>
                 <DropdownMenu.Trigger asChild>
                   <Button variant="ghost" size="sm" aria-label="Comment actions">
@@ -316,6 +326,18 @@ function SingleComment({
                         </button>
                       </DropdownMenu.Item>
                     ) : null}
+                    {canFlag ? (
+                      <DropdownMenu.Item asChild>
+                        <button
+                          type="button"
+                          onClick={() => setTimeout(() => flagTriggerRef.current?.click(), 0)}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm outline-none hover:bg-[var(--pm-paper-2)]"
+                        >
+                          <Flag className="h-4 w-4" aria-hidden="true" />
+                          Flag
+                        </button>
+                      </DropdownMenu.Item>
+                    ) : null}
                     {canDelete ? (
                       <DropdownMenu.Item asChild>
                         <button
@@ -335,6 +357,10 @@ function SingleComment({
           </div>
 
           {inner}
+
+          {!isDeleted && !editing && comment.linkPreview ? (
+            <LinkPreviewCard preview={comment.linkPreview} />
+          ) : null}
 
           {!isDeleted && !editing ? (
             <div className="mt-3 flex items-center gap-1">
@@ -364,15 +390,6 @@ function SingleComment({
                   <MessageSquare className="h-4 w-4" aria-hidden="true" />
                   <span className="text-xs">Reply</span>
                 </Button>
-              ) : null}
-
-              {currentUserId && !isAuthor ? (
-                <FlagDialog targetType="comment" targetId={comment.id}>
-                  <Button variant="ghost" size="sm" className="gap-1" aria-label="Flag comment">
-                    <Flag className="h-4 w-4" aria-hidden="true" />
-                    <span className="text-xs">Flag</span>
-                  </Button>
-                </FlagDialog>
               ) : null}
             </div>
           ) : null}
@@ -411,6 +428,7 @@ function SingleComment({
                 postAuthorId={postAuthorId}
                 currentUserId={currentUserId}
                 isAccepted={false}
+                postIsSolved={postIsSolved}
                 depth={depth + 1}
                 viewerIsMember={viewerIsMember}
                 group={group}
@@ -418,6 +436,14 @@ function SingleComment({
               />
             ))}
           </ul>
+        ) : null}
+
+        {canFlag ? (
+          <FlagDialog targetType="comment" targetId={comment.id}>
+            <button ref={flagTriggerRef} type="button" tabIndex={-1} className="sr-only">
+              Flag comment
+            </button>
+          </FlagDialog>
         ) : null}
 
         <ConfirmDialog
@@ -504,14 +530,14 @@ export function AcceptedSolutionCard({
     <article
       id={`comment-${comment.id}`}
       aria-label="Accepted solution"
-      className="rounded-xl border border-[var(--pm-green)] bg-[var(--pm-paper-inset)] p-5 shadow-[var(--pm-shadow)]"
+      className="rounded-xl border border-[var(--pm-teal)] bg-[color-mix(in_srgb,var(--pm-teal)_7%,var(--pm-paper-inset))] p-5 shadow-[var(--pm-shadow)]"
     >
       <div className="mb-3 flex items-center gap-2">
-        <span className="rounded-[var(--pm-radius-pill)] bg-[var(--pm-green)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[var(--pm-on-ink)]">
+        <span className="rounded-[var(--pm-radius-pill)] bg-[var(--pm-teal)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[var(--pm-on-ink)]">
           ✓ Accepted solution
         </span>
-        <span className="text-xs text-[var(--pm-muted)]">
-          earned +{POINT_WEIGHTS.solution_accepted} pts
+        <span className="text-xs text-[var(--pm-teal-dark)]">
+          · earned +{POINT_WEIGHTS.solution_accepted} pts
         </span>
       </div>
 
@@ -537,6 +563,8 @@ export function AcceptedSolutionCard({
         className="prose prose-sm max-w-none text-[var(--pm-ink)]"
         dangerouslySetInnerHTML={{ __html: comment.content }}
       />
+
+      {comment.linkPreview ? <LinkPreviewCard preview={comment.linkPreview} /> : null}
 
       <div className="mt-3 flex items-center gap-1">
         <Button
@@ -567,6 +595,7 @@ export function AcceptedSolutionCard({
               postAuthorId={postAuthorId}
               currentUserId={currentUserId}
               isAccepted={false}
+              postIsSolved
               depth={1}
               viewerIsMember={viewerIsMember}
               group={group}

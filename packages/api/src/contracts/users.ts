@@ -65,6 +65,12 @@ export const userPreferencesSchema = z.object({
   weeklyDigest: z.boolean().optional(),
   reducedMotion: z.boolean().optional(),
   newsletter: z.boolean().optional(),
+  // Feed onboarding checklist (plan §4.7). `checklistDismissed` is set by the
+  // card's ✕ via PATCH /api/v1/me; `checklistCompletedAt` is a write-once
+  // server-side cache stamped the first time all 3 steps are complete. Either
+  // key present ⇒ the feed page skips the checklist query entirely.
+  checklistDismissed: z.boolean().optional(),
+  checklistCompletedAt: z.string().optional(),
 });
 
 export type UserPreferences = z.infer<typeof userPreferencesSchema>;

@@ -106,6 +106,9 @@ export const postListItemSchema = z.object({
   commentCount: z.number().int().nonnegative(),
   viewCount: z.number().int().nonnegative(),
   tags: z.array(z.string()),
+  // First ~200 chars of contentPlain, word-boundary trimmed. Additive so
+  // cached list payloads without it still validate.
+  excerpt: z.string().optional(),
   createdAt: z.string().datetime(),
   viewerHasLiked: z.boolean().optional(),
   viewerHasBookmarked: z.boolean().optional(),

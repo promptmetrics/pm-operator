@@ -6,9 +6,15 @@ import { getSession } from '@/lib/auth/server';
 import { listFeed, getFeaturedPost, listGlobalPinnedPosts } from '@/lib/services/posts';
 import { listGlobalLeaderboard, getWritableGroups } from '@/lib/services/community';
 import { getWeeklyDigest } from '@/lib/services/digest';
+import {
+  getOnboardingChecklistStatus,
+  CHECKLIST_CIRCLE_TARGET,
+} from '@/lib/services/onboarding';
 import { FeedPage } from '../components/FeedPage';
 import { WeeklyDigestBanner } from '../components/WeeklyDigestBanner';
 import { WelcomeToast } from '../components/WelcomeToast';
+import { OnboardingChecklist } from '../components/OnboardingChecklist';
+import { HelpSomeoneCard, getHelpQueue } from '../components/HelpSomeoneCard';
 import { FeedFilter, FeedSort } from '@pm-operator/api';
 
 type PageSearchParams = Record<string, string | string[] | undefined>;
@@ -62,6 +68,21 @@ export default async function FeedRoute({ searchParams }: { searchParams: Promis
   // getWeeklyDigest's own first wave is 2 concurrent queries — keep it alone.
   const digest = await getWeeklyDigest(db).catch(() => null);
 
+  // Track 3C. Both are at most 1 query each, so this wave is 2 page-queries
+  // wide like the ones above (+1 layout rail = the pool budget of 3).
+  //   - getHelpQueue: unstable_cache(300s), viewer-independent → 0 queries on
+  //     a cache hit, 1 on a miss.
+  //   - getOnboardingChecklistStatus: 0 queries once preferences say
+  //     dismissed/complete; otherwise 1 read (+1 sequential write on the single
+  //     render that first reaches 3/3).
+  const viewerPreferences = (viewer?.preferences as Record<string, unknown> | null) ?? null;
+  const [helpQueue, checklist] = await Promise.all([
+    getHelpQueue().catch(() => []),
+    currentUserId
+      ? getOnboardingChecklistStatus(db, currentUserId, viewerPreferences).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+
   // T8.10: when a user lands here straight from finishing onboarding
   // (?welcome=1), surface a success toast naming the circles they joined
   // (stored in preferences by the step-2 action). "Write your first post" adds
@@ -73,8 +94,7 @@ export default async function FeedRoute({ searchParams }: { searchParams: Promis
   const welcome = params.welcome === '1';
   const joinedNames =
     welcome && viewer
-      ? (((viewer.preferences as Record<string, unknown> | null)?.onboardingJoinedNames as string[]) ??
-        [])
+      ? ((viewerPreferences?.onboardingJoinedNames as string[]) ?? [])
       : [];
 
   return (
@@ -91,6 +111,17 @@ export default async function FeedRoute({ searchParams }: { searchParams: Promis
       viewerUsername={viewer?.username}
       digestBanner={digest ? <WeeklyDigestBanner digest={digest} /> : null}
       welcomeBanner={welcome ? <WelcomeToast names={joinedNames} /> : null}
+      checklistSlot={
+        checklist ? (
+          <OnboardingChecklist
+            circleCount={checklist.circleCount}
+            hasPost={checklist.hasPost}
+            hasComment={checklist.hasComment}
+            circleTarget={CHECKLIST_CIRCLE_TARGET}
+          />
+        ) : null
+      }
+      railTopSlot={<HelpSomeoneCard items={helpQueue} />}
     />
   );
 }

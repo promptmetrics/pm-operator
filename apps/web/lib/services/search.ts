@@ -9,7 +9,7 @@ import type {
   PaletteResponse,
 } from '@pm-operator/api';
 import { levelForScore } from '@pm-operator/api';
-import { toISO, toNumber } from './shared';
+import { toISO, toNumber, toExcerpt } from './shared';
 import { getPostImageReadUrl, getAvatarReadUrl } from '../storage';
 
 function sanitizeTsQueryTerm(term: string): string | null {
@@ -162,6 +162,7 @@ export async function searchPosts(
       commentCount: r.post.commentCount,
       viewCount: r.post.viewCount,
       tags: r.post.tags,
+      excerpt: toExcerpt(r.post.contentPlain),
       createdAt: toISO(r.post.createdAt),
       coverImageUrl: await getPostImageReadUrl(r.post.coverImageUrl),
       rank: Number(r.rank ?? 0),

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { eq, and } from 'drizzle-orm';
-import { Settings } from 'lucide-react';
+import { Check, Lock, Settings } from 'lucide-react';
 import * as schema from '@pm-operator/db';
 import { Button } from '@pm-operator/ui/components/Button';
 import { createServiceDb } from '@/lib/db';
@@ -159,13 +159,27 @@ export default async function GroupRoute({
                 </Link>
                 {' / circle'}
               </div>
-              <div className="mb-1 flex items-center gap-2">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
                 <h1 className="truncate font-serif text-[28px] font-semibold leading-tight text-[var(--pm-ink)]">
                   {group.name}
                 </h1>
-                <span className="rounded-full border border-[var(--pm-line)] bg-[var(--pm-paper)] px-2 py-0.5 text-xs capitalize text-[var(--pm-muted)]">
+                {/* Same markers as the directory card: 🔒 for invite-only,
+                    ✓ Joined for members. */}
+                <span className="inline-flex items-center gap-1 rounded-full border border-[var(--pm-line)] bg-[var(--pm-paper)] px-2 py-0.5 text-xs capitalize text-[var(--pm-muted)]">
+                  {group.visibility === 'invite_only' ? (
+                    <Lock className="h-3 w-3" aria-hidden="true" />
+                  ) : null}
                   {group.visibility.replace('_', ' ')}
                 </span>
+                {membership ? (
+                  <span
+                    data-testid="circle-header-joined"
+                    className="inline-flex items-center gap-1 rounded-full border border-[var(--pm-line)] bg-[var(--pm-paper)] px-2 py-0.5 text-xs font-medium text-[var(--pm-green)]"
+                  >
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                    Joined
+                  </span>
+                ) : null}
               </div>
               {group.description ? (
                 <p className="text-sm text-[var(--pm-muted)]">{group.description}</p>
@@ -173,11 +187,19 @@ export default async function GroupRoute({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            <BannerStat value={group.memberCount.toLocaleString()} label="Members" />
-            <BannerStat value={stats.postsThisMonth.toLocaleString()} label="Posts / mo" />
-            {stats.solvedRate !== null ? (
-              <BannerStat value={formatPercent(stats.solvedRate)} label="Solved rate" />
-            ) : null}
+            {/* Stat trio matches the directory card: members · posts this
+                month · solved rate, with — when there are no questions yet. */}
+            <div
+              data-testid="circle-header-stats"
+              className="flex items-center gap-x-6"
+            >
+              <BannerStat value={group.memberCount.toLocaleString()} label="Members" />
+              <BannerStat value={stats.postsThisMonth.toLocaleString()} label="Posts / mo" />
+              <BannerStat
+                value={stats.solvedRate !== null ? formatPercent(stats.solvedRate) : '—'}
+                label="Solved rate"
+              />
+            </div>
             <div className="flex items-center gap-2">
               {canInvite ? <GroupInviteButton slug={slug} /> : null}
               {canManage ? (

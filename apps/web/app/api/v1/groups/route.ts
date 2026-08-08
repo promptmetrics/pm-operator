@@ -1,6 +1,5 @@
 export const runtime = 'nodejs';
 
-import { unstable_cache } from 'next/cache';
 import { createGroupRequestSchema, type GroupListItem } from '@pm-operator/api';
 import { getSession } from '@/lib/auth/server';
 import {
@@ -13,18 +12,12 @@ import {
   getClientIp,
   paginationMeta,
 } from '@/lib/api/server';
-import { listGroups, listGroupStats, createGroup } from '@/lib/services/groups';
-
-// Track 2C: the community layout rail calls this route on every navigation.
-// The stats aggregate is viewer-independent (see listGroupStats), so one
-// cached entry serves every viewer for 300 s; only the viewer-specific base
-// query (visibility / membership) runs fresh per navigation. Keeps the
-// per-navigation budget at 1 query warm, 2 cold — never concurrent.
-const getCachedGroupStats = unstable_cache(
-  async () => listGroupStats(getDb()),
-  ['groups-list-stats'],
-  { revalidate: 300 }
-);
+import { listGroups, createGroup } from '@/lib/services/groups';
+// Track 2C/3D: shared 300 s cache entry (key 'groups-list-stats') — the same
+// wrapper the community layout rail and /g directory use, extracted so the
+// key can never drift. Only the viewer-specific base query runs fresh per
+// request: budget 1 query warm, 2 cold — never concurrent.
+import { getCachedGroupStats } from '@/lib/services/group-stats-cache';
 
 export async function GET(request: Request) {
   const limited = await rateLimit('anonymousPublicRead', getClientIp(request));

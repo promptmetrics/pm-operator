@@ -1,4 +1,4 @@
-import { eq, ne, and, or, sql, desc, asc, isNotNull, isNull, inArray, count } from 'drizzle-orm';
+import { eq, ne, lt, and, or, sql, desc, asc, isNotNull, isNull, inArray, count } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type { FeedQuery, FeedResponse, PostDetail, CreatePostRequest, PatchPostRequest, PostListItem } from '@pm-operator/api';
@@ -6,7 +6,7 @@ import { getAvatarReadUrl, getPostImageReadUrl } from '../storage';
 import { htmlToText } from '../html-to-text';
 import { sanitizeHtml } from '../sanitize-html';
 import { levelForScore } from '@pm-operator/api';
-import { toISO, toNumber, isAdminOrModerator } from './shared';
+import { toISO, toNumber, toExcerpt, isAdminOrModerator } from './shared';
 import { autoFlagIfWatched } from './flags';
 import { buildLinkPreview } from './unfurl';
 
@@ -210,6 +210,7 @@ export async function toPostListItem(
     commentCount: row.post.commentCount,
     viewCount: row.post.viewCount,
     tags: row.post.tags,
+    excerpt: toExcerpt(row.post.contentPlain),
     createdAt: toISO(row.post.createdAt),
     viewerHasLiked: Boolean(row.viewerHasLiked),
     viewerHasBookmarked: Boolean(row.viewerHasBookmarked),
@@ -222,6 +223,11 @@ export async function toPostListItem(
 export interface ListFeedOptions {
   /** Omit this post from results (post-page "More from this circle" rail). */
   excludePostId?: string;
+  /**
+   * Only posts created strictly before this instant ("Help someone today"
+   * rail widget, plan §4.8: unanswered questions older than 4 hours).
+   */
+  createdBefore?: Date;
 }
 
 export async function listFeed(
@@ -249,6 +255,9 @@ export async function listFeed(
   }
   if (opts?.excludePostId) {
     conditions.push(ne(schema.posts.id, opts.excludePostId));
+  }
+  if (opts?.createdBefore) {
+    conditions.push(lt(schema.posts.createdAt, opts.createdBefore));
   }
   const where = and(...conditions.filter(Boolean));
 

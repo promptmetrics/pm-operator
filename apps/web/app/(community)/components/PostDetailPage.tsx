@@ -24,6 +24,7 @@ import {
 import { useToast } from '@pm-operator/ui/components/Toast';
 import { RichTextEditor } from '@pm-operator/ui/editor/RichTextEditor';
 import { CommentThread, AcceptedSolutionCard } from './CommentThread';
+import { LinkPreviewCard } from './LinkPreviewCard';
 import { GroupMembershipButton } from './GroupMembershipButton';
 import { useRealtimePost } from './RealtimeProvider';
 import { timeAgo } from '@/lib/format';
@@ -411,6 +412,8 @@ export function PostDetailPage({
             className="prose prose-sm max-w-none text-[var(--pm-ink)]"
             dangerouslySetInnerHTML={{ __html: postContent }}
           />
+
+          {post.linkPreview ? <LinkPreviewCard preview={post.linkPreview} /> : null}
 
           {post.tags.length > 0 ? (
             <div className="mt-4 flex flex-wrap gap-1.5">

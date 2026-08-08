@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Trophy, TrendingUp, Users, Pin, Star } from 'lucide-react';
+import { Plus, Trophy, TrendingUp, Users, Pin } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Card, CardContent, CardTitle } from '@pm-operator/ui/components/Card';
 import { Badge } from '@pm-operator/ui/components/Badge';
@@ -41,6 +41,14 @@ interface FeedPageProps {
    * components inside this client component.
    */
   railSlot?: React.ReactNode;
+  /**
+   * Server-rendered card pinned above the right rail's cards (track 3C: the
+   * "Help someone today" widget). Unlike `railSlot` this ADDS to the rail
+   * rather than replacing it, and renders on the feed page only.
+   */
+  railTopSlot?: React.ReactNode;
+  /** Onboarding checklist card (plan §4.7), above the feed's main column. */
+  checklistSlot?: React.ReactNode;
   /** Overrides composer-strip visibility (default remains !groupSlug). */
   showComposerStrip?: boolean;
   /** Dismissible weekly-digest banner rendered at the top of the main column. */
@@ -77,6 +85,8 @@ export function FeedPage({
   pinnedPosts,
   viewerUsername,
   railSlot,
+  railTopSlot,
+  checklistSlot,
   showComposerStrip,
   digestBanner,
   welcomeBanner,
@@ -230,6 +240,7 @@ export function FeedPage({
       <div>
         {welcomeBanner}
         {digestBanner}
+        {checklistSlot}
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="font-serif text-2xl font-semibold text-[var(--pm-ink)]">
@@ -296,14 +307,14 @@ export function FeedPage({
         <div role="feed" aria-label={groupSlug ? 'Circle discussion' : 'Community feed'} className="flex flex-col gap-4">
           {showHighlights && featuredPost ? (
             <div
-              className="relative overflow-hidden rounded-xl"
+              className="overflow-hidden rounded-xl"
               style={{ borderLeft: '3px solid var(--pm-cat-sales)' }}
             >
-              <Badge variant="coral" className="absolute right-4 top-4 z-10 gap-1">
-                <Star className="h-3 w-3" aria-hidden="true" />
-                {featuredPost.featuredLabel ?? 'Featured'}
-              </Badge>
-              <FeedCard post={featuredPost} currentUserId={currentUserId} />
+              <FeedCard
+                post={featuredPost}
+                currentUserId={currentUserId}
+                featuredLabel={featuredPost.featuredLabel ?? 'Featured'}
+              />
             </div>
           ) : null}
           {showHighlights
@@ -319,13 +330,9 @@ export function FeedPage({
                 </div>
               ))
             : null}
-          {visiblePosts.length > 0 ? (
-            <div className="divide-y divide-[var(--pm-line)] overflow-hidden rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] shadow-[var(--pm-shadow)]">
-              {visiblePosts.map((post) => (
-                <FeedCard key={post.id} post={post} currentUserId={currentUserId} variant="row" />
-              ))}
-            </div>
-          ) : null}
+          {visiblePosts.map((post) => (
+            <FeedCard key={post.id} post={post} currentUserId={currentUserId} />
+          ))}
         </div>
 
         {visiblePosts.length === 0 && !showHighlights ? (
@@ -345,6 +352,7 @@ export function FeedPage({
       </div>
 
       <aside className="flex flex-col gap-4">
+        {railTopSlot}
         {railSlot ?? (
         <>
         <Card>

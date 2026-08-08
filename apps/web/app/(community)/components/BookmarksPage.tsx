@@ -49,9 +49,9 @@ export function BookmarksPage({ initialPosts, initialHasMore, currentUserId }: B
       </div>
 
       {posts.length > 0 ? (
-        <div className="divide-y divide-[var(--pm-line)] overflow-hidden rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] shadow-[var(--pm-shadow)]">
+        <div className="flex flex-col gap-4">
           {posts.map((post) => (
-            <FeedCard key={post.id} post={post} currentUserId={currentUserId} variant="row" />
+            <FeedCard key={post.id} post={post} currentUserId={currentUserId} />
           ))}
         </div>
       ) : (

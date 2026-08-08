@@ -13,6 +13,17 @@ export function toISO(value: Date | string | null | undefined): string {
   return new Date(value).toISOString();
 }
 
+const EXCERPT_LENGTH = 200;
+
+export function toExcerpt(contentPlain: string | null | undefined): string | undefined {
+  const text = (contentPlain ?? '').replace(/\s+/g, ' ').trim();
+  if (!text) return undefined;
+  if (text.length <= EXCERPT_LENGTH) return text;
+  const cut = text.slice(0, EXCERPT_LENGTH);
+  const lastSpace = cut.lastIndexOf(' ');
+  return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+}
+
 export type UserRow = {
   id: string;
   email: string;

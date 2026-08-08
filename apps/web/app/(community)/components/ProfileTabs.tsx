@@ -32,8 +32,7 @@ const MAX_BADGE_CHIPS = 4;
 const railCardClass =
   'rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-4 shadow-[var(--pm-shadow)]';
 
-const rowContainerClass =
-  'divide-y divide-[var(--pm-line)] overflow-hidden rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] shadow-[var(--pm-shadow)]';
+const postListClass = 'flex flex-col gap-4';
 
 function formatJoined(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
@@ -253,9 +252,9 @@ export function ProfileTabs({
 
             {tab === 'posts' ? (
               posts.length > 0 ? (
-                <div className={rowContainerClass}>
+                <div className={postListClass}>
                   {posts.map((post) => (
-                    <FeedCard key={post.id} post={post} currentUserId={currentUserId} variant="row" />
+                    <FeedCard key={post.id} post={post} currentUserId={currentUserId} />
                   ))}
                 </div>
               ) : (
@@ -320,9 +319,9 @@ export function ProfileTabs({
 
             {tab === 'bookmarks' && isMe ? (
               bookmarks && bookmarks.length > 0 ? (
-                <div className={rowContainerClass}>
+                <div className={postListClass}>
                   {bookmarks.map((post) => (
-                    <FeedCard key={post.id} post={post} currentUserId={currentUserId} variant="row" />
+                    <FeedCard key={post.id} post={post} currentUserId={currentUserId} />
                   ))}
                 </div>
               ) : (
