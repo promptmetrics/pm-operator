@@ -4,7 +4,7 @@ import { and, eq, isNotNull, or, sql } from 'drizzle-orm';
 import * as schema from '@pm-operator/db';
 import { createServiceDb } from '@/lib/db';
 import { getSession } from '@/lib/auth/server';
-import { Header } from './components/Header';
+import { HeaderWithCommandPalette } from './components/Header';
 import { RealtimeProvider } from './components/RealtimeProvider';
 import { RailProvider } from './components/RailProvider';
 import { LeftRail, type RailCircle } from './components/LeftRail';
@@ -93,7 +93,7 @@ export default async function CommunityLayout({ children }: { children: React.Re
     <RealtimeProvider>
       <RailProvider>
         <div className="flex min-h-screen flex-col">
-          <Header />
+          <HeaderWithCommandPalette />
           <div className="mx-auto flex w-full max-w-7xl flex-1 gap-6 px-4 py-6">
             <LeftRail circles={circles} />
             <main className="min-w-0 flex-1">{children}</main>

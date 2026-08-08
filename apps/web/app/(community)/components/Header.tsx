@@ -13,6 +13,7 @@ import { LevelBadge } from '@pm-operator/ui/components/LevelBadge';
 import { Progress } from '@pm-operator/ui/components/Progress';
 import { NotificationBell } from './NotificationBell';
 import { useRail } from './RailProvider';
+import { CommandPalette } from './CommandPalette';
 import type { UserPublicProfile, UserBadgesResponse, BadgeProgressItem } from '@pm-operator/api';
 
 // The rail owns primary navigation on lg+ screens; this menu mirrors it for
@@ -28,10 +29,40 @@ const MOBILE_NAV = [
 
 interface HeaderProps {
   /**
-   * Phase 4 seam: the ⌘K command palette mounts in the layout and passes its
-   * open handler here. Until then the trigger navigates to /search.
+   * Phase 4 seam: HeaderWithCommandPalette (below) passes the palette's open
+   * handler here. Left unset — Header rendered bare, e.g. outside the community
+   * layout — the trigger falls back to navigating to /search.
    */
   onSearchClick?: () => void;
+}
+
+/**
+ * Community-layout mount point for the ⌘K palette. Owns the open state so the
+ * header search pill and the global hotkey drive the same dialog, and lives at
+ * layout level so the hotkey works on every community page.
+ */
+export function HeaderWithCommandPalette() {
+  const [open, setOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const close = React.useCallback(() => setOpen(false), []);
+
+  return (
+    <>
+      <Header onSearchClick={() => setOpen(true)} />
+      {open ? <CommandPalette onClose={close} /> : null}
+    </>
+  );
 }
 
 export function Header({ onSearchClick }: HeaderProps = {}) {
