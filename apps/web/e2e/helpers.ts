@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { createDrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
-import { eq, and, count } from 'drizzle-orm';
+import { eq, and, count, sql } from 'drizzle-orm';
 import type { Page } from '@playwright/test';
 
 dotenv.config({ path: '.env.local' });
@@ -353,6 +353,34 @@ export async function countPointEvents(
         : eq(schema.pointEvents.userId, userId)
     );
   return Number(rows[0]?.count ?? 0);
+}
+
+/**
+ * Put a user on the global points boards. period_start must match
+ * currentPeriodStartSql() in lib/services/community.ts, so the weekly row is
+ * truncated in Postgres rather than computed in JS. Rows cascade away with
+ * deleteTestUser().
+ */
+export async function seedLeaderboardScore(
+  userId: string,
+  score: number,
+  opts: { streakDays?: number } = {}
+): Promise<void> {
+  const db = serviceDb();
+  await db.execute(sql`
+    insert into user_scores (user_id, group_id, period, period_start, score)
+    values
+      (${userId}, ${schema.GLOBAL_GROUP_ID}, 'all_time', '1970-01-01'::date, ${score}),
+      (${userId}, ${schema.GLOBAL_GROUP_ID}, 'weekly', date_trunc('week', now())::date, ${score})
+    on conflict (user_id, group_id, period, period_start)
+      do update set score = excluded.score
+  `);
+  if (opts.streakDays !== undefined) {
+    await db
+      .update(schema.users)
+      .set({ streakDays: opts.streakDays })
+      .where(eq(schema.users.id, userId));
+  }
 }
 
 export async function getUserReputation(userId: string): Promise<number> {

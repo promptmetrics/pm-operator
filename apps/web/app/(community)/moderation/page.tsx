@@ -23,7 +23,7 @@ export default async function ModerationPage() {
 
   return (
     <div className="px-4 py-6">
-      <ModerationQueue />
+      <ModerationQueue currentUserId={session.user.id} />
     </div>
   );
 }

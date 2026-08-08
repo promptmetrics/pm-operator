@@ -30,6 +30,72 @@ test('anonymous users can read the public feed', async ({ page }) => {
   expect(body.data.posts.length).toBeGreaterThan(0);
 });
 
+// T5G (decision D-B): the DevCard page and its PNG are the ONLY public paths
+// under /u/. The three tests below work as a set — the first two prove the
+// carve-out actually opens those paths, the third proves it did not widen into
+// a prefix that opens the whole profile space. A change to the middleware
+// allowlist must keep all three green; passing only the first two means the
+// gate leaked.
+
+test('signed-out visitors can open a DevCard page', async ({ page }) => {
+  const user = await createTestUser({ onboardingComplete: true });
+  usersToClean.push(user.id);
+
+  const path = `/u/${user.userslug}/devcard`;
+
+  // No redirect to /login, and the card actually renders.
+  const res = await page.goto(path);
+  expect(res?.status()).toBe(200);
+  expect(page.url()).toContain(path);
+  await expect(page.getByRole('heading', { level: 1, name: user.username })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Download PNG' })).toBeVisible();
+});
+
+test('the DevCard PNG is public and served as image/png', async ({ page }) => {
+  const user = await createTestUser({ onboardingComplete: true });
+  usersToClean.push(user.id);
+
+  // page.request carries this context's cookies — none here, so unauthenticated.
+  const res = await page.request.get(`/api/og/devcard/${user.userslug}`);
+  expect(res.status()).toBe(200);
+  expect(res.headers()['content-type']).toContain('image/png');
+
+  const body = await res.body();
+  expect(body.length).toBeGreaterThan(0);
+  // PNG magic number: \x89 P N G.
+  expect(body.subarray(0, 4).toString('latin1')).toBe('\x89PNG');
+
+  // An unknown slug is a 404, not a 500 from a crashed render.
+  const missing = await page.request.get(`/api/og/devcard/${user.userslug}-does-not-exist`);
+  expect(missing.status()).toBe(404);
+});
+
+test('every other /u/ route stays gated for signed-out visitors', async ({ page }) => {
+  const user = await createTestUser({ onboardingComplete: true });
+  usersToClean.push(user.id);
+
+  const slug = user.userslug;
+  const gated = [
+    `/u/${slug}`, // the profile itself
+    `/u/${slug}/followers`,
+    `/u/${slug}/following`,
+    `/u/${slug}/devcard/edit`, // deeper than the allowlisted segment
+    `/u/${slug}/devcardx`, // shares the prefix, is not the DevCard
+  ];
+
+  for (const path of gated) {
+    // Redirects are followed, so the FINAL url is the assertion: a gated path
+    // lands on /login. (maxRedirects: 0 would throw rather than hand back a 307.)
+    const res = await page.request.get(path);
+    expect(res.url(), `${path} should redirect a signed-out visitor to login`).toContain('/login');
+  }
+
+  // Same for the PNG namespace: only the exact one-segment form resolves.
+  const gatedPng = await page.request.get('/api/og/devcard');
+  expect(gatedPng.status()).toBe(404);
+});
+
 test('anonymous users are blocked from invite-only circles', async ({ page }) => {
   const admin = await createTestUser({ role: 'admin', onboardingComplete: true });
   usersToClean.push(admin.id);

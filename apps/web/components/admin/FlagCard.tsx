@@ -3,7 +3,15 @@
 import * as React from 'react';
 import { Card, CardContent } from '@pm-operator/ui/components/Card';
 import { Badge } from '@pm-operator/ui/components/Badge';
-import { AlertTriangle, Bot, Clock, FileText, MessageCircle, MessageSquare } from 'lucide-react';
+import { Bot, Clock, FileText, MessageCircle, MessageSquare } from 'lucide-react';
+import { timeAgo } from '@/lib/format';
+import {
+  buildExcerpt,
+  kindPill,
+  outcomeBadge,
+  reasonPill,
+  reporterNote,
+} from './flag-presentation';
 
 export interface FlagCardFlag {
   id: string;
@@ -38,28 +46,24 @@ const targetTypeIcons: Record<string, React.ElementType> = {
   message: MessageSquare,
 };
 
-const targetTypeLabels: Record<string, string> = {
-  post: 'Post',
-  comment: 'Comment',
-  message: 'DM',
-};
-
 export function FlagCard({ flag, selected, onSelectChange }: FlagCardProps) {
   const Icon = targetTypeIcons[flag.targetType] ?? FileText;
-  const label = targetTypeLabels[flag.targetType] ?? flag.targetType;
+  const kind = kindPill(flag.targetType);
+  const reason = reasonPill(flag);
+  const outcome = flag.status === 'open' ? null : outcomeBadge(flag.status);
+  const note = reporterNote(flag);
+  const excerpt = React.useMemo(
+    () => buildExcerpt(flag.target.content, flag.targetType),
+    [flag.target.content, flag.targetType]
+  );
 
-  const timeAgo = React.useMemo(() => {
-    const diff = Date.now() - new Date(flag.createdAt).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-  }, [flag.createdAt]);
+  const summaryId = `flag-${flag.id}-summary`;
 
   return (
-    <Card className="border-[var(--pm-line)] bg-[var(--pm-paper-inset)]">
+    <Card
+      data-testid="flag-card"
+      className="border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-0"
+    >
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
           {onSelectChange && (
@@ -67,77 +71,94 @@ export function FlagCard({ flag, selected, onSelectChange }: FlagCardProps) {
               type="checkbox"
               checked={selected ?? false}
               onChange={(e) => onSelectChange(e.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-[var(--pm-line)]"
+              aria-describedby={summaryId}
+              aria-label={`Select ${kind.label.toLowerCase()} flag by ${flag.target.author.username}`}
+              className="mt-1 h-4 w-4 shrink-0 rounded border-[var(--pm-line)]"
             />
           )}
-          <div className="min-w-0 flex-1 space-y-2">
-            {/* Header row */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="flex items-center gap-1 text-xs">
-                <Icon className="h-3 w-3" />
-                {label}
+          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+            {/* Pills: kind, reason, source, outcome */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge
+                data-testid="flag-kind"
+                variant={kind.variant}
+                className="flex items-center gap-1"
+              >
+                <Icon className="h-3 w-3" aria-hidden="true" />
+                {kind.label}
               </Badge>
+
+              {reason && (
+                <Badge data-testid="flag-reason" variant={reason.variant}>
+                  <span className="sr-only">Reason: </span>
+                  {reason.label}
+                </Badge>
+              )}
+
               {flag.autoFlagged && (
-                <Badge variant="outline" className="flex items-center gap-1 border-amber-500/30 text-amber-600 text-xs">
-                  <Bot className="h-3 w-3" />
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <Bot className="h-3 w-3" aria-hidden="true" />
                   Auto-flagged
                 </Badge>
               )}
-              {flag.target.group && (
-                <span className="text-xs text-[var(--pm-muted)]">
-                  in {flag.target.group.name}
-                </span>
-              )}
-              <span className="ml-auto flex items-center gap-1 text-xs text-[var(--pm-muted)]">
-                <Clock className="h-3 w-3" />
-                {timeAgo}
+
+              {outcome && <Badge variant={outcome.variant}>{outcome.label}</Badge>}
+
+              <span className="ml-auto flex shrink-0 items-center gap-1 text-xs text-[var(--pm-muted)]">
+                <Clock className="h-3 w-3" aria-hidden="true" />
+                {timeAgo(flag.createdAt)}
               </span>
             </div>
 
-            {/* Author */}
-            <p className="text-sm text-[var(--pm-muted)]">
+            {/* Who and where */}
+            <p id={summaryId} className="text-sm text-[var(--pm-muted)]">
               by{' '}
               <span className="font-medium text-[var(--pm-ink)]">
                 {flag.target.author.username}
               </span>
-              {flag.reporter && (
-                <> &middot; reported by <span className="font-medium text-[var(--pm-ink)]">{flag.reporter.username}</span></>
-              )}
+              {flag.target.group ? <> in {flag.target.group.name}</> : null}
+              {flag.reporter ? (
+                <>
+                  {' '}
+                  &middot; reported by{' '}
+                  <span className="font-medium text-[var(--pm-ink)]">
+                    {flag.reporter.username}
+                  </span>
+                </>
+              ) : null}
             </p>
 
-            {/* Title */}
             {flag.target.title && (
-              <p className="font-medium text-sm">{flag.target.title}</p>
+              <p className="text-sm font-semibold text-[var(--pm-ink)]">
+                {flag.target.title}
+              </p>
             )}
 
-            {/* Content preview */}
-            {flag.target.content && (
-              <div className="rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper)] p-3 text-sm">
-                {flag.targetType === 'message' ? (
-                  <p className="whitespace-pre-wrap break-words">
-                    {flag.target.content.length > 200
-                      ? `${flag.target.content.slice(0, 200)}...`
-                      : flag.target.content}
-                  </p>
-                ) : (
-                  <div
-                    className="[&_*]:break-words [&_img]:max-h-32 [&_img]:rounded"
-                    dangerouslySetInnerHTML={{
-                      __html:
-                        flag.target.content.length > 200
-                          ? `${flag.target.content.slice(0, 200)}...`
-                          : flag.target.content,
-                    }}
-                  />
-                )}
-              </div>
+            {/* Quoted excerpt of the flagged content */}
+            {excerpt && (
+              <blockquote
+                data-testid="flag-excerpt"
+                className="border-l-2 border-[var(--pm-coral)] bg-[var(--pm-paper)] py-2 pl-3 pr-2 text-sm italic text-[var(--pm-ink-2)]"
+              >
+                <span className="sr-only">Flagged content: </span>
+                <span className="break-words">
+                  &ldquo;{excerpt.text}
+                  {excerpt.truncated ? '…' : ''}&rdquo;
+                </span>
+                {excerpt.truncated && <span className="sr-only"> (excerpt truncated)</span>}
+              </blockquote>
             )}
 
-            {/* Reason */}
-            {flag.reason && (
-              <div className="flex items-start gap-1.5 text-sm text-[var(--pm-muted)]">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-                <span>{flag.reason}</span>
+            {/* The reporter's own words, when the reason carries more than a category */}
+            {note && (
+              <div
+                data-testid="flag-note"
+                className="rounded-[var(--pm-radius-md)] border border-[var(--pm-line)] bg-[var(--pm-paper-2)] px-3 py-2"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--pm-muted)]">
+                  {flag.autoFlagged ? 'Auto-flag detail' : 'Reporter note'}
+                </p>
+                <p className="mt-0.5 break-words text-sm text-[var(--pm-ink-2)]">{note}</p>
               </div>
             )}
           </div>

@@ -159,6 +159,69 @@ export async function getUserStreakWeek(
   };
 }
 
+export interface DevCardSummary {
+  userslug: string;
+  displayName: string;
+  level: number;
+  reputationScore: number;
+  postsCount: number;
+  acceptedSolutions: number;
+  streakDays: number;
+  joinedAt: string;
+}
+
+// T5G: the DevCard PNG (GET /api/og/devcard/[slug]) renders inside satori and
+// must stay cheap — this is a hard 2-query budget, run SEQUENTIALLY so the OG
+// route never adds concurrency to the small pool (see "Pool-starvation gotcha").
+// Query 1 is the user row (level, streak and join date all live there); query 2
+// folds both counts into one round trip via scalar subqueries. Everything it
+// returns is a primitive, because Drizzle cannot run inside the ImageResponse
+// tree. Deliberately NOT getUserProfile — that one costs 3 queries and signs
+// avatar URLs the PNG does not use.
+export async function getDevCardSummary(
+  db: DrizzleClient,
+  slug: string
+): Promise<DevCardSummary | null> {
+  const user = await db.query.users.findFirst({
+    where: eq(sql`lower(${schema.users.userslug})`, slug.toLowerCase()),
+    columns: {
+      id: true,
+      username: true,
+      fullName: true,
+      userslug: true,
+      reputationScore: true,
+      streakDays: true,
+      createdAt: true,
+    },
+  });
+  if (!user) return null;
+
+  const countRows = (await db.execute(sql`
+    SELECT
+      (
+        SELECT count(*) FROM posts p
+        WHERE p.author_id = ${user.id} AND p.status = 'published'
+      ) AS posts_count,
+      (
+        SELECT count(*) FROM comments c
+        JOIN posts p ON p.accepted_comment_id = c.id
+        WHERE c.author_id = ${user.id}
+      ) AS accepted_solutions
+  `)) as unknown as Array<{ posts_count: number | string; accepted_solutions: number | string }>;
+  const counts = countRows[0];
+
+  return {
+    userslug: user.userslug,
+    displayName: user.fullName || user.username,
+    level: levelForScore(toNumber(user.reputationScore)).level,
+    reputationScore: toNumber(user.reputationScore),
+    postsCount: toNumber(counts?.posts_count),
+    acceptedSolutions: toNumber(counts?.accepted_solutions),
+    streakDays: toNumber(user.streakDays),
+    joinedAt: toISO(user.createdAt),
+  };
+}
+
 export async function updateUserProfile(
   db: DrizzleClient,
   userId: string,

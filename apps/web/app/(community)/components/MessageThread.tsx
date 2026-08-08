@@ -13,9 +13,20 @@ import type { Conversation, Message } from '@pm-operator/api';
 interface MessageThreadProps {
   conversationId: string;
   currentUserId: string;
+  // 'page' is the standalone /messages/[id] deep-link route: centred column,
+  // back link that navigates to /messages. 'pane' is the right-hand column of
+  // the two-pane /messages layout: fills its parent, and back is a callback
+  // that clears the selection (shown only below the two-pane breakpoint).
+  variant?: 'page' | 'pane';
+  onBack?: () => void;
 }
 
-export function MessageThread({ conversationId, currentUserId }: MessageThreadProps) {
+export function MessageThread({
+  conversationId,
+  currentUserId,
+  variant = 'page',
+  onBack,
+}: MessageThreadProps) {
   const router = useRouter();
   const [conversation, setConversation] = React.useState<Conversation | null>(null);
   const [messages, setMessages] = React.useState<Message[]>([]);
@@ -126,17 +137,29 @@ export function MessageThread({ conversationId, currentUserId }: MessageThreadPr
     }
   };
 
+  const pane = variant === 'pane';
+
   if (loading) {
     return <p className="text-[var(--pm-muted)]">Loading...</p>;
   }
 
   if (notFound) {
     return (
-      <div className="mx-auto max-w-3xl">
+      <div className={pane ? '' : 'mx-auto max-w-3xl'}>
         <p className="text-[var(--pm-muted)]">Conversation not found.</p>
-        <Link href="/messages" className="text-sm text-[var(--pm-coral)] hover:underline">
-          Back to messages
-        </Link>
+        {pane ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-sm text-[var(--pm-coral)] hover:underline"
+          >
+            Back to messages
+          </button>
+        ) : (
+          <Link href="/messages" className="text-sm text-[var(--pm-coral)] hover:underline">
+            Back to messages
+          </Link>
+        )}
       </div>
     );
   }
@@ -144,13 +167,31 @@ export function MessageThread({ conversationId, currentUserId }: MessageThreadPr
   const partner = conversation?.partner;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col" style={{ minHeight: 'calc(100vh - 8rem)' }}>
+    <div
+      data-testid="message-thread"
+      className={pane ? 'flex h-full min-h-0 flex-col' : 'mx-auto flex max-w-3xl flex-col'}
+      style={pane ? undefined : { minHeight: 'calc(100vh - 8rem)' }}
+    >
       <div className="mb-4 flex items-center gap-3 border-b border-[var(--pm-line)] pb-3">
-        <Link href="/messages" aria-label="Back to messages">
-          <Button variant="ghost" size="sm">
+        {pane ? (
+          // Only the single-pane layout needs a way back — above the breakpoint
+          // the inbox is already on screen next to the thread.
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            aria-label="Back to messages"
+            className="md:hidden"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-        </Link>
+        ) : (
+          <Link href="/messages" aria-label="Back to messages">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+        )}
         <Avatar
           size="sm"
           className="h-9 w-9"
@@ -171,7 +212,15 @@ export function MessageThread({ conversationId, currentUserId }: MessageThreadPr
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-4">
+      {/* min-h-0 only in the pane: it makes the box itself scroll inside a
+          fixed-height column. The page variant keeps its content-driven height
+          so the whole page scrolls, exactly as before. */}
+      <div
+        ref={scrollRef}
+        className={`flex-1 overflow-y-auto rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-4 ${
+          pane ? 'min-h-0' : ''
+        }`}
+      >
         {messages.length === 0 ? (
           <p className="py-12 text-center text-sm text-[var(--pm-muted)]">
             No messages yet. Say hello 👋

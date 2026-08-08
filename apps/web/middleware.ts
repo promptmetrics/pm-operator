@@ -6,6 +6,22 @@ const PUBLIC_FILE_REGEX = /\.(?:png|jpg|jpeg|gif|svg|ico|css|js|woff2?|ttf|eot)$
 const COMMUNITY_ROUTE_REGEX =
   /^\/(g\/|p\/|u\/|leaderboards|settings|search|notifications|moderation|messages|bookmarks)(\/|$)/;
 
+// T5G: the ONLY two public carve-outs inside the otherwise gated /u/ space —
+// the shareable DevCard page and the PNG that OG unfurlers fetch for it.
+//
+// Read this as an exact-segment allowlist, not a prefix:
+//   - `^` and `\/?$` anchor BOTH ends, so the whole pathname must be consumed.
+//   - the slug is `[^/]+`, which cannot span a `/`, so the match is pinned to
+//     exactly one slug segment.
+// Together those mean the pattern admits `/u/{slug}/devcard` and nothing that
+// merely starts with it: `/u/{slug}` fails (no `/devcard` tail),
+// `/u/{slug}/followers` fails (wrong literal), `/u/{slug}/devcard/edit` fails
+// (`$` is never reached), and `/u/{a}/{b}/devcard` fails (`[^/]+` cannot eat the
+// extra segment). Every other /u/ route stays behind auth + onboarding.
+// A prefix test (`startsWith('/u/')`, or dropping the `$`) would expose the
+// whole profile space, so keep both anchors when touching this.
+const PUBLIC_DEVCARD_REGEX = /^\/(?:u\/[^/]+\/devcard|api\/og\/devcard\/[^/]+)\/?$/;
+
 function isApiV1(request: NextRequest) {
   return request.nextUrl.pathname.startsWith('/api/v1/');
 }
@@ -28,6 +44,10 @@ function needsProtection(request: NextRequest) {
   ) {
     return false;
   }
+
+  // Checked BEFORE the community gate so the two DevCard paths win, and after
+  // the static-asset bail-outs so it stays a narrow, explicit exception.
+  if (PUBLIC_DEVCARD_REGEX.test(pathname)) return false;
 
   if (COMMUNITY_ROUTE_REGEX.test(pathname)) return true;
   if (isApiV1Write(request)) return true;
