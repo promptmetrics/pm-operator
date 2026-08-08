@@ -103,7 +103,7 @@ test('moderation queue links a comment flag to the post with the comment anchor'
       const rect = el.getBoundingClientRect();
       return rect.top >= 0 && rect.bottom <= window.innerHeight;
     },
-    commentId,
+    `comment-${commentId}`,
     { timeout: 15_000 }
   );
   const box = await popup.locator(`#comment-${commentId}`).boundingBox();
