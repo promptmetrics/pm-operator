@@ -1,6 +1,7 @@
 export const runtime = 'nodejs';
 
-import { createGroupRequestSchema } from '@pm-operator/api';
+import { unstable_cache } from 'next/cache';
+import { createGroupRequestSchema, type GroupListItem } from '@pm-operator/api';
 import { getSession } from '@/lib/auth/server';
 import {
   getDb,
@@ -12,7 +13,18 @@ import {
   getClientIp,
   paginationMeta,
 } from '@/lib/api/server';
-import { listGroups, createGroup } from '@/lib/services/groups';
+import { listGroups, listGroupStats, createGroup } from '@/lib/services/groups';
+
+// Track 2C: the community layout rail calls this route on every navigation.
+// The stats aggregate is viewer-independent (see listGroupStats), so one
+// cached entry serves every viewer for 300 s; only the viewer-specific base
+// query (visibility / membership) runs fresh per navigation. Keeps the
+// per-navigation budget at 1 query warm, 2 cold — never concurrent.
+const getCachedGroupStats = unstable_cache(
+  async () => listGroupStats(getDb()),
+  ['groups-list-stats'],
+  { revalidate: 300 }
+);
 
 export async function GET(request: Request) {
   const limited = await rateLimit('anonymousPublicRead', getClientIp(request));
@@ -20,7 +32,19 @@ export async function GET(request: Request) {
 
   const { session } = await getSession();
   const groups = await listGroups(getDb(), session?.user?.id);
-  return ok({ groups }, paginationMeta(1, groups.length, false));
+
+  const includeStats =
+    new URL(request.url).searchParams.get('includeStats') === '1';
+  if (!includeStats) {
+    return ok({ groups }, paginationMeta(1, groups.length, false));
+  }
+
+  const statsMap = await getCachedGroupStats();
+  const withStats: GroupListItem[] = groups.map((group) => ({
+    ...group,
+    stats: statsMap[group.id] ?? { postsThisMonth: 0, solvedRate: null },
+  }));
+  return ok({ groups: withStats }, paginationMeta(1, withStats.length, false));
 }
 
 export async function POST(request: Request) {

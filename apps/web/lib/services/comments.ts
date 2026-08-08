@@ -17,6 +17,7 @@ import { insertNotification } from './notifications';
 import { awardPoints, trackDailyStat, advanceStreak } from './points';
 import { sendTransactional } from '../email';
 import { autoFlagIfWatched } from './flags';
+import { buildLinkPreview } from './unfurl';
 
 function commentVisibilityFilter(currentUserId: string | undefined) {
   const notDeleted = sql`${comments.status} <> 'deleted'`;
@@ -81,6 +82,7 @@ async function toCommentDetail(
     parentCommentId: row.parentCommentId,
     content: isHidden ? '' : row.content,
     contentPlain: isHidden ? '' : row.contentPlain,
+    linkPreview: isHidden ? null : (row.linkPreview ?? null),
     upvotes: row.upvotes,
     status: row.status,
     createdAt: toISO(row.createdAt),
@@ -285,6 +287,9 @@ export async function createComment(
   }
 
   const contentPlain = htmlToText(input.content);
+  // Server-side unfurl of the first URL (track 2A). No DB queries inside;
+  // failures resolve to null and never block the save.
+  const linkPreview = await buildLinkPreview(input.content, contentPlain);
 
   const comment = await db.transaction(async (tx) => {
     const [created] = await tx
@@ -295,6 +300,7 @@ export async function createComment(
         parentCommentId: input.parentCommentId ?? null,
         content: input.content,
         contentPlain,
+        linkPreview,
       })
       .returning();
 

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { groupSchema } from './groups';
 import { publicUserProfileSchema } from './users';
+import { linkPreviewSchema } from './unfurl';
 
 export const PostType = {
   DISCUSSION: 'discussion',
@@ -73,6 +74,8 @@ export const postSchema = z.object({
   isPinned: z.boolean(),
   featuredLabel: z.string().nullable(),
   coverImageUrl: z.string().nullable().optional(),
+  // Server-generated card for the first URL in the body; null = no card.
+  linkPreview: linkPreviewSchema.nullable().optional(),
   acceptedCommentId: z.string().uuid().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -108,6 +111,7 @@ export const postListItemSchema = z.object({
   viewerHasBookmarked: z.boolean().optional(),
   featuredLabel: z.string().nullable().optional(),
   coverImageUrl: z.string().nullable().optional(),
+  linkPreview: linkPreviewSchema.nullable().optional(),
 });
 
 export type PostListItem = z.infer<typeof postListItemSchema>;

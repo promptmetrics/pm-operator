@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { publicUserProfileSchema } from './users';
+import { linkPreviewSchema } from './unfurl';
 
 export const CommentStatus = {
   PUBLISHED: 'published',
@@ -20,6 +21,8 @@ export const commentSchema = z.object({
   parentCommentId: z.string().uuid().nullable(),
   content: z.string(),
   contentPlain: z.string(),
+  // Server-generated card for the first URL in the body; null = no card.
+  linkPreview: linkPreviewSchema.nullable().optional(),
   upvotes: z.number().int().nonnegative(),
   status: commentStatusSchema,
   createdAt: z.string().datetime(),

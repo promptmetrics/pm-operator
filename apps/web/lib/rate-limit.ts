@@ -12,7 +12,8 @@ export type RateLimitTier =
   | 'mcpRead'
   | 'mentionAutocomplete'
   | 'follow'
-  | 'message';
+  | 'message'
+  | 'unfurl';
 
 type RateLimitConfig = {
   windowSeconds: number;
@@ -69,6 +70,14 @@ const TIER_CONFIG: Record<RateLimitTier, RateLimitConfig> = {
     maxRequests: 30,
     keyPrefix: 'ratelimit:message',
     keyFn: (userId: string) => `ratelimit:message:${userId}`,
+  },
+  // Composer link-preview endpoint (track 2A). Cosmetic — the server
+  // re-fetches on save — so keep it tight.
+  unfurl: {
+    windowSeconds: 60,
+    maxRequests: 10,
+    keyPrefix: 'ratelimit:unfurl',
+    keyFn: (userId: string) => `ratelimit:unfurl:${userId}`,
   },
 };
 

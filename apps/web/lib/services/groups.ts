@@ -152,6 +152,46 @@ export async function getGroupStats(
   };
 }
 
+// Track 2C: per-group aggregates for the groups LIST (includeStats=1 on
+// GET /api/v1/groups). One query over all groups' posts, keyed by group id.
+// Deliberately viewer-INDEPENDENT (published posts only, no
+// postVisibilityFilter) so the route can wrap it in unstable_cache and share
+// one 300 s entry across every viewer — caching a viewer-dependent aggregate
+// would either leak or fragment the cache. The list route only attaches stats
+// to groups the viewer's own base query returned, so nothing leaks about
+// invisible groups.
+export type GroupStatsMap = Record<string, GroupStats>;
+
+export async function listGroupStats(db: DrizzleClient): Promise<GroupStatsMap> {
+  const rows = await db
+    .select({
+      groupId: schema.posts.groupId,
+      postsThisMonth: sql<number>`count(*) filter (
+        where ${schema.posts.createdAt} >= now() - interval '30 days'
+      )::int`,
+      questions: sql<number>`count(*) filter (
+        where ${schema.posts.type} = 'question'
+      )::int`,
+      solved: sql<number>`count(*) filter (
+        where ${schema.posts.type} = 'question'
+          and ${schema.posts.acceptedCommentId} is not null
+      )::int`,
+    })
+    .from(schema.posts)
+    .where(eq(schema.posts.status, 'published'))
+    .groupBy(schema.posts.groupId);
+
+  const map: GroupStatsMap = {};
+  for (const row of rows) {
+    const questions = toNumber(row.questions);
+    map[row.groupId] = {
+      postsThisMonth: toNumber(row.postsThisMonth),
+      solvedRate: questions > 0 ? toNumber(row.solved) / questions : null,
+    };
+  }
+  return map;
+}
+
 export async function createGroup(
   db: DrizzleClient,
   input: CreateGroupRequest,

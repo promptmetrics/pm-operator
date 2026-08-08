@@ -1,7 +1,13 @@
 import { eq, and, gte, lte, desc, sql, count } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
-import { toNumber } from './shared';
+import type {
+  AdminDashboard,
+  AdminDashboardAttentionKind,
+  AdminDashboardOnboarding,
+  AdminDashboardSource,
+} from '@pm-operator/api';
+import { toNumber, toISO } from './shared';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -252,6 +258,224 @@ export async function getPostGrowth(
     date: r.date,
     count: r.count,
   }));
+}
+
+// ── Admin Dashboard (analytics v2, redesign plan §4.5) ──────────────────────
+
+function num(value: unknown): number {
+  return toNumber(value as string | number | null | undefined);
+}
+
+function nullableNum(value: unknown): number | null {
+  return value === null || value === undefined ? null : num(value);
+}
+
+function rate(solved: number, total: number): number | null {
+  return total === 0 ? null : solved / total;
+}
+
+/**
+ * Week-over-week KPIs + feed panels for the v2 admin dashboard.
+ *
+ * Pool max is 3 (see MEMORY: DB pool starvation trap) — exactly two
+ * sequential waves of ≤3 concurrent queries. Never widen either Promise.all
+ * or merge the waves.
+ */
+export async function getAdminDashboard(
+  db: DrizzleClient
+): Promise<AdminDashboard> {
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const now = new Date();
+  const currentStart = new Date(now.getTime() - WEEK_MS);
+  const priorStart = new Date(now.getTime() - 2 * WEEK_MS);
+
+  // Wave 1: week-over-week aggregates (3 queries). Each statement covers both
+  // windows via FILTER so the date predicate stays on created_at /
+  // last_active_at and each table is scanned once.
+  const [postRows, activeRows, ttfaRows] = await Promise.all([
+    db.execute(sql`
+      SELECT
+        COUNT(*) FILTER (WHERE created_at >= ${currentStart})::int AS posts_current,
+        COUNT(*) FILTER (WHERE created_at < ${currentStart})::int AS posts_prior,
+        COUNT(*) FILTER (WHERE type = 'question' AND created_at >= ${currentStart})::int AS questions_current,
+        COUNT(*) FILTER (WHERE type = 'question' AND accepted_comment_id IS NOT NULL AND created_at >= ${currentStart})::int AS solved_current,
+        COUNT(*) FILTER (WHERE type = 'question' AND created_at < ${currentStart})::int AS questions_prior,
+        COUNT(*) FILTER (WHERE type = 'question' AND accepted_comment_id IS NOT NULL AND created_at < ${currentStart})::int AS solved_prior
+      FROM posts
+      WHERE status = 'published' AND created_at >= ${priorStart}
+    `),
+    db.execute(sql`
+      SELECT
+        COUNT(*) FILTER (WHERE last_active_at >= ${currentStart})::int AS active_current,
+        COUNT(*) FILTER (WHERE last_active_at < ${currentStart})::int AS active_prior
+      FROM users
+      WHERE last_active_at >= ${priorStart}
+    `),
+    db.execute(sql`
+      SELECT
+        percentile_cont(0.5) WITHIN GROUP (
+          ORDER BY EXTRACT(EPOCH FROM (fc.first_comment_at - p.created_at))::double precision
+        ) FILTER (WHERE p.created_at >= ${currentStart}) AS median_current,
+        percentile_cont(0.5) WITHIN GROUP (
+          ORDER BY EXTRACT(EPOCH FROM (fc.first_comment_at - p.created_at))::double precision
+        ) FILTER (WHERE p.created_at < ${currentStart}) AS median_prior
+      FROM posts p
+      JOIN LATERAL (
+        SELECT MIN(c.created_at) AS first_comment_at
+        FROM comments c
+        WHERE c.post_id = p.id AND c.status = 'published'
+      ) fc ON fc.first_comment_at IS NOT NULL
+      WHERE p.type = 'question'
+        AND p.status = 'published'
+        AND p.created_at >= ${priorStart}
+    `),
+  ]);
+
+  // Wave 2: dashboard panels (3 queries).
+  const [perDayRows, memberRows, attentionRows] = await Promise.all([
+    db.execute(sql`
+      SELECT
+        to_char(d.day, 'YYYY-MM-DD') AS date,
+        COALESCE(pc.cnt, 0)::int AS count
+      FROM generate_series(CURRENT_DATE - 6, CURRENT_DATE, interval '1 day') AS d(day)
+      LEFT JOIN (
+        SELECT DATE(created_at) AS day, COUNT(*)::int AS cnt
+        FROM posts
+        WHERE status = 'published' AND created_at >= CURRENT_DATE - 6
+        GROUP BY 1
+      ) pc ON pc.day = d.day::date
+      ORDER BY d.day
+    `),
+    db.execute(sql`
+      SELECT
+        u.id,
+        u.username,
+        u.userslug,
+        u.picture_url,
+        u.created_at,
+        CASE
+          WHEN u.preferences->>'onboardingComplete' = 'true' THEN 'onboarded'
+          WHEN u.painful_tool_stack_task <> '' AND u.preferences->>'onboardingStep' IS NULL THEN 'onboarded'
+          ELSE 'stalled'
+        END AS onboarding,
+        CASE
+          WHEN u.github_id IS NOT NULL THEN 'github'
+          WHEN u.google_id IS NOT NULL THEN 'google'
+          WHEN u.linkedin_id IS NOT NULL THEN 'linkedin'
+          ELSE 'invite'
+        END AS source
+      FROM users u
+      ORDER BY u.created_at DESC
+      LIMIT 8
+    `),
+    db.execute(sql`
+      (
+        SELECT
+          'open_flag' AS kind,
+          f.id::text AS id,
+          COALESCE(NULLIF(f.reason, ''), 'Flagged ' || f.target_type) AS title,
+          f.created_at
+        FROM flags f
+        WHERE f.status = 'open'
+        ORDER BY f.created_at ASC
+        LIMIT 5
+      )
+      UNION ALL
+      (
+        SELECT
+          'stalled_signup' AS kind,
+          u.id::text AS id,
+          u.username AS title,
+          u.created_at
+        FROM users u
+        WHERE u.created_at < now() - interval '24 hours'
+          AND NOT (
+            COALESCE(u.preferences->>'onboardingComplete', '') = 'true'
+            OR (u.painful_tool_stack_task <> '' AND u.preferences->>'onboardingStep' IS NULL)
+          )
+        ORDER BY u.created_at DESC
+        LIMIT 5
+      )
+      UNION ALL
+      (
+        SELECT
+          'unanswered_question' AS kind,
+          p.id::text AS id,
+          p.title AS title,
+          p.created_at
+        FROM posts p
+        WHERE p.type = 'question'
+          AND p.status = 'published'
+          AND p.created_at < now() - interval '48 hours'
+          AND NOT EXISTS (
+            SELECT 1 FROM comments c
+            WHERE c.post_id = p.id AND c.status = 'published'
+          )
+        ORDER BY p.created_at ASC
+        LIMIT 5
+      )
+    `),
+  ]);
+
+  const p = postRows[0] as Record<string, unknown> | undefined;
+  const a = activeRows[0] as Record<string, unknown> | undefined;
+  const m = ttfaRows[0] as Record<string, unknown> | undefined;
+
+  return {
+    weekly: {
+      postsCreated: {
+        current: num(p?.posts_current),
+        prior: num(p?.posts_prior),
+      },
+      solvedRate: {
+        current: rate(num(p?.solved_current), num(p?.questions_current)),
+        prior: rate(num(p?.solved_prior), num(p?.questions_prior)),
+      },
+      activeMembers: {
+        current: num(a?.active_current),
+        prior: num(a?.active_prior),
+      },
+      medianTimeToFirstAnswerSeconds: {
+        current: nullableNum(m?.median_current),
+        prior: nullableNum(m?.median_prior),
+      },
+    },
+    postsPerDay: (perDayRows as unknown as { date: string; count: number }[]).map(
+      (row) => ({ date: row.date, count: num(row.count) })
+    ),
+    newestMembers: (
+      memberRows as unknown as {
+        id: string;
+        username: string;
+        userslug: string;
+        picture_url: string | null;
+        created_at: Date | string;
+        onboarding: string;
+        source: string;
+      }[]
+    ).map((row) => ({
+      id: row.id,
+      username: row.username,
+      userslug: row.userslug,
+      pictureUrl: row.picture_url,
+      createdAt: toISO(row.created_at),
+      onboarding: row.onboarding as AdminDashboardOnboarding,
+      source: row.source as AdminDashboardSource,
+    })),
+    needsAttention: (
+      attentionRows as unknown as {
+        kind: string;
+        id: string;
+        title: string;
+        created_at: Date | string;
+      }[]
+    ).map((row) => ({
+      kind: row.kind as AdminDashboardAttentionKind,
+      id: row.id,
+      title: row.title,
+      createdAt: toISO(row.created_at),
+    })),
+  };
 }
 
 // ── PostHog Integration ──────────────────────────────────────────────────────

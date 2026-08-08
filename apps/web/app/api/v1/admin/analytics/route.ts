@@ -14,12 +14,17 @@ import {
   getMemberGrowth,
   getEngagementMetrics,
   getPostGrowth,
+  getAdminDashboard,
   createPostHogClient,
 } from '@/lib/services/analytics';
 
 const analyticsQuerySchema = z.object({
   period: z.enum(['7d', '30d', '90d']).default('30d'),
-  section: z.enum(['overview', 'members', 'engagement']).default('overview'),
+  // 'dashboard' is additive (analytics v2, §4.5); the default and the legacy
+  // sections are unchanged so the current admin KpiCards keep working.
+  section: z
+    .enum(['overview', 'members', 'engagement', 'dashboard'])
+    .default('overview'),
 });
 
 export async function GET(request: Request) {
@@ -68,6 +73,11 @@ export async function GET(request: Request) {
       const overview = await getAnalyticsOverview(db);
       const memberGrowth = await getMemberGrowth(db, days);
       return ok({ overview, memberGrowth, posthog: posthogData });
+    }
+
+    case 'dashboard': {
+      const dashboard = await getAdminDashboard(db);
+      return ok({ dashboard, posthog: posthogData });
     }
 
     case 'engagement': {

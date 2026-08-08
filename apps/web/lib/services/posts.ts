@@ -8,6 +8,7 @@ import { sanitizeHtml } from '../sanitize-html';
 import { levelForScore } from '@pm-operator/api';
 import { toISO, toNumber, isAdminOrModerator } from './shared';
 import { autoFlagIfWatched } from './flags';
+import { buildLinkPreview } from './unfurl';
 
 const POST_IMAGE_PATH_PREFIX = '/post-images/';
 
@@ -214,6 +215,7 @@ export async function toPostListItem(
     viewerHasBookmarked: Boolean(row.viewerHasBookmarked),
     featuredLabel: row.post.featuredLabel,
     coverImageUrl: await resolveCoverImageUrl(row.post.coverImageUrl),
+    linkPreview: row.post.linkPreview ?? null,
   };
 }
 
@@ -418,6 +420,7 @@ export async function getPostById(
     content: await formatPostContent(post.content, isHidden),
     contentPlain: isHidden ? '' : post.contentPlain,
     coverImageUrl: await resolveCoverImageUrl(post.coverImageUrl),
+    linkPreview: isHidden ? null : (post.linkPreview ?? null),
     type: post.type,
     status: post.status,
     tags: post.tags,
@@ -513,6 +516,7 @@ export async function getPostBySlug(
     content: await formatPostContent(post.content, isHidden),
     contentPlain: isHidden ? '' : post.contentPlain,
     coverImageUrl: await resolveCoverImageUrl(post.coverImageUrl),
+    linkPreview: isHidden ? null : (post.linkPreview ?? null),
     type: post.type,
     status: post.status,
     tags: post.tags,
@@ -580,6 +584,9 @@ export async function createPost(
 
   const contentPlain = htmlToText(input.content);
   const slug = await uniquePostSlug(db, group.id, input.title);
+  // Server-side unfurl of the first URL (track 2A). No DB queries inside;
+  // failures resolve to null and never block the save.
+  const linkPreview = await buildLinkPreview(input.content, contentPlain);
 
   const post = await db.transaction(async (tx) => {
     const [created] = await tx
@@ -594,6 +601,7 @@ export async function createPost(
         type: input.type,
         tags: input.tags,
         coverImageUrl: input.coverImageUrl,
+        linkPreview,
       })
       .returning();
 

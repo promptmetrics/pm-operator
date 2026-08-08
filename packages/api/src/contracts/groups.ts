@@ -107,6 +107,15 @@ export const groupWithStatsSchema = groupSchema.extend({
 
 export type GroupWithStats = z.infer<typeof groupWithStatsSchema>;
 
+// List items from GET /api/v1/groups. `stats` is present only when the caller
+// passed includeStats=1; it reuses groupStatsSchema so the shape matches the
+// single-group includeStats response.
+export const groupListItemSchema = groupSchema.extend({
+  stats: groupStatsSchema.optional(),
+});
+
+export type GroupListItem = z.infer<typeof groupListItemSchema>;
+
 export const groupMembershipSchema = z.object({
   id: z.string().uuid(),
   groupId: z.string().uuid(),

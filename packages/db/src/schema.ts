@@ -208,6 +208,16 @@ export const groupInvites = pgTable(
   })
 ).enableRLS();
 
+// Server-generated preview card for the first URL in a post/comment body
+// (track 2A). Mirrors `linkPreviewSchema` in @pm-operator/api (the packages
+// have no dependency edge, so the shape is duplicated here for `$type`).
+export type LinkPreview = {
+  url: string;
+  domain: string;
+  title: string;
+  desc: string | null;
+};
+
 export const posts = pgTable(
   'posts',
   {
@@ -234,6 +244,8 @@ export const posts = pgTable(
     featuredLabel: text('featured_label'),
     // Optional social/featured image. Stored as a /post-images/ path or external URL.
     coverImageUrl: text('cover_image_url'),
+    // Server-generated card for the first URL in the body (migration 0024); null = no card.
+    linkPreview: jsonb('link_preview').$type<LinkPreview | null>(),
     // FK added in migration 0001_numerous_killer_shrike.sql to avoid circular module load.
     acceptedCommentId: uuid('accepted_comment_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -271,6 +283,8 @@ export const comments = pgTable(
     parentCommentId: uuid('parent_comment_id'),
     content: text('content').notNull(), // sanitized HTML from TipTap
     contentPlain: text('content_plain').notNull(), // extracted plain text for search / summaries
+    // Server-generated card for the first URL in the body (migration 0024); null = no card.
+    linkPreview: jsonb('link_preview').$type<LinkPreview | null>(),
     upvotes: integer('upvotes').default(0).notNull(),
     status: commentStatusEnum('status').default('published').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
