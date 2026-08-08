@@ -19,10 +19,10 @@ export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
         type="button"
         aria-pressed={active}
         className={cn(
-          "inline-flex h-[30px] items-center gap-1.5 rounded-[var(--pm-radius-pill)] px-3 text-sm transition-colors focus:outline-none focus-visible:shadow-[var(--pm-focus)] disabled:pointer-events-none disabled:opacity-60",
+          "inline-flex h-[30px] items-center gap-1.5 rounded-[var(--pm-radius-pill)] border px-3 text-sm transition-colors focus:outline-none focus-visible:shadow-[var(--pm-focus)] disabled:pointer-events-none disabled:opacity-60",
           active
-            ? "bg-[var(--pm-coral-tint)] font-semibold text-[var(--pm-coral-dark)]"
-            : "text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)]",
+            ? "border-[var(--pm-ink)] bg-[var(--pm-ink)] font-semibold text-[var(--pm-on-ink)]"
+            : "border-[var(--pm-line)] bg-[var(--pm-paper-inset)] text-[var(--pm-ink-2)] hover:border-[var(--pm-line-2)] hover:text-[var(--pm-ink)]",
           className
         )}
         {...props}

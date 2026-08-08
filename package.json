@@ -7,6 +7,7 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
+    "check:tokens": "node scripts/check-tokens.mjs",
     "test:e2e": "pnpm --filter @pm-operator/web test:e2e",
     "test:unit": "pnpm --filter @pm-operator/web test:unit",
     "db:generate": "turbo run db:generate",

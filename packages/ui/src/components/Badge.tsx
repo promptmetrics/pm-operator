@@ -10,6 +10,7 @@ export type BadgeVariant =
   | "default"
   | "coral"
   | "green"
+  | "teal"
   | "amber"
   | "blue"
   | "outline";
@@ -29,6 +30,8 @@ export function badgeVariants(variant: BadgeVariant = "default"): string {
       "border-transparent bg-[var(--pm-coral-tint)] text-[var(--pm-coral-dark)] hover:bg-[var(--pm-coral-tint-10)]",
     green:
       "border-transparent bg-[var(--pm-green-bg)] text-[var(--pm-green)] hover:bg-[var(--pm-green-line)]",
+    teal:
+      "border-transparent bg-[color-mix(in_srgb,var(--pm-teal)_14%,transparent)] text-[var(--pm-teal-dark)] hover:bg-[color-mix(in_srgb,var(--pm-teal)_22%,transparent)]",
     amber:
       "border-transparent bg-[var(--pm-amber-bg)] text-[var(--pm-amber)] hover:bg-[var(--pm-amber-line)]",
     blue:

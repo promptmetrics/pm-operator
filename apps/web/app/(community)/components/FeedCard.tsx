@@ -195,7 +195,7 @@ export function FeedCard({ post, currentUserId, rank, onClickResult, variant = '
               </Badge>
             ) : null}
             {post.isSolved ? (
-              <Badge variant="green" className="gap-1">
+              <Badge variant="teal" className="gap-1">
                 <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
                 Solved
               </Badge>
@@ -266,7 +266,7 @@ export function FeedCard({ post, currentUserId, rank, onClickResult, variant = '
               <Tag color={categoryColor}>{post.group.name}</Tag>
             </Link>
             {post.isSolved ? (
-              <Badge variant="green" className="gap-1">
+              <Badge variant="teal" className="gap-1">
                 <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
                 Solved
               </Badge>

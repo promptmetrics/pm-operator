@@ -31,6 +31,8 @@
   --color-error-background: var(--pm-danger-bg);
   --color-success: var(--pm-green);
   --color-success-background: var(--pm-green-bg);
+  --color-teal: var(--pm-teal);
+  --color-teal-dark: var(--pm-teal-dark);
 
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-serif: 'Fraunces', Georgia, serif;

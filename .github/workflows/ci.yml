@@ -32,6 +32,9 @@ jobs:
       # - name: Lint
       #   run: pnpm lint
 
+      - name: Token sync check
+        run: pnpm check:tokens
+
       - name: Type check
         run: pnpm typecheck
 

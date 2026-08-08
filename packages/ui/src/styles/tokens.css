@@ -9,39 +9,45 @@
  */
 
 @theme {
-  /* Paper v3 primitives — warm cream palette */
-  --color-paper-50: #f8fafc;
-  --color-paper-100: #efe8db;
-  --color-paper-200: #e9e0cf;
-  --color-paper-300: #ddd3c4;
-  --color-paper-400: #cabfac;
-  --color-paper-500: #8c8275;
-  --color-paper-600: #6f665a;
-  --color-paper-700: #43403a;
-  --color-paper-800: #1c1c1c;
-  --color-paper-900: #0f172a;
+  /* Paper v3 primitives — Sea Glass palette */
+  --color-paper-50: #f6faf8;
+  --color-paper-100: #e9f1ee;
+  --color-paper-200: #e0ebe7;
+  --color-paper-300: #d2e1db;
+  --color-paper-400: #b8ccc4;
+  --color-paper-500: #7a8d86;
+  --color-paper-600: #5e6f68;
+  --color-paper-700: #39443f;
+  --color-paper-800: #161c1a;
+  --color-paper-900: #0e1312;
 
-  --color-coral-50: #f3ddd6;
-  --color-coral-100: #f3ddd6;
-  --color-coral-200: #e08a6c;
-  --color-coral-300: #d97757;
-  --color-coral-400: #a94d30;
-  --color-coral-500: #a1482a;
+  --color-coral-50: #f5dfe7;
+  --color-coral-100: #f5dfe7;
+  --color-coral-200: #d67a97;
+  --color-coral-300: #b8446a;
+  --color-coral-400: #9d3759;
+  --color-coral-500: #8a2c4e;
   --color-coral-600: #8f3324;
-  --color-coral-700: #2a160e;
+  --color-coral-700: #5c1d33;
 
-  --color-green-50: #e4ece2;
-  --color-green-100: #cdd9c8;
-  --color-green-200: #8fb89a;
-  --color-green-500: #3a6447;
+  --color-teal-50: #d9ece8;
+  --color-teal-100: #c3e0da;
+  --color-teal-200: #7dbcb1;
+  --color-teal-300: #3f8f82;
+  --color-teal-500: #276358;
 
-  --color-amber-50: #f1e4cf;
-  --color-amber-100: #e0d0b0;
+  --color-green-50: #d9e9e1;
+  --color-green-100: #bcd6ca;
+  --color-green-200: #74a894;
+  --color-green-500: #2f6b58;
+
+  --color-amber-50: #ede4cd;
+  --color-amber-100: #dbd0ae;
   --color-amber-200: #d4a564;
   --color-amber-500: #7a4d18;
 
-  --color-blue-50: #dde7ee;
-  --color-blue-100: #c7d2fe;
+  --color-blue-50: #dbe6ec;
+  --color-blue-100: #c2d4df;
   --color-blue-200: #82a8c4;
   --color-blue-500: #2f5675;
 
@@ -66,6 +72,8 @@
   --color-error-background: var(--pm-danger-bg);
   --color-success: var(--pm-green);
   --color-success-background: var(--pm-green-bg);
+  --color-teal: var(--pm-teal);
+  --color-teal-dark: var(--pm-teal-dark);
 
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-serif: 'Fraunces', Georgia, serif;
@@ -82,45 +90,47 @@
   color-scheme: light;
 
   /* Surfaces */
-  --pm-paper: #f4efe7;
-  --pm-paper-2: #efe8db;
-  --pm-paper-3: #e9e0cf;
-  --pm-paper-inset: #fbfaf6;
+  --pm-paper: #e9f1ee;
+  --pm-paper-2: #e0ebe7;
+  --pm-paper-3: #d2e1db;
+  --pm-paper-inset: #f6faf8;
   --pm-bg: var(--pm-paper);
 
   /* Text */
-  --pm-ink: #1c1c1c;
-  --pm-ink-2: #43403a;
-  --pm-muted: #6f665a;
-  --pm-muted-soft: #8c8275;
-  --pm-on-ink: #f4efe7;
-  --pm-link: #a94d30;
+  --pm-ink: #161c1a;
+  --pm-ink-2: #39443f;
+  --pm-muted: #5e6f68;
+  --pm-muted-soft: #7a8d86;
+  --pm-on-ink: #e9f1ee;
+  --pm-link: #8a2c4e;
 
   /* Brand / accents */
-  --pm-coral: #d97757;
-  --pm-coral-dark: #a1482a;
-  --pm-coral-ink: #2a160e;
-  --pm-coral-tint: color-mix(in srgb, #d97757 12%, transparent);
-  --pm-coral-tint-10: color-mix(in srgb, #d97757 10%, transparent);
+  --pm-coral: #b8446a;
+  --pm-coral-dark: #8a2c4e;
+  --pm-coral-ink: #ffffff;
+  --pm-coral-tint: color-mix(in srgb, #b8446a 12%, transparent);
+  --pm-coral-tint-10: color-mix(in srgb, #b8446a 10%, transparent);
   --pm-brand: var(--pm-coral);
-  --pm-green: #3a6447;
-  --pm-green-bg: #e4ece2;
-  --pm-green-line: #cdd9c8;
+  --pm-teal: #3f8f82;
+  --pm-teal-dark: #276358;
+  --pm-green: #2f6b58;
+  --pm-green-bg: #d9e9e1;
+  --pm-green-line: #bcd6ca;
   --pm-amber: #7a4d18;
-  --pm-amber-bg: #f1e4cf;
-  --pm-amber-line: #e0d0b0;
+  --pm-amber-bg: #ede4cd;
+  --pm-amber-line: #dbd0ae;
   --pm-blue: #2f5675;
-  --pm-blue-bg: #dde7ee;
+  --pm-blue-bg: #dbe6ec;
   --pm-danger: #8f3324;
-  --pm-danger-bg: #f3ddd6;
+  --pm-danger-bg: #eedcd4;
 
   /* Lines */
-  --pm-line: #ddd3c4;
-  --pm-line-2: #cabfac;
+  --pm-line: #cddcd6;
+  --pm-line-2: #b8ccc4;
 
   /* Category hues */
   --pm-cat-finance: #2f5675;
-  --pm-cat-education: #3a6349;
+  --pm-cat-education: #276358;
   --pm-cat-sales: #6f5012;
   --pm-cat-marketing: #6f4675;
   --pm-cat-professional: #465777;
