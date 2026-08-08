@@ -20,6 +20,7 @@ import {
 // correctness is covered by e2e/groups-list-stats.vitest.ts; this spec asserts
 // the trio RENDERS and that the action states are right.
 const STAT_TRIO = /\d[\d,]* members · \d[\d,]* posts\/mo · (\d+% solved|—)/;
+const RAIL_COUNT = /^\d[\d,]* posts this month$/;
 
 const db = serviceDb();
 
@@ -87,8 +88,10 @@ test('rail shows post counts and the circles directory renders stats + join stat
     // Rail: every circle row carries a post count next to the dot / joined ✓.
     const rail = page.getByTestId('left-rail');
     await expect(rail).toBeVisible();
-    await expect(rail.getByTestId(`rail-circle-count-${joinable.slug}`)).toHaveText(/^\d[\d,]*$/);
-    await expect(rail.getByTestId(`rail-circle-count-${joined.slug}`)).toHaveText(/^\d[\d,]*$/);
+    // The count span also carries sr-only " posts this month", which
+    // toHaveText includes.
+    await expect(rail.getByTestId(`rail-circle-count-${joinable.slug}`)).toHaveText(RAIL_COUNT);
+    await expect(rail.getByTestId(`rail-circle-count-${joined.slug}`)).toHaveText(RAIL_COUNT);
 
     // Directory grid, reached through the rail's "All circles" link.
     await rail.getByRole('link', { name: 'All circles' }).click();
