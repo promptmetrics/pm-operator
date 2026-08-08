@@ -4,30 +4,42 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Search, Menu, X, ChevronDown, LogOut, User, Settings, Award, Bell, Shield, Flame, Mail } from 'lucide-react';
+import { Search, Menu, X, ChevronDown, LogOut, User, Settings, Award, Bell, Shield, Flame, Plus, PanelLeft } from 'lucide-react';
 import { createAuthClient } from '@/lib/auth/client';
 import { trackEvent, identifyAnalytics, analyticsReset } from '@/lib/analytics';
 import { Button } from '@pm-operator/ui/components/Button';
-import { Input } from '@pm-operator/ui/components/Input';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { LevelBadge } from '@pm-operator/ui/components/LevelBadge';
 import { Progress } from '@pm-operator/ui/components/Progress';
 import { NotificationBell } from './NotificationBell';
+import { useRail } from './RailProvider';
 import type { UserPublicProfile, UserBadgesResponse, BadgeProgressItem } from '@pm-operator/api';
 
-const NAV = [
-  { href: '/feed', label: 'Feed' },
+// The rail owns primary navigation on lg+ screens; this menu mirrors it for
+// the small-screen header hamburger.
+const MOBILE_NAV = [
+  { href: '/feed', label: 'Home feed' },
+  { href: '/bookmarks', label: 'Bookmarks' },
   { href: '/leaderboards', label: 'Leaderboards' },
-  { href: '/search', label: 'Search' },
+  { href: '/messages', label: 'Messages' },
+  { href: '/digest', label: 'Weekly digest' },
+  { href: '/g', label: 'All circles' },
 ];
 
-export function Header() {
+interface HeaderProps {
+  /**
+   * Phase 4 seam: the ⌘K command palette mounts in the layout and passes its
+   * open handler here. Until then the trigger navigates to /search.
+   */
+  onSearchClick?: () => void;
+}
+
+export function Header({ onSearchClick }: HeaderProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
+  const { collapsed, toggle: toggleRail } = useRail();
   const [profile, setProfile] = React.useState<UserPublicProfile | null>(null);
-  const [searchOpen, setSearchOpen] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
-  const [query, setQuery] = React.useState('');
 
   React.useEffect(() => {
     fetch('/api/v1/me')
@@ -48,12 +60,8 @@ export function Header() {
       .catch(() => {});
   }, []);
 
-  const onSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
-    router.push(`/search?q=${encodeURIComponent(query.trim())}`);
-    setSearchOpen(false);
-  };
+  const openSearch = () => router.push('/search');
+  const handleSearchClick = onSearchClick ?? openSearch;
 
   const signOut = async () => {
     const client = createAuthClient();
@@ -64,51 +72,43 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--pm-line)] bg-[var(--pm-paper)]/95 px-4 py-3 backdrop-blur-sm">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between" aria-label="Main">
-        <div className="flex items-center gap-4 md:gap-6">
+      <nav className="mx-auto flex max-w-7xl items-center justify-between" aria-label="Main">
+        <div className="flex items-center gap-2 md:gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="hidden lg:inline-flex"
+            aria-label="Toggle sidebar"
+            aria-expanded={!collapsed}
+            onClick={toggleRail}
+          >
+            <PanelLeft className="h-5 w-5" aria-hidden="true" />
+          </Button>
           <Link href="/feed" className="flex items-baseline gap-1.5">
             <span className="font-serif text-xl font-semibold text-[var(--pm-ink)]">operator</span>
             <span className="hidden text-xs font-medium text-[var(--pm-coral)] sm:inline">.promptmetrics</span>
           </Link>
-          <div className="hidden items-center gap-1 md:flex">
-            {NAV.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                    active
-                      ? 'bg-[var(--pm-paper-2)] text-[var(--pm-ink)]'
-                      : 'text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]'
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
         </div>
 
         <div className="flex items-center gap-2 md:gap-3">
-          <form onSubmit={onSearch} className="hidden items-center md:flex">
-            <Input
-              placeholder="Search..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="w-48 lg:w-64"
-            />
-            <Button type="submit" variant="ghost" size="sm" aria-label="Search">
-              <Search className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </form>
+          <button
+            type="button"
+            onClick={handleSearchClick}
+            className="hidden w-56 items-center gap-2 rounded-[var(--pm-radius-pill)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-3.5 py-1.5 text-left text-sm text-[var(--pm-muted-soft)] transition-colors hover:bg-[var(--pm-paper-2)] md:flex lg:w-72"
+          >
+            <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="flex-1 truncate">Search posts, circles, people…</span>
+            <kbd className="rounded border border-[var(--pm-line)] bg-[var(--pm-paper)] px-1.5 py-0.5 font-sans text-[11px] text-[var(--pm-muted)]">
+              ⌘K
+            </kbd>
+          </button>
 
           <Button
             variant="ghost"
             size="sm"
             className="md:hidden"
             aria-label="Search"
-            onClick={() => setSearchOpen((s) => !s)}
+            onClick={handleSearchClick}
           >
             <Search className="h-5 w-5" aria-hidden="true" />
           </Button>
@@ -116,7 +116,7 @@ export function Header() {
           <Button
             variant="ghost"
             size="sm"
-            className="md:hidden"
+            className="lg:hidden"
             aria-label="Menu"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((m) => !m)}
@@ -130,25 +130,12 @@ export function Header() {
 
           {profile ? (
             <>
-              <span className="hidden text-[13px] font-semibold text-[var(--pm-ink-2)] md:inline-flex">
-                {profile.reputationScore.toLocaleString()} pts
-              </span>
-              {profile.streakDays > 0 ? (
-                <span
-                  className="hidden items-center gap-1 rounded-full border border-[var(--pm-line)] px-2 py-0.5 text-[13px] md:inline-flex"
-                  title={`Posting streak: ${profile.streakDays} days`}
-                >
-                  <Flame className="h-3.5 w-3.5 text-[var(--pm-coral)]" aria-hidden="true" />
-                  {profile.streakDays}
-                </span>
-              ) : null}
-              <Link
-                href="/messages"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--pm-ink)] hover:bg-[var(--pm-paper-inset)]"
-                aria-label="Messages"
-              >
-                <Mail className="h-5 w-5" aria-hidden="true" />
-              </Link>
+              <Button size="sm" asChild className="hidden gap-1 sm:inline-flex">
+                <Link href="/post/new">
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  New post
+                </Link>
+              </Button>
               <NotificationBell userId={profile.id} />
               <UserDropdown profile={profile} onSignOut={signOut} />
             </>
@@ -165,25 +152,10 @@ export function Header() {
         </div>
       </nav>
 
-      {searchOpen ? (
-        <form onSubmit={onSearch} className="mx-auto mt-2 flex max-w-6xl items-center px-4 md:hidden">
-          <Input
-            placeholder="Search..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="flex-1"
-            autoFocus
-          />
-          <Button type="submit" variant="ghost" size="sm" aria-label="Search">
-            <Search className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </form>
-      ) : null}
-
       {menuOpen ? (
-        <div className="mx-auto max-w-6xl px-4 pb-3 md:hidden">
+        <div className="mx-auto max-w-7xl px-4 pb-3 lg:hidden">
           <div className="flex flex-col gap-1">
-            {NAV.map((item) => {
+            {MOBILE_NAV.map((item) => {
               const active = pathname === item.href;
               return (
                 <Link
@@ -275,6 +247,21 @@ function UserDropdown({
           sideOffset={8}
           align="end"
         >
+          <div className="flex items-center justify-between gap-2 px-3 py-2">
+            <span className="text-[13px] font-semibold text-[var(--pm-ink-2)]">
+              {profile.reputationScore.toLocaleString()} pts
+            </span>
+            {profile.streakDays > 0 ? (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--pm-line)] px-2 py-0.5 text-[13px]"
+                title={`Posting streak: ${profile.streakDays} days`}
+              >
+                <Flame className="h-3.5 w-3.5 text-[var(--pm-coral)]" aria-hidden="true" />
+                {profile.streakDays}
+              </span>
+            ) : null}
+          </div>
+          <DropdownMenu.Separator className="my-1 h-px bg-[var(--pm-line)]" />
           {nextBadge ? (
             <>
               <div className="px-3 py-2">

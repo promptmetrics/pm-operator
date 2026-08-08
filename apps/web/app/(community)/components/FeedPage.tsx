@@ -2,8 +2,7 @@
 
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { Plus, Trophy, TrendingUp, Users, Pin, Star, Bookmark, FileText } from 'lucide-react';
+import { Plus, Trophy, TrendingUp, Users, Pin, Star } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Card, CardContent, CardTitle } from '@pm-operator/ui/components/Card';
 import { Badge } from '@pm-operator/ui/components/Badge';
@@ -19,7 +18,6 @@ import type {
   PostType,
   PostListItem,
   Group,
-  GroupWithPostCount,
   LeaderboardEntry,
 } from '@pm-operator/api';
 import { POINT_WEIGHTS } from '@pm-operator/api';
@@ -35,11 +33,7 @@ interface FeedPageProps {
   groupSlug?: string;
   featuredPost?: PostListItem | null;
   pinnedPosts?: PostListItem[];
-  /** Circles rail data (global feed only). */
-  circles?: GroupWithPostCount[];
-  totalCirclePosts?: number;
-  /** Session user, for the composer strip avatar and rail shortcuts. */
-  viewerUserslug?: string;
+  /** Session user, for the composer strip avatar. */
   viewerUsername?: string;
   /**
    * Server-rendered right-rail content (WS6/T6.2); replaces the built-in
@@ -81,9 +75,6 @@ export function FeedPage({
   groupSlug,
   featuredPost,
   pinnedPosts,
-  circles,
-  totalCirclePosts,
-  viewerUserslug,
   viewerUsername,
   railSlot,
   showComposerStrip,
@@ -226,89 +217,16 @@ export function FeedPage({
     groupSlug
   );
 
-  const showLeftRail = !groupSlug && (circles ?? []).length > 0;
   // Composer visibility is driven by the caller on circle pages (membership /
   // moderator / admin) and defaults to enabled on the global feed.
   const composerEnabled = showComposerStrip ?? !groupSlug;
   const showComposer = composerEnabled && Boolean(currentUserId) && writableGroups.length > 0;
 
+  // The navigation rail (circles list + shortcuts) moved to the community
+  // layout (Phase 1 app shell); this component keeps only the feed column and
+  // the feed-specific right rail.
   return (
-    <div
-      className={`mx-auto grid max-w-6xl gap-6 ${
-        showLeftRail
-          ? 'lg:grid-cols-[230px_minmax(0,1fr)_320px]'
-          : 'lg:grid-cols-[minmax(0,1fr)_320px]'
-      }`}
-    >
-      {showLeftRail ? (
-        <nav aria-label="Circles" className="hidden lg:block">
-          <div className="sticky top-24 flex flex-col gap-6">
-            <div>
-              <p className="mb-2 px-2 text-xs font-bold uppercase tracking-wider text-[var(--pm-muted-soft)]">
-                Circles
-              </p>
-              <ul className="flex flex-col gap-0.5">
-                <li>
-                  <Link
-                    href="/g"
-                    className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--pm-ink)] hover:bg-[var(--pm-paper-2)]"
-                  >
-                    <span>All circles</span>
-                    <span className="text-xs text-[var(--pm-muted)]">{totalCirclePosts ?? 0}</span>
-                  </Link>
-                </li>
-                {(circles ?? []).map((circle) => (
-                  <li key={circle.slug}>
-                    <Link
-                      href={`/g/${circle.slug}`}
-                      className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm text-[var(--pm-ink-2)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]"
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span
-                          className="h-2 w-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: circle.color ?? 'var(--pm-muted-soft)' }}
-                          aria-hidden="true"
-                        />
-                        <span className="truncate">{circle.name}</span>
-                      </span>
-                      <span className="text-xs text-[var(--pm-muted)]">{circle.postCount}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {viewerUserslug ? (
-              <div>
-                <p className="mb-2 px-2 text-xs font-bold uppercase tracking-wider text-[var(--pm-muted-soft)]">
-                  Shortcuts
-                </p>
-                <ul className="flex flex-col gap-0.5">
-                  <li>
-                    <Link
-                      href={`/u/${viewerUserslug}`}
-                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-[var(--pm-ink-2)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]"
-                    >
-                      <Bookmark className="h-3.5 w-3.5 text-[var(--pm-muted)]" aria-hidden="true" />
-                      Bookmarks
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      href={`/u/${viewerUserslug}`}
-                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-[var(--pm-ink-2)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]"
-                    >
-                      <FileText className="h-3.5 w-3.5 text-[var(--pm-muted)]" aria-hidden="true" />
-                      My posts
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-            ) : null}
-          </div>
-        </nav>
-      ) : null}
-
+    <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div>
         {welcomeBanner}
         {digestBanner}

@@ -80,11 +80,14 @@ export default async function GroupRoute({
   const pageParam = typeof paramsQuery.page === 'string' ? Number(paramsQuery.page) : undefined;
   const page = Number.isFinite(pageParam) && pageParam && pageParam > 0 ? pageParam : 1;
 
-  // Bounded waves (≤3 concurrent queries): a single wide Promise.all starves
+  // Bounded waves (≤2 concurrent queries): a single wide Promise.all starves
   // the small per-instance DB pool and hangs instead of queueing — abandoned
   // clients then pin pooler slots and wedge the whole database (2026-08-02
-  // incident; see DESIGN-GAP-REPORT "Pool-starvation gotcha").
-  const [membership, currentUser, writableGroups] = await Promise.all([
+  // incident; see DESIGN-GAP-REPORT "Pool-starvation gotcha"). The community
+  // layout now runs one rail query concurrently with this page on every
+  // navigation, so page waves stay at ≤2 to keep the request path within the
+  // pool of 3.
+  const [membership, currentUser] = await Promise.all([
     currentUserId
       ? db.query.groupMemberships.findFirst({
           where: and(
@@ -99,29 +102,32 @@ export default async function GroupRoute({
           columns: { role: true, username: true },
         })
       : Promise.resolve(null),
-    currentUserId ? getWritableGroups(db, currentUserId) : Promise.resolve([]),
   ]);
 
-  const [{ posts, nextCursor }, pinned, leaderboard] = await Promise.all([
+  const [writableGroups, { posts, nextCursor }] = await Promise.all([
+    currentUserId ? getWritableGroups(db, currentUserId) : Promise.resolve([]),
     listGroupPosts(db, slug, { filter, sort, page, limit: 20 }, currentUserId),
+  ]);
+
+  const [pinned, leaderboard] = await Promise.all([
     listPinnedPosts(db, group.id, currentUserId),
     listGroupLeaderboard(db, group.id, 'weekly', 5),
   ]);
 
-  const [stats, members, circles] = await Promise.all([
+  const [stats, members] = await Promise.all([
     getGroupStats(db, group.id, currentUserId),
     listGroupMembers(db, slug, currentUserId),
-    listGroupsWithPostCounts(db, currentUserId),
   ]);
 
-  // Trailing bounded query (1 concurrent): upcoming circle events for the rail.
-  // Kept out of the 3-wide waves above to respect the pool-starvation budget.
-  const upcomingEvents = await listEvents(db, {
-    groupSlug: slug,
-    upcoming: true,
-    limit: 3,
-    offset: 0,
-  });
+  const [circles, upcomingEvents] = await Promise.all([
+    listGroupsWithPostCounts(db, currentUserId),
+    listEvents(db, {
+      groupSlug: slug,
+      upcoming: true,
+      limit: 3,
+      offset: 0,
+    }),
+  ]);
 
   const canInvite =
     membership?.role === 'admin' ||
