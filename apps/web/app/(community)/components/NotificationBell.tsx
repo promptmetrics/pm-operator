@@ -4,7 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { Bell } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
-import { subscribeToUserNotifications, createRealtimeClient } from '@/lib/realtime';
+import { useRealtimeNotifications } from './RealtimeProvider';
 import type { Notification } from '@pm-operator/api';
 
 interface NotificationBellProps {
@@ -15,7 +15,6 @@ export function NotificationBell({ userId }: NotificationBellProps) {
   const [count, setCount] = React.useState(0);
   const [open, setOpen] = React.useState(false);
   const [items, setItems] = React.useState<Notification[]>([]);
-  const client = React.useMemo(() => createRealtimeClient(), []);
   const liveRegionRef = React.useRef<HTMLDivElement>(null);
 
   const fetchUnread = React.useCallback(async () => {
@@ -29,22 +28,17 @@ export function NotificationBell({ userId }: NotificationBellProps) {
 
   React.useEffect(() => {
     fetchUnread();
+  }, [fetchUnread]);
 
-    const unsub = subscribeToUserNotifications<Notification>(
-      userId,
-      {
-        onInsert: (notification) => {
-          setItems((prev) => [notification, ...prev]);
-          setCount((c) => c + 1);
-        },
-      },
-      { client }
-    );
+  // Shares one channel with NotificationsPage via RealtimeProvider. Stable
+  // identity (functional updates, no deps) so the effect inside the hook does
+  // not re-subscribe on every render.
+  const onNotification = React.useCallback((notification: Notification) => {
+    setItems((prev) => [notification, ...prev]);
+    setCount((c) => c + 1);
+  }, []);
 
-    return () => {
-      unsub();
-    };
-  }, [userId, client, fetchUnread]);
+  useRealtimeNotifications(onNotification, userId);
 
   React.useEffect(() => {
     if (liveRegionRef.current) {

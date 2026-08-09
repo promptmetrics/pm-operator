@@ -4,7 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { Button } from '@pm-operator/ui/components/Button';
 import { useToast } from '@pm-operator/ui/components/Toast';
-import { subscribeToUserNotifications, createRealtimeClient } from '@/lib/realtime';
+import { useRealtimeNotifications } from './RealtimeProvider';
 import { timeAgo } from '@/lib/format';
 import { notificationText, notificationHref } from './NotificationBell';
 import { notificationTreatment, notificationContext } from './notification-presentation';
@@ -18,7 +18,6 @@ export function NotificationsPage({ currentUserId }: NotificationsPageProps) {
   const [items, setItems] = React.useState<Notification[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [failed, setFailed] = React.useState(false);
-  const client = React.useMemo(() => createRealtimeClient(), []);
   const { toast } = useToast();
 
   const fetchAll = React.useCallback(async () => {
@@ -38,21 +37,16 @@ export function NotificationsPage({ currentUserId }: NotificationsPageProps) {
 
   React.useEffect(() => {
     fetchAll();
+  }, [fetchAll]);
 
-    const unsub = subscribeToUserNotifications<Notification>(
-      currentUserId,
-      {
-        onInsert: (notification) => {
-          setItems((prev) => [notification, ...prev]);
-        },
-      },
-      { client }
-    );
+  // Shares one channel with the header's NotificationBell via RealtimeProvider.
+  // Stable identity (functional update, no deps) so the hook's effect does not
+  // re-subscribe on every render.
+  const onNotification = React.useCallback((notification: Notification) => {
+    setItems((prev) => [notification, ...prev]);
+  }, []);
 
-    return () => {
-      unsub();
-    };
-  }, [currentUserId, client, fetchAll]);
+  useRealtimeNotifications(onNotification, currentUserId);
 
   const markOneRead = async (id: string) => {
     const res = await fetch('/api/v1/notifications', {

@@ -9,6 +9,10 @@ import {
   subscribeToConversation,
   type RealtimeChannelStatus,
 } from '@/lib/realtime';
+import {
+  createNotificationRegistry,
+  type NotificationListener,
+} from './notification-registry';
 
 type PostListener = (postId: string) => void;
 type CommentListener = (commentId: string) => void;
@@ -18,7 +22,12 @@ interface RealtimeContextValue {
   subscribeGroup: (slug: string, listener: PostListener) => () => void;
   subscribePost: (postId: string, listener: CommentListener) => () => void;
   subscribeConversation: (conversationId: string, listener: MessageListener) => () => void;
+  subscribeNotifications: (userId: string, listener: NotificationListener) => () => void;
 }
+
+// Namespaced so a user id can never collide with a circle slug or a post id in
+// the shared channelStates map.
+const notificationStatusKey = (userId: string) => `notifications:${userId}`;
 
 // T8.8: aggregate realtime channel state for the visible status dot. The old
 // sr-only region always announced "Live updates enabled" even when the channel
@@ -53,6 +62,23 @@ export function useRealtimeConversation(listener: MessageListener, conversationI
     if (!conversationId) return;
     return ctx.subscribeConversation(conversationId, listener);
   }, [ctx, conversationId, listener]);
+}
+
+/**
+ * Subscribe to the viewer's notification stream.
+ *
+ * `listener` must be referentially stable — wrap it in React.useCallback, as
+ * the other hooks here require. An unstable listener re-runs the effect every
+ * render, and because the underlying channel closes when its last listener
+ * leaves, that would tear the channel down and re-open it on every render.
+ */
+export function useRealtimeNotifications(listener: NotificationListener, userId?: string) {
+  const ctx = React.useContext(RealtimeContext);
+  if (!ctx) throw new Error('useRealtimeNotifications must be used inside RealtimeProvider');
+  React.useEffect(() => {
+    if (!userId) return;
+    return ctx.subscribeNotifications(userId, listener);
+  }, [ctx, userId, listener]);
 }
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
@@ -275,9 +301,42 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     [client, notifyConversation, recomputeStatus, recordStatus]
   );
 
+  // Notifications follow the same one-channel-per-key contract as the three
+  // blocks above; the bookkeeping lives in notification-registry.ts so it can
+  // be unit-tested without a DOM. Every dependency here is stable for the life
+  // of the provider (client is useMemo([]), recordStatus / recomputeStatus are
+  // useCallback with stable deps), so the registry — and therefore the open
+  // channel — is created exactly once. Keep it that way: a recreated registry
+  // would orphan the channels the old one opened.
+  const notificationRegistry = React.useMemo(
+    () =>
+      createNotificationRegistry(client, {
+        onOpen: (userId) => {
+          channelStates.current.set(notificationStatusKey(userId), 'connecting');
+          recomputeStatus();
+        },
+        onStatus: (userId, s) => recordStatus(notificationStatusKey(userId), s),
+        onClose: (userId) => {
+          channelStates.current.delete(notificationStatusKey(userId));
+          recomputeStatus();
+        },
+      }),
+    [client, recomputeStatus, recordStatus]
+  );
+
+  // Unlike notifyGroup / notifyPost / notifyConversation this does NOT call
+  // router.refresh(). Neither NotificationBell nor NotificationsPage refreshed
+  // the route before — they render from their own fetch + prepend — and adding
+  // a full server round-trip per notification would be a behaviour change.
+  const subscribeNotifications = React.useCallback(
+    (userId: string, listener: NotificationListener) =>
+      notificationRegistry.subscribe(userId, listener),
+    [notificationRegistry]
+  );
+
   const value = React.useMemo(
-    () => ({ subscribeGroup, subscribePost, subscribeConversation }),
-    [subscribeGroup, subscribePost, subscribeConversation]
+    () => ({ subscribeGroup, subscribePost, subscribeConversation, subscribeNotifications }),
+    [subscribeGroup, subscribePost, subscribeConversation, subscribeNotifications]
   );
 
   return (

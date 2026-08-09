@@ -140,6 +140,14 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Unlocks app/(community)/crash-test, the route error-boundary.spec.ts
+          # crashes on purpose. Server-side only (no NEXT_PUBLIC_ prefix, so it
+          # never reaches a client bundle) and set nowhere else — the route 404s
+          # in every other environment, including all Vercel deployments. It is
+          # deliberately absent from the "Build web app" step above: the page
+          # reads it per request and is force-dynamic, so the build never
+          # evaluates the throw.
+          E2E_TEST_ROUTES: "1"
         run: pnpm --filter @pm-operator/web test:e2e
 
       - name: Upload Playwright test results

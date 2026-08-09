@@ -158,7 +158,7 @@ test.describe('Settings — email notification switches', () => {
 
     // The honest note: only the digest actually sends mail today.
     await expect(
-      main(page).getByText('Only the weekly digest sends email today')
+      main(page).getByText('The weekly digest and solution-accepted emails send today')
     ).toBeVisible();
     // The stored-only switches each carry an inline caveat badge. weeklyDigest
     // and emailSolutions both drive real sends now, so three remain.
