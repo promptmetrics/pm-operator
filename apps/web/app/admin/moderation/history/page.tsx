@@ -69,8 +69,9 @@ export default function HistoryPage() {
       const json = await res.json();
       setLogs(json.data?.logs ?? []);
       setHasMore(json.meta?.hasMore ?? false);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load moderation history');
+    } catch (err) {
+      console.error('[admin/moderation/history] load failed', err);
+      setError('Could not load moderation history. Try again.');
     } finally {
       setLoading(false);
     }

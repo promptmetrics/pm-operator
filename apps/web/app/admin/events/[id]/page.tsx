@@ -57,8 +57,9 @@ export default function AdminEventDetailPage() {
           capacity: ev.capacity ? String(ev.capacity) : '',
         });
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to load event');
+    } catch (err) {
+      console.error('[admin/events/:id] load failed', err);
+      setError('Could not load this event. Try again.');
     } finally {
       setLoading(false);
     }

@@ -47,8 +47,9 @@ export default function AnalyticsOverviewPage() {
       }
       const json: AnalyticsResponse = await res.json();
       setData(json.data);
-    } catch (err: any) {
-      setError(err.message ?? 'Failed to load analytics');
+    } catch (err) {
+      console.error('[admin/analytics] load failed', err);
+      setError('Could not load analytics. Try again.');
     } finally {
       setLoading(false);
     }

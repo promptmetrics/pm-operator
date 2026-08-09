@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import { Button } from '@pm-operator/ui/components/Button';
-import { Card, CardContent } from '@pm-operator/ui/components/Card';
 import { Trophy, Download, RotateCcw, AlertTriangle } from 'lucide-react';
 import DataTable from '@/components/admin/DataTable';
 import LoadingState from '@/components/admin/LoadingState';
@@ -50,8 +49,9 @@ export default function AdminLeaderboardsPage() {
       };
       setEntries(json.data?.leaderboard ?? []);
       setHasMore(json.meta?.hasMore ?? false);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load leaderboard');
+    } catch (err) {
+      console.error('[admin/leaderboards] load failed', err);
+      setError('Could not load the leaderboard. Try again.');
     } finally {
       setLoading(false);
     }
@@ -194,21 +194,17 @@ export default function AdminLeaderboardsPage() {
           message={`No scores recorded for the "${period}" period.`}
         />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <DataTable
-              columns={columns}
-              data={entries as unknown as Record<string, unknown>[]}
-              rowKey="rank"
-              page={page}
-              hasMore={hasMore}
-              onPageChange={(p) => {
-                setPage(p);
-                load(period, p);
-              }}
-            />
-          </CardContent>
-        </Card>
+        <DataTable
+          columns={columns}
+          data={entries as unknown as Record<string, unknown>[]}
+          rowKey="rank"
+          page={page}
+          hasMore={hasMore}
+          onPageChange={(p) => {
+            setPage(p);
+            load(period, p);
+          }}
+        />
       )}
     </div>
   );

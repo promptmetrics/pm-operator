@@ -61,8 +61,9 @@ export default function AnalyticsEngagementPage() {
       }
       const json: EngagementResponse = await res.json();
       setData(json.data);
-    } catch (err: any) {
-      setError(err.message ?? 'Failed to load engagement analytics');
+    } catch (err) {
+      console.error('[admin/analytics/engagement] load failed', err);
+      setError('Could not load engagement analytics. Try again.');
     } finally {
       setLoading(false);
     }

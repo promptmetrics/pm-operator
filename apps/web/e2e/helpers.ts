@@ -91,11 +91,17 @@ export interface TestUser {
 export async function createTestUser(opts: {
   role?: 'member' | 'moderator' | 'admin';
   onboardingComplete?: boolean;
+  /**
+   * Overrides the generated display name. The palette matches people on a
+   * username PREFIX, so seeding a searchable person needs a chosen username.
+   */
+  username?: string;
 } = {}): Promise<TestUser> {
   const role = opts.role ?? 'member';
   const email = uniqueEmail(role);
   const password = 'Password123!';
-  const username = `Test ${Date.now()} ${Math.random().toString(36).slice(2, 6)}`;
+  const username =
+    opts.username ?? `Test ${Date.now()} ${Math.random().toString(36).slice(2, 6)}`;
   const userslug = slugify('test');
 
   let userId: string;

@@ -58,6 +58,14 @@ export interface EngagementMetrics {
 
 // ── Overview ──────────────────────────────────────────────────────────────────
 
+/**
+ * Community-wide counters for the admin analytics KPI cards.
+ *
+ * Pool max is 3 (see MEMORY: DB pool starvation trap) — three sequential waves
+ * of at most 3 concurrent queries, same discipline as getAdminDashboard below.
+ * This used to be a single 7-wide Promise.all, which starves the pool instead
+ * of queueing. Never widen a wave or merge two of them.
+ */
 export async function getAnalyticsOverview(
   db: DrizzleClient
 ): Promise<AnalyticsOverview> {
@@ -65,43 +73,44 @@ export async function getAnalyticsOverview(
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const [
-    totalMembersResult,
-    activeMembersResult,
-    pendingFlagsResult,
-    newMembersResult,
-    totalCirclesResult,
-    totalPostsResult,
-    totalCommentsResult,
-  ] = await Promise.all([
-    db.select({ count: count() }).from(schema.users),
-    db
-      .select({ count: count() })
-      .from(schema.users)
-      .where(
-        and(
-          gte(schema.users.lastActiveAt, sevenDaysAgo),
-          sql`${schema.users.lastActiveAt} IS NOT NULL`
-        )
-      ),
-    db
-      .select({ count: count() })
-      .from(schema.flags)
-      .where(eq(schema.flags.status, 'open')),
-    db
-      .select({ count: count() })
-      .from(schema.users)
-      .where(gte(schema.users.createdAt, thirtyDaysAgo)),
-    db.select({ count: count() }).from(schema.groups),
-    db
-      .select({ count: count() })
-      .from(schema.posts)
-      .where(eq(schema.posts.status, 'published')),
-    db
-      .select({ count: count() })
-      .from(schema.comments)
-      .where(eq(schema.comments.status, 'published')),
-  ]);
+  // Wave 1: membership counters + the open-flag queue (3 queries).
+  const [totalMembersResult, activeMembersResult, pendingFlagsResult] =
+    await Promise.all([
+      db.select({ count: count() }).from(schema.users),
+      db
+        .select({ count: count() })
+        .from(schema.users)
+        .where(
+          and(
+            gte(schema.users.lastActiveAt, sevenDaysAgo),
+            sql`${schema.users.lastActiveAt} IS NOT NULL`
+          )
+        ),
+      db
+        .select({ count: count() })
+        .from(schema.flags)
+        .where(eq(schema.flags.status, 'open')),
+    ]);
+
+  // Wave 2: 30-day signups + content totals (3 queries).
+  const [newMembersResult, totalCirclesResult, totalPostsResult] =
+    await Promise.all([
+      db
+        .select({ count: count() })
+        .from(schema.users)
+        .where(gte(schema.users.createdAt, thirtyDaysAgo)),
+      db.select({ count: count() }).from(schema.groups),
+      db
+        .select({ count: count() })
+        .from(schema.posts)
+        .where(eq(schema.posts.status, 'published')),
+    ]);
+
+  // Wave 3: the remaining counter (1 query).
+  const totalCommentsResult = await db
+    .select({ count: count() })
+    .from(schema.comments)
+    .where(eq(schema.comments.status, 'published'));
 
   return {
     totalMembers: totalMembersResult[0]?.count ?? 0,

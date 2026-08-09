@@ -8,6 +8,13 @@
 // and GET /api/v1/users/[slug]/badges, so its own internal peak IS the budget.
 // It used to open 3 (streakDays + catalog + userBadges), i.e. 4 with the rail.
 //
+// Progress counts used to be an N+1: one sequential count query per unearned
+// badge with computable criteria. They are now folded into one GROUPed bucket
+// statement per source table (posts / comments / point_events), run as two more
+// waves of at most 2 and 1. Total is at most 5 queries for ANY catalog size.
+// The arithmetic those buckets feed is proved equal to the old per-badge counts
+// in query-budget-units.vitest.ts, which needs no database.
+//
 // Structural source scan (same idea as profile-page-concurrency.vitest.ts,
 // reimplemented here so the two guards stay independent) plus a mock drizzle
 // client, so it runs without a database.
@@ -23,7 +30,7 @@ const webRoot = path.resolve(__dirname, '..');
 // The cached catalog costs 0 queries warm / 1 cold and is fetched with its own
 // service db, so it never touches the client passed to getUserBadges. Mocking
 // it keeps this test DB-free and isolates the wave being measured.
-const CATALOG = [
+const BASE_CATALOG = [
   {
     badge: {
       id: 'badge-earned',
@@ -62,8 +69,12 @@ const CATALOG = [
   },
 ];
 
+// Mutable so one test can grow the catalog and show the query count does not
+// grow with it. Every other test sees BASE_CATALOG.
+let catalogFixture: typeof BASE_CATALOG = BASE_CATALOG;
+
 vi.mock('../lib/services/badges-catalog-cache', () => ({
-  getCachedBadgeCatalog: vi.fn(async () => CATALOG),
+  getCachedBadgeCatalog: vi.fn(async () => catalogFixture),
 }));
 
 const { getUserBadges } = await import('../lib/services/badges');
@@ -125,12 +136,30 @@ describe('source shape', () => {
   });
 
   test('the badges service keeps every query wave at most 2 wide', () => {
-    const waves = promiseAllWaves(read('lib/services/badges.ts'));
+    const source = read('lib/services/badges.ts');
+    const waves = promiseAllWaves(source);
 
     expect(waves.length).toBeGreaterThanOrEqual(1);
     for (const wave of waves) {
       expect(wave.width).toBeLessThanOrEqual(2);
     }
+
+    // Exactly two waves of 2: [streakDays, userBadges] then [posts, comments]
+    // buckets. The point_events bucket is the third wave and is awaited alone.
+    expect(waves.map((wave) => wave.width)).toEqual([2, 2]);
+    expect(source).toContain('await pointEventCountBuckets(db, userId)');
+  });
+
+  test('progress no longer issues a query per badge', () => {
+    const source = read('lib/services/badges.ts');
+
+    // The N+1 is gone: no per-badge count helper, and nothing is awaited inside
+    // the loop that builds `progress`.
+    expect(source).not.toContain('countForUser');
+
+    const loop = source.slice(source.indexOf('for (const { badge, criteria } of pending)'));
+    expect(loop).not.toBe('');
+    expect(loop.slice(0, loop.indexOf('return { earned, progress }'))).not.toContain('await');
   });
 
   test('the catalog is fetched from the cache, never re-queried inside a wave', () => {
@@ -206,8 +235,25 @@ function trackingDb() {
     });
   }
 
+  // Each bucket statement is identified by the shape of its selection object,
+  // so the fake can hand back rows in the right shape and — more importantly —
+  // fail loudly if a fourth kind of query ever appears in this path.
   const db = {
-    select: () => chain([{ value: 4 }]),
+    select: (selection: Record<string, unknown>) => {
+      const shape = Object.keys(selection).sort().join(',');
+      if (shape === 'comments,groupSlug,postType,solutions') {
+        return chain([
+          { postType: 'question', groupSlug: 'ops', comments: 6, solutions: 2 },
+        ]);
+      }
+      if (shape === 'eventType,groupSlug,value') {
+        return chain([{ eventType: 'like_received', groupSlug: null, value: 9 }]);
+      }
+      if (shape === 'groupSlug,postType,value') {
+        return chain([{ postType: 'discussion', groupSlug: 'ops', value: 4 }]);
+      }
+      throw new Error(`unexpected bucket selection: ${shape}`);
+    },
     query: {
       users: { findFirst: () => run({ streakDays: 3 }) },
       userBadges: {
@@ -235,25 +281,72 @@ describe('runtime budget', () => {
 
     await getUserBadges(db, 'user-1');
 
-    // streakDays + userBadges (the 2-wide wave) + one sequential countForUser
-    // for the single unearned, non-streak badge. The catalog is not among them.
+    // streakDays + userBadges (the 2-wide wave) + the posts bucket, which is
+    // the only source table this catalog needs: the comment_created badge is
+    // already earned and the streak badge never queries. The catalog itself is
+    // not among them.
     expect(stats().started).toBe(3);
   });
 
-  test('the per-badge progress counts stay sequential, never a fan-out', async () => {
+  test('only the source tables an unearned badge needs are queried', async () => {
     const { db, stats } = trackingDb();
 
     const result = await getUserBadges(db, 'user-1');
 
     // Earned badge is skipped; streak progress reads the already-fetched
-    // streakDays; only the counting badge queries — and it is awaited inside
-    // the loop, so it can never overlap another count.
+    // streakDays; the counting badge is served from the posts bucket.
     expect(result.earned.map((e) => e.badge.slug)).toEqual(['first-answer']);
     expect(result.progress.map((p) => p.badge.slug)).toEqual([
       'seven-day-streak',
       'ten-posts',
     ]);
+    // 4 posts in the single bucket, clamped to the threshold of 10; streak
+    // progress is the streakDays the wave already fetched, clamped to 7.
+    expect(result.progress.map((p) => p.current)).toEqual([3, 4]);
     expect(stats().maxInFlight).toBe(2);
+  });
+
+  test('the query count is constant in the catalog size', async () => {
+    const small = trackingDb();
+    await getUserBadges(small.db, 'user-1');
+    const smallStarted = small.stats().started;
+
+    // 60 more unearned badges spread across all three source tables. Under the
+    // old N+1 this would have been 60 extra sequential round trips.
+    catalogFixture = [
+      ...BASE_CATALOG,
+      ...Array.from({ length: 60 }, (_, index) => ({
+        badge: {
+          id: `badge-${index}`,
+          slug: `badge-${index}`,
+          name: `Badge ${index}`,
+          description: null,
+          iconUrl: null,
+          sortOrder: 100 + index,
+          createdAt: '2026-01-15T00:00:00.000Z',
+        },
+        criteria: {
+          eventType: ['topic_created', 'comment_created', 'solution_accepted', 'like_received'][
+            index % 4
+          ],
+          threshold: index + 1,
+        },
+      })),
+    ];
+
+    try {
+      const large = trackingDb();
+      const result = await getUserBadges(large.db, 'user-1');
+
+      expect(result.progress).toHaveLength(62);
+      // streakDays + userBadges + one bucket statement per source table.
+      expect(large.stats().started).toBe(5);
+      expect(large.stats().started).toBeGreaterThanOrEqual(smallStarted);
+      // Still 2, never 3: the layout rail query needs the third pool slot.
+      expect(large.stats().maxInFlight).toBe(2);
+    } finally {
+      catalogFixture = BASE_CATALOG;
+    }
   });
 
   test('cached createdAt survives as the ISO string the contract expects', async () => {

@@ -39,8 +39,9 @@ export default function ApprovalPage() {
       if (!res.ok) throw new Error('Failed to load approval queue');
       const json = await res.json();
       setPosts(json.data?.posts ?? []);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load approval queue');
+    } catch (err) {
+      console.error('[admin/moderation/approval] load failed', err);
+      setError('Could not load the approval queue. Try again.');
     } finally {
       setLoading(false);
     }

@@ -48,8 +48,9 @@ export default function AnalyticsMembersPage() {
       }
       const json: MembersResponse = await res.json();
       setData(json.data);
-    } catch (err: any) {
-      setError(err.message ?? 'Failed to load member analytics');
+    } catch (err) {
+      console.error('[admin/analytics/members] load failed', err);
+      setError('Could not load member analytics. Try again.');
     } finally {
       setLoading(false);
     }

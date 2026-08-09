@@ -94,8 +94,12 @@ export function ModerationQueue({ currentUserId }: ModerationQueueProps = {}) {
       setFlags(json.data?.flags ?? []);
       setSelected(new Set());
       setJustActed(new Set());
-    } catch (err: any) {
-      setError(err.message || 'Failed to load queue');
+    } catch (err) {
+      // Authored copy only — this string is rendered, and since the admin panel
+      // renders this component the surface is admin-facing too. The caught
+      // error stays in the console, same stance as RouteErrorFallback.
+      console.error('[moderation-queue] load failed', err);
+      setError('Could not load the queue. Try again.');
     } finally {
       setLoading(false);
     }
@@ -353,9 +357,12 @@ export function ModerationQueue({ currentUserId }: ModerationQueueProps = {}) {
       </Card>
 
       {error ? (
-        <p role="alert" className="mb-4 text-[var(--pm-danger)]">
-          {error}
-        </p>
+        <div role="alert" className="mb-4 flex flex-wrap items-center gap-3">
+          <p className="text-[var(--pm-danger)]">{error}</p>
+          <Button variant="secondary" size="sm" onClick={load}>
+            Try again
+          </Button>
+        </div>
       ) : null}
 
       <div className="mb-4">

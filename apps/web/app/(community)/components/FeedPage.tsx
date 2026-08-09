@@ -2,10 +2,9 @@
 
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Trophy, TrendingUp, Users, Pin } from 'lucide-react';
+import { Plus, Trophy, TrendingUp, Users } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Card, CardContent, CardTitle } from '@pm-operator/ui/components/Card';
-import { Badge } from '@pm-operator/ui/components/Badge';
 import { Chip } from '@pm-operator/ui/components/Chip';
 import { Select } from '@pm-operator/ui/components/Select';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
@@ -321,14 +320,13 @@ export function FeedPage({
             ? (pinnedPosts ?? [])
                 .filter((post) => post.id !== featuredPost?.id)
                 .map((post) => (
-                <div key={`pinned-${post.id}`} className="relative">
-                  <Badge variant="coral" className="absolute right-4 top-4 z-10 gap-1">
-                    <Pin className="h-3 w-3" aria-hidden="true" />
-                    Pinned
-                  </Badge>
-                  <FeedCard post={post} currentUserId={currentUserId} />
-                </div>
-              ))
+                  <FeedCard
+                    key={`pinned-${post.id}`}
+                    post={post}
+                    currentUserId={currentUserId}
+                    pinned
+                  />
+                ))
             : null}
           {visiblePosts.map((post) => (
             <FeedCard key={post.id} post={post} currentUserId={currentUserId} />

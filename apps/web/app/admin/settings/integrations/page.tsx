@@ -34,8 +34,9 @@ export default function AdminIntegrationsSettingsPage() {
       if (!res.ok) throw new Error('Failed to load MCP clients');
       const json = (await res.json()) as { data?: { clients: McpClient[] } };
       setClients(json.data?.clients ?? []);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load MCP clients');
+    } catch (err) {
+      console.error('[admin/settings/integrations] load failed', err);
+      setError('Could not load MCP clients. Try again.');
     } finally {
       setLoading(false);
     }
@@ -55,8 +56,9 @@ export default function AdminIntegrationsSettingsPage() {
       });
       if (!res.ok) throw new Error('Failed to revoke MCP client');
       await load();
-    } catch (err: any) {
-      setError(err.message || 'Failed to revoke MCP client');
+    } catch (err) {
+      console.error('[admin/settings/integrations] revoke failed', err);
+      setError('Could not revoke that MCP client. It may still have access — try again.');
     } finally {
       setRevoking(null);
     }

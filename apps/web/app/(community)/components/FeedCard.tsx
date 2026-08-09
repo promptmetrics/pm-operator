@@ -12,6 +12,7 @@ import {
   Bookmark,
   MoreHorizontal,
   Star,
+  Pin,
 } from 'lucide-react';
 import { FlagDialog } from './FlagDialog';
 import { LinkPreviewCard } from './LinkPreviewCard';
@@ -43,6 +44,12 @@ interface FeedCardProps {
    * (FeedPage passes a "Featured" fallback for the highlight slot).
    */
   featuredLabel?: string | null;
+  /**
+   * Renders the inline "Pinned" badge in the chips row. A prop rather than a
+   * post field because PostListItem carries no isPinned — FeedPage's highlight
+   * slot is what knows a post is pinned.
+   */
+  pinned?: boolean;
 }
 
 const CATEGORY_COLORS = [
@@ -62,7 +69,14 @@ function groupColor(post: PostItem): string {
   return CATEGORY_COLORS[Math.abs(hash) % CATEGORY_COLORS.length];
 }
 
-export function FeedCard({ post, currentUserId, rank, onClickResult, featuredLabel }: FeedCardProps) {
+export function FeedCard({
+  post,
+  currentUserId,
+  rank,
+  onClickResult,
+  featuredLabel,
+  pinned,
+}: FeedCardProps) {
   const [liked, setLiked] = React.useState(Boolean(post.viewerHasLiked));
   const [likeCount, setLikeCount] = React.useState(post.upvotes);
   const [toggling, setToggling] = React.useState(false);
@@ -184,6 +198,12 @@ export function FeedCard({ post, currentUserId, rank, onClickResult, featuredLab
               <Badge variant="coral" className="gap-1">
                 <Star className="h-3 w-3" aria-hidden="true" />
                 {inlineFeaturedLabel}
+              </Badge>
+            ) : null}
+            {pinned ? (
+              <Badge variant="coral" className="gap-1">
+                <Pin className="h-3 w-3" aria-hidden="true" />
+                Pinned
               </Badge>
             ) : null}
             {rank ? (
