@@ -3,45 +3,45 @@
 import * as React from 'react';
 import Link from 'next/link';
 import {
-  Users,
-  UserCheck,
-  Flag,
-  UserPlus,
-  Circle,
-  FileText,
-  MessageSquare,
-  CalendarDays,
   Award,
-  Terminal,
-  Shield,
+  CalendarDays,
+  CheckCircle2,
+  Circle,
   Eye,
+  FileText,
+  Flag,
+  Shield,
+  Terminal,
+  Timer,
+  UserCheck,
+  Users,
 } from 'lucide-react';
+import type { AdminDashboard } from '@pm-operator/api';
 import KpiCard from '@/components/admin/KpiCard';
-import SparklineChart from '@/components/admin/SparklineChart';
 import LoadingState from '@/components/admin/LoadingState';
-import ErrorState from '@/components/admin/ErrorState';
-
-interface OverviewData {
-  totalMembers: number;
-  activeMembers7d: number;
-  pendingFlags: number;
-  newMembers30d: number;
-  totalCircles: number;
-  totalPosts: number;
-  totalComments: number;
-}
-
-interface GrowthPoint {
-  date: string;
-  count: number;
-}
+import ErrorState, { type ErrorStateProps } from '@/components/admin/ErrorState';
+import NeedsAttention from '@/components/admin/NeedsAttention';
+import NewestMembers from '@/components/admin/NewestMembers';
+import PostsPerDayChart from '@/components/admin/PostsPerDayChart';
+import {
+  countDelta,
+  durationDelta,
+  formatDuration,
+  formatRate,
+  nullableValue,
+  rateDelta,
+} from '@/components/admin/dashboard-metrics';
 
 interface DashboardResponse {
   data: {
-    overview: OverviewData;
-    memberGrowth: GrowthPoint[];
-    postGrowth: GrowthPoint[];
+    dashboard: AdminDashboard;
+    posthog: unknown;
   };
+}
+
+interface LoadError {
+  message: string;
+  variant: ErrorStateProps['variant'];
 }
 
 const QUICK_ACTIONS = [
@@ -112,23 +112,75 @@ const NAV_CARDS = [
   },
 ];
 
-export default function AdminDashboardPage() {
-  const [data, setData] = React.useState<DashboardResponse['data'] | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
+/**
+ * Every message handed to ErrorState is authored here. ErrorState prints what
+ * it is given straight to the page, so a caught exception's own text must never
+ * reach it.
+ */
+const NETWORK_ERROR: LoadError = {
+  message:
+    'Could not reach the analytics service. Check your connection and try again.',
+  variant: 'network',
+};
 
+const PERMISSION_ERROR: LoadError = {
+  message: 'Viewing these metrics requires global admin access.',
+  variant: 'permission',
+};
+
+const SERVICE_ERROR: LoadError = {
+  message:
+    'The analytics service could not build the dashboard. Try again in a moment.',
+  variant: 'error',
+};
+
+function SectionCard({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-4">
+      <h2 className="mb-3 text-sm font-semibold text-[var(--pm-ink)]">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+export default function AdminDashboardPage() {
+  const [dashboard, setDashboard] = React.useState<AdminDashboard | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<LoadError | null>(null);
+
+  // One request for the whole page. The endpoint fans out to two sequential
+  // waves of three queries internally, so the pool of 3 is already fully
+  // committed — nothing else may be fetched alongside it.
   const fetchData = React.useCallback(async () => {
     setLoading(true);
     setError(null);
+
+    let res: Response;
     try {
-      const res = await fetch('/api/v1/admin/analytics?section=overview&period=30d');
-      if (!res.ok) {
-        throw new Error(`Failed to fetch dashboard data: ${res.status}`);
-      }
+      res = await fetch('/api/v1/admin/analytics?section=dashboard');
+    } catch {
+      setError(NETWORK_ERROR);
+      setLoading(false);
+      return;
+    }
+
+    if (!res.ok) {
+      setError(res.status === 403 ? PERMISSION_ERROR : SERVICE_ERROR);
+      setLoading(false);
+      return;
+    }
+
+    try {
       const json: DashboardResponse = await res.json();
-      setData(json.data);
-    } catch (err: any) {
-      setError(err.message ?? 'Failed to load dashboard');
+      setDashboard(json.data.dashboard);
+    } catch {
+      setError(SERVICE_ERROR);
     } finally {
       setLoading(false);
     }
@@ -151,53 +203,71 @@ export default function AdminDashboardPage() {
     return (
       <div className="mx-auto max-w-5xl">
         <h1 className="mb-6 text-2xl font-semibold">Admin dashboard</h1>
-        <ErrorState message={error} onRetry={fetchData} />
+        <ErrorState
+          message={error.message}
+          variant={error.variant}
+          onRetry={fetchData}
+        />
       </div>
     );
   }
 
-  if (!data) return null;
+  if (!dashboard) return null;
 
-  const { overview, memberGrowth, postGrowth } = data;
+  const { weekly, postsPerDay, newestMembers, needsAttention } = dashboard;
 
   return (
     <div className="mx-auto max-w-5xl">
-      <h1 className="mb-6 text-2xl font-semibold">Admin dashboard</h1>
+      <h1 className="mb-1 text-2xl font-semibold">Admin dashboard</h1>
+      <p className="mb-6 text-sm text-[var(--pm-muted)]">
+        The last seven days, measured against the seven before them.
+      </p>
 
-      {/* KPI Row */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <KpiCard title="Total members" value={overview.totalMembers} icon={Users} />
-        <KpiCard title="Active (7d)" value={overview.activeMembers7d} icon={UserCheck} />
-        <KpiCard title="Pending flags" value={overview.pendingFlags} icon={Flag} />
-        <KpiCard title="New (30d)" value={overview.newMembers30d} icon={UserPlus} />
-        <KpiCard title="Total circles" value={overview.totalCircles} icon={Circle} />
+      {/* Week-over-week KPI tiles */}
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          title="Posts created"
+          value={weekly.postsCreated.current}
+          delta={countDelta(weekly.postsCreated)}
+          icon={FileText}
+        />
+        <KpiCard
+          title="Solved rate"
+          value={nullableValue(weekly.solvedRate.current, formatRate)}
+          delta={rateDelta(weekly.solvedRate)}
+          icon={CheckCircle2}
+        />
+        <KpiCard
+          title="Active members"
+          value={weekly.activeMembers.current}
+          delta={countDelta(weekly.activeMembers)}
+          icon={UserCheck}
+        />
+        <KpiCard
+          title="Median first answer"
+          value={nullableValue(
+            weekly.medianTimeToFirstAnswerSeconds.current,
+            formatDuration,
+          )}
+          delta={durationDelta(weekly.medianTimeToFirstAnswerSeconds)}
+          icon={Timer}
+        />
       </div>
 
-      {/* Activity Sparkline */}
-      <div className="mb-8 rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-4">
-        <h3 className="mb-3 text-sm font-semibold text-[var(--pm-ink)]">
-          Activity (last 30 days)
-        </h3>
-        <div className="flex items-center justify-center gap-8">
-          <div className="text-center">
-            <span className="text-xs text-[var(--pm-muted)]">New members</span>
-            <SparklineChart
-              data={memberGrowth.map((p) => p.count)}
-              color="var(--pm-coral)"
-              height={60}
-              width={200}
-            />
-          </div>
-          <div className="text-center">
-            <span className="text-xs text-[var(--pm-muted)]">New posts</span>
-            <SparklineChart
-              data={postGrowth.map((p) => p.count)}
-              color="var(--pm-coral)"
-              height={60}
-              width={200}
-            />
-          </div>
-        </div>
+      <div className="mb-8">
+        <SectionCard title="Posts per day">
+          <PostsPerDayChart points={postsPerDay} />
+        </SectionCard>
+      </div>
+
+      <div className="mb-8 grid gap-4 lg:grid-cols-2">
+        <SectionCard title="Newest members">
+          <NewestMembers members={newestMembers} />
+        </SectionCard>
+
+        <SectionCard title="Needs attention">
+          <NeedsAttention items={needsAttention} />
+        </SectionCard>
       </div>
 
       {/* Quick Actions */}

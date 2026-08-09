@@ -6,13 +6,30 @@ import { Card } from '@pm-operator/ui/components/Card';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
 import { useToast } from '@pm-operator/ui/components/Toast';
+import { Ticket } from 'lucide-react';
+import DataTable, { type Column } from '@/components/admin/DataTable';
 
 const ROLES = ['member', 'moderator', 'admin'] as const;
+
+// The invites route is untyped in @pm-operator/api, so the shape consumed by
+// this page is spelled out here. The index signature satisfies DataTable's
+// Record<string, unknown> constraint without widening the named fields.
+interface InviteRow {
+  id: string;
+  code: string;
+  groupId: string;
+  groupName: string;
+  role: string;
+  usedCount: number;
+  maxUses: number;
+  expiresAt: string | null;
+  [key: string]: unknown;
+}
 
 export default function AdminInvitesPage() {
   const { toast } = useToast();
 
-  const [invites, setInvites] = React.useState<any[]>([]);
+  const [invites, setInvites] = React.useState<InviteRow[]>([]);
   const [groups, setGroups] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -98,9 +115,82 @@ export default function AdminInvitesPage() {
     return new Date(expiresAt) < new Date();
   };
 
-  const totalUses = invites.reduce((sum: number, i: any) => sum + i.usedCount, 0);
-  const totalMax = invites.reduce((sum: number, i: any) => sum + i.maxUses, 0);
+  const totalUses = invites.reduce((sum: number, i) => sum + i.usedCount, 0);
+  const totalMax = invites.reduce((sum: number, i) => sum + i.maxUses, 0);
   const acceptanceRate = totalMax > 0 ? Math.round((totalUses / totalMax) * 100) : 0;
+
+  const columns: Column<InviteRow>[] = [
+    {
+      key: 'code',
+      label: 'Code',
+      render: (invite) => (
+        <span className="font-mono text-sm font-medium text-[var(--pm-ink)]">{invite.code}</span>
+      ),
+    },
+    {
+      key: 'circle',
+      label: 'Circle',
+      render: (invite) => (
+        <Link
+          href={`/admin/groups/${invite.groupId}`}
+          className="text-[var(--pm-ink)] hover:text-[var(--pm-coral)]"
+        >
+          {invite.groupName}
+        </Link>
+      ),
+    },
+    {
+      key: 'role',
+      label: 'Role',
+      render: (invite) => <span className="capitalize">{invite.role}</span>,
+    },
+    {
+      key: 'uses',
+      label: 'Used',
+      align: 'right',
+      render: (invite) => (
+        <span className="tabular-nums">
+          {invite.usedCount}/{invite.maxUses}
+        </span>
+      ),
+    },
+    {
+      key: 'expiresAt',
+      label: 'Expires',
+      render: (invite) => {
+        if (!invite.expiresAt) {
+          return <span className="text-[var(--pm-muted)]">No expiration</span>;
+        }
+        if (isExpired(invite.expiresAt)) {
+          return (
+            <span className="whitespace-nowrap rounded-[var(--pm-radius-pill)] border border-[var(--pm-danger)] bg-[var(--pm-danger-bg)] px-2 py-0.5 text-xs font-medium text-[var(--pm-danger)]">
+              Expired
+            </span>
+          );
+        }
+        return (
+          <span className="whitespace-nowrap text-[var(--pm-muted)]">
+            {new Date(invite.expiresAt).toLocaleDateString()}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      align: 'right',
+      render: (invite) => (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => revokeInvite(invite.id)}
+          disabled={isExpired(invite.expiresAt)}
+        >
+          Revoke
+        </Button>
+      ),
+    },
+  ];
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -194,46 +284,15 @@ export default function AdminInvitesPage() {
 
       {error ? <p className="mb-4 text-[var(--pm-danger)]">{error}</p> : null}
 
-      {loading && invites.length === 0 ? (
-        <p className="text-[var(--pm-muted)]">Loading invites...</p>
-      ) : invites.length === 0 ? (
-        <p className="text-[var(--pm-muted)]">No invites found.</p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {invites.map((invite: any) => (
-            <Card key={invite.id} className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-mono text-sm font-medium">{invite.code}</p>
-                  <p className="text-sm text-[var(--pm-muted)]">
-                    <Link href={`/admin/groups/${invite.groupId}`} className="hover:text-[var(--pm-coral)]">
-                      {invite.groupName}
-                    </Link>
-                    {' · '}Role: {invite.role} · Used: {invite.usedCount}/{invite.maxUses}
-                    {invite.expiresAt ? (
-                      isExpired(invite.expiresAt) ? (
-                        <span className="ml-2 text-[var(--pm-danger)]">Expired</span>
-                      ) : (
-                        <span className="ml-2">· Expires {new Date(invite.expiresAt).toLocaleDateString()}</span>
-                      )
-                    ) : (
-                      <span className="ml-2">· No expiration</span>
-                    )}
-                  </p>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => revokeInvite(invite.id)}
-                  disabled={isExpired(invite.expiresAt)}
-                >
-                  Revoke
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
+      <DataTable<InviteRow>
+        caption="Invite codes"
+        columns={columns}
+        data={invites}
+        rowKey="id"
+        loading={loading && invites.length === 0}
+        emptyIcon={<Ticket className="h-10 w-10" />}
+        emptyMessage="No invites found."
+      />
     </div>
   );
 }

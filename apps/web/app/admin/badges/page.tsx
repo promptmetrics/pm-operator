@@ -362,6 +362,7 @@ export default function AdminBadgesPage() {
           icon={<Award className="h-12 w-12" />}
           title="No badges found"
           message={search ? 'Try a different search term.' : 'No badges have been created yet.'}
+          className="rounded-[var(--pm-radius-lg)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-4 py-16"
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

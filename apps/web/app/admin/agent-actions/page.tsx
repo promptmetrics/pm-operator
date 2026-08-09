@@ -5,7 +5,9 @@ import { Button } from '@pm-operator/ui/components/Button';
 import { Card, CardContent } from '@pm-operator/ui/components/Card';
 import { Input } from '@pm-operator/ui/components/Input';
 import type { AgentActionListItem } from '@pm-operator/api';
-import { Download, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Download, TrendingUp, TrendingDown, Minus, Terminal } from 'lucide-react';
+import LoadingState from '@/components/admin/LoadingState';
+import EmptyState from '@/components/admin/EmptyState';
 
 // T8.12 (ADMIN-5): admin-only, list-only audit of MCP agent actions. No
 // create/update/delete — purely for triaging tool calls, errors, and latency.
@@ -183,9 +185,14 @@ export default function AdminAgentActionsPage() {
       {message ? <p className="mb-4 text-[var(--pm-danger)]">{message}</p> : null}
 
       {loading && actions.length === 0 ? (
-        <p className="text-[var(--pm-muted)]">Loading…</p>
+        <LoadingState rows={5} type="card" />
       ) : actions.length === 0 ? (
-        <p className="text-[var(--pm-muted)]">No agent actions match.</p>
+        <EmptyState
+          icon={<Terminal className="h-10 w-10" />}
+          title="No agent actions"
+          message="No agent actions match the current filters."
+          className="rounded-[var(--pm-radius-lg)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-4 py-16"
+        />
       ) : (
         <div className="flex flex-col gap-3">
           {actions.map((action) => (
@@ -245,7 +252,7 @@ export default function AdminAgentActionsPage() {
         </div>
       )}
 
-      <div className="mt-6 flex items-center justify-between">
+      <nav aria-label="Pagination" className="mt-6 flex items-center justify-between">
         <Button
           variant="secondary"
           disabled={page <= 1 || loading}
@@ -257,7 +264,7 @@ export default function AdminAgentActionsPage() {
         <Button variant="secondary" disabled={!hasMore || loading} onClick={() => setPage((p) => p + 1)}>
           Next
         </Button>
-      </div>
+      </nav>
     </div>
   );
 }

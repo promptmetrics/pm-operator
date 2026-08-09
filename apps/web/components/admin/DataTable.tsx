@@ -8,7 +8,14 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
-import { ChevronUp, ChevronDown, MoreVertical, Square, CheckSquare } from 'lucide-react';
+import {
+  ChevronUp,
+  ChevronDown,
+  MinusSquare,
+  MoreVertical,
+  Square,
+  CheckSquare,
+} from 'lucide-react';
 
 // ── Debounce hook ────────────────────────────────────────────────────────────
 
@@ -27,6 +34,8 @@ export interface Column<T> {
   key: string;
   label: string;
   sortable?: boolean;
+  /** Right-align the header and cells — for numeric or trailing action columns. */
+  align?: 'left' | 'right';
   render: (row: T) => ReactNode;
 }
 
@@ -44,6 +53,11 @@ export interface DataTableProps<T> {
   data: T[];
   /** Unique key accessor (defaults to "id") */
   rowKey?: keyof T | ((row: T) => string | number);
+  /**
+   * Accessible name for the table. Rendered as a visually hidden <caption> and
+   * used to label the horizontal scroll region so keyboard users can reach it.
+   */
+  caption?: string;
   // ── Sort ──
   sortKey?: string;
   sortDir?: 'asc' | 'desc';
@@ -74,29 +88,32 @@ export interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Shared cell metrics ───────────────────────────────────────────────────────
 
-function getRowKey<T>(row: T, accessor: NonNullable<DataTableProps<T>['rowKey']>): string | number {
-  if (typeof accessor === 'function') return accessor(row);
-  return row[accessor] as unknown as string | number;
-}
+const HEAD_CELL =
+  'whitespace-nowrap px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--pm-muted)]';
+const BODY_CELL = 'px-4 py-3.5 align-middle text-sm text-[var(--pm-ink-2)]';
+const ZEBRA =
+  'even:bg-[color-mix(in_srgb,var(--pm-paper-2)_38%,var(--pm-paper-inset))]';
+const ROW_HOVER = 'hover:bg-[var(--pm-paper-2)]';
+const ICON_BUTTON =
+  'rounded-[var(--pm-radius-sm)] text-[var(--pm-muted)] transition-colors hover:text-[var(--pm-ink)] focus-visible:outline-none focus-visible:shadow-[var(--pm-focus)]';
+const PAGER_BUTTON =
+  'rounded-[var(--pm-radius-md)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-3 py-1.5 text-xs font-medium text-[var(--pm-ink-2)] transition-colors disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:bg-[var(--pm-paper-2)] focus-visible:outline-none focus-visible:shadow-[var(--pm-focus)]';
 
 // ── Skeleton row ───────────────────────────────────────────────────────────────
 
 function SkeletonRow({ cols }: { cols: number }) {
   return (
-    <tr className="animate-pulse border-b border-gray-100">
-      <td className="px-4 py-3">
-        <div className="h-4 w-4 rounded bg-gray-200" />
-      </td>
+    <tr className="animate-pulse border-b border-[var(--pm-line)] last:border-0">
       {Array.from({ length: cols }).map((_, i) => (
-        <td key={i} className="px-4 py-3">
-          <div className="h-4 rounded bg-gray-200" style={{ width: `${60 + (i * 10) % 30}%` }} />
+        <td key={i} className={BODY_CELL}>
+          <div
+            className="h-4 rounded-[var(--pm-radius-xs)] bg-[var(--pm-paper-2)]"
+            style={{ width: `${60 + ((i * 10) % 30)}%` }}
+          />
         </td>
       ))}
-      <td className="px-4 py-3">
-        <div className="h-4 w-6 rounded bg-gray-200" />
-      </td>
     </tr>
   );
 }
@@ -107,6 +124,7 @@ export default function DataTable<T extends Record<string, unknown>>({
   columns,
   data,
   rowKey = 'id' as keyof T,
+  caption,
   sortKey,
   sortDir,
   onSort,
@@ -205,73 +223,136 @@ export default function DataTable<T extends Record<string, unknown>>({
     [onSort, sortKey, sortDir],
   );
 
+  // ── Derived layout ──
+  const selectable = Boolean(onSelectionChange);
+  const hasActions = Boolean(actions && actions.length > 0);
+  const hasSearch = Boolean(onSearchChange);
+  const hasFilters = Boolean(filters && onFilterToggle);
+  const columnCount = columns.length + (selectable ? 1 : 0) + (hasActions ? 1 : 0);
+
   // ── Render ──
   return (
     <div className="w-full">
-      {/* ── Toolbar: search + filters ── */}
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        <input
-          type="text"
-          value={searchValue}
-          onChange={(e) => {
-            if (isSearchControlled) onSearchChange?.(e.target.value);
-            else setLocalSearch(e.target.value);
-          }}
-          placeholder={searchPlaceholder}
-          className="h-9 min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-gray-400"
-        />
+      {/* ── Toolbar: search + filters. Rendered only when wired up by the page. ── */}
+      {(hasSearch || hasFilters) && (
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          {hasSearch && (
+            <input
+              type="search"
+              value={searchValue}
+              aria-label={searchPlaceholder}
+              onChange={(e) => {
+                if (isSearchControlled) onSearchChange?.(e.target.value);
+                else setLocalSearch(e.target.value);
+              }}
+              placeholder={searchPlaceholder}
+              className="h-10 min-w-0 flex-1 rounded-[var(--pm-radius-md)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-3 text-sm text-[var(--pm-ink)] placeholder-[var(--pm-muted-soft)] outline-none focus-visible:shadow-[var(--pm-focus)]"
+            />
+          )}
 
-        {filters && onFilterToggle && (
-          <div className="flex flex-wrap items-center gap-2">
-            {filters.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => onFilterToggle(f.key)}
-                className="rounded-full px-3 py-1 text-xs font-medium transition-colors"
-                style={{
-                  backgroundColor: f.active ? 'var(--pm-coral, #f97316)' : '#f3f4f6',
-                  color: f.active ? '#fff' : '#374151',
-                }}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+          {filters && onFilterToggle && (
+            <div className="flex flex-wrap items-center gap-2">
+              {filters.map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  aria-pressed={f.active}
+                  onClick={() => onFilterToggle(f.key)}
+                  className={`rounded-[var(--pm-radius-pill)] border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:shadow-[var(--pm-focus)] ${
+                    f.active
+                      ? 'border-[var(--pm-coral)] bg-[var(--pm-coral)] text-[var(--pm-coral-ink)]'
+                      : 'border-[var(--pm-line)] bg-[var(--pm-paper-inset)] text-[var(--pm-ink-2)] hover:bg-[var(--pm-paper-2)]'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* ── Table ── */}
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-        <table className="w-full table-auto text-left text-sm">
+      {/* ── Table. The scroll lives here so the page body never scrolls sideways. ── */}
+      <div
+        className="w-full overflow-x-auto rounded-[var(--pm-radius-lg)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] focus-visible:outline-none focus-visible:shadow-[var(--pm-focus)]"
+        {...(caption ? { role: 'region', 'aria-label': caption, tabIndex: 0 } : {})}
+      >
+        {/* min-w keeps the columns legible on narrow viewports; the wrapper
+            above scrolls rather than the page. */}
+        <table className="w-full min-w-[48rem] table-auto border-collapse text-left text-sm">
+          {caption && <caption className="sr-only">{caption}</caption>}
+
           {/* ── Header ── */}
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500">
+            <tr className="border-b border-[var(--pm-line-2)] bg-[var(--pm-paper-2)]">
               {/* Bulk-select checkbox */}
-              <th className="w-10 px-4 py-3">
-                {onSelectionChange && (
-                  <button onClick={toggleAll} className="text-gray-400 hover:text-gray-600">
-                    {allSelected ? <CheckSquare size={16} /> : <Square size={16} />}
-                  </button>
-                )}
-              </th>
-
-              {columns.map((col) => (
-                <th
-                  key={col.key}
-                  className={`px-4 py-3 ${col.sortable && onSort ? 'cursor-pointer select-none hover:text-gray-700' : ''}`}
-                  onClick={() => col.sortable && handleSort(col.key)}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {col.label}
-                    {col.sortable && sortKey === col.key && (
-                      sortDir === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />
+              {selectable && (
+                <th scope="col" className={`${HEAD_CELL} w-10`}>
+                  <button
+                    type="button"
+                    onClick={toggleAll}
+                    aria-label="Select all rows"
+                    aria-pressed={someSelected ? 'mixed' : allSelected}
+                    className={ICON_BUTTON}
+                  >
+                    {allSelected ? (
+                      <CheckSquare size={16} />
+                    ) : someSelected ? (
+                      <MinusSquare size={16} />
+                    ) : (
+                      <Square size={16} />
                     )}
-                  </span>
+                  </button>
                 </th>
-              ))}
+              )}
 
-              {/* Actions header (spacer) */}
-              {actions && actions.length > 0 && <th className="w-12 px-4 py-3" />}
+              {columns.map((col) => {
+                const sorted = col.sortable && sortKey === col.key;
+                return (
+                  <th
+                    key={col.key}
+                    scope="col"
+                    aria-sort={
+                      col.sortable
+                        ? sorted
+                          ? sortDir === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                        : undefined
+                    }
+                    className={`${HEAD_CELL} ${col.align === 'right' ? 'text-right' : ''}`}
+                  >
+                    {col.sortable && onSort ? (
+                      <button
+                        type="button"
+                        onClick={() => handleSort(col.key)}
+                        className={`inline-flex items-center gap-1 rounded-[var(--pm-radius-sm)] uppercase tracking-[0.07em] transition-colors hover:text-[var(--pm-ink)] focus-visible:outline-none focus-visible:shadow-[var(--pm-focus)] ${
+                          sorted ? 'text-[var(--pm-ink)]' : ''
+                        }`}
+                      >
+                        {col.label}
+                        {sorted ? (
+                          sortDir === 'asc' ? (
+                            <ChevronUp size={14} aria-hidden="true" />
+                          ) : (
+                            <ChevronDown size={14} aria-hidden="true" />
+                          )
+                        ) : null}
+                      </button>
+                    ) : (
+                      col.label
+                    )}
+                  </th>
+                );
+              })}
+
+              {/* Actions header */}
+              {hasActions && (
+                <th scope="col" className={`${HEAD_CELL} w-12 text-right`}>
+                  <span className="sr-only">Actions</span>
+                </th>
+              )}
             </tr>
           </thead>
 
@@ -279,17 +360,16 @@ export default function DataTable<T extends Record<string, unknown>>({
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <SkeletonRow key={i} cols={columns.length} />
+                <SkeletonRow key={i} cols={columnCount} />
               ))
             ) : data.length === 0 ? (
               <tr>
-                <td
-                  colSpan={columns.length + (onSelectionChange ? 2 : 1)}
-                  className="px-4 py-16 text-center"
-                >
-                  <div className="flex flex-col items-center gap-2 text-gray-400">
-                    {emptyIcon}
-                    <span className="text-sm">{emptyMessage}</span>
+                <td colSpan={columnCount} className="px-4 py-16 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    {emptyIcon && (
+                      <span className="text-[var(--pm-muted-soft)]">{emptyIcon}</span>
+                    )}
+                    <span className="text-sm text-[var(--pm-muted)]">{emptyMessage}</span>
                   </div>
                 </td>
               </tr>
@@ -303,58 +383,73 @@ export default function DataTable<T extends Record<string, unknown>>({
                   <tr
                     key={id}
                     onClick={() => onRowClick?.(row)}
-                    className={`border-b border-gray-100 transition-colors last:border-0 hover:bg-gray-50 ${
+                    className={`border-b border-[var(--pm-line)] transition-colors last:border-0 ${ZEBRA} ${ROW_HOVER} ${
                       onRowClick ? 'cursor-pointer' : ''
-                    }`}
+                    } ${isSelected ? 'bg-[var(--pm-coral-tint-10)]' : ''}`}
                   >
                     {/* Bulk-select checkbox */}
-                    <td className="px-4 py-3">
-                      {onSelectionChange && (
+                    {selectable && (
+                      <td className={BODY_CELL}>
                         <button
-                          onClick={(e) => { e.stopPropagation(); toggleOne(id); }}
-                          className="text-gray-400 hover:text-gray-600"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleOne(id);
+                          }}
+                          aria-label="Select row"
+                          aria-pressed={isSelected}
+                          className={ICON_BUTTON}
                         >
                           {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
                         </button>
-                      )}
-                    </td>
+                      </td>
+                    )}
 
                     {columns.map((col) => (
-                      <td key={col.key} className="px-4 py-3 text-gray-700">
+                      <td
+                        key={col.key}
+                        className={`${BODY_CELL} ${col.align === 'right' ? 'text-right' : ''}`}
+                      >
                         {col.render(row)}
                       </td>
                     ))}
 
                     {/* Row actions menu */}
-                    {actions && actions.length > 0 && (
-                      <td className="relative px-4 py-3">
+                    {hasActions && (
+                      <td className={`${BODY_CELL} relative text-right`}>
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             setOpenMenuRow(isMenuOpen ? null : id);
                           }}
-                          className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                          aria-label="Row actions"
+                          aria-haspopup="true"
+                          aria-expanded={isMenuOpen}
+                          className={`${ICON_BUTTON} p-1 hover:bg-[var(--pm-paper-3)]`}
                         >
-                          <MoreVertical size={16} />
+                          <MoreVertical size={16} aria-hidden="true" />
                         </button>
 
                         {isMenuOpen && (
                           <div
                             ref={menuRef}
-                            className="absolute right-4 top-full z-50 min-w-[140px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                            className="absolute right-4 top-full z-50 min-w-[150px] rounded-[var(--pm-radius-md)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] py-1 text-left shadow-[var(--pm-shadow-lg)]"
                           >
-                            {actions.map((action, i) => (
+                            {actions!.map((action, i) => (
                               <button
                                 key={i}
+                                type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   action.onClick(row);
                                   setOpenMenuRow(null);
                                 }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
-                                style={{
-                                  color: action.danger ? 'var(--pm-danger, #dc2626)' : '#374151',
-                                }}
+                                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--pm-paper-2)] focus-visible:outline-none focus-visible:shadow-[var(--pm-focus)] ${
+                                  action.danger
+                                    ? 'text-[var(--pm-danger)]'
+                                    : 'text-[var(--pm-ink-2)]'
+                                }`}
                               >
                                 {action.icon}
                                 {action.label}
@@ -374,7 +469,10 @@ export default function DataTable<T extends Record<string, unknown>>({
 
       {/* ── Pagination ── */}
       {(totalPages !== undefined || hasMore !== undefined) && (
-        <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
+        <nav
+          aria-label="Pagination"
+          className="mt-3 flex items-center justify-between text-sm text-[var(--pm-muted)]"
+        >
           <span>
             Page {page ?? 1}
             {totalPages !== undefined && ` / ${totalPages}`}
@@ -384,16 +482,18 @@ export default function DataTable<T extends Record<string, unknown>>({
             {onPageChange && page !== undefined && (
               <>
                 <button
+                  type="button"
                   disabled={page <= 1}
                   onClick={() => onPageChange(page - 1)}
-                  className="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:bg-gray-50"
+                  className={PAGER_BUTTON}
                 >
                   Previous
                 </button>
                 <button
+                  type="button"
                   disabled={totalPages !== undefined ? page >= totalPages : false}
                   onClick={() => onPageChange(page + 1)}
-                  className="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:bg-gray-50"
+                  className={PAGER_BUTTON}
                 >
                   Next
                 </button>
@@ -401,15 +501,12 @@ export default function DataTable<T extends Record<string, unknown>>({
             )}
 
             {onLoadMore && hasMore && (
-              <button
-                onClick={onLoadMore}
-                className="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium transition-colors hover:bg-gray-50"
-              >
+              <button type="button" onClick={onLoadMore} className={PAGER_BUTTON}>
                 Load more
               </button>
             )}
           </div>
-        </div>
+        </nav>
       )}
     </div>
   );

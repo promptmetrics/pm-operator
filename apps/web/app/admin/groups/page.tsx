@@ -2,11 +2,13 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@pm-operator/ui/components/Button';
-import { Card, CardContent } from '@pm-operator/ui/components/Card';
+import { Card } from '@pm-operator/ui/components/Card';
 import { Input } from '@pm-operator/ui/components/Input';
 import type { Group, GroupVisibility } from '@pm-operator/api';
-import { Search, ArrowUpDown } from 'lucide-react';
+import { Search, LayoutGrid } from 'lucide-react';
+import DataTable, { type Column } from '@/components/admin/DataTable';
 
 const VISIBILITIES: GroupVisibility[] = ['public', 'invite_only', 'paid'];
 
@@ -14,6 +16,7 @@ type SortField = 'name' | 'memberCount' | 'createdAt';
 type SortDir = 'asc' | 'desc';
 
 export default function AdminGroupsPage() {
+  const router = useRouter();
   const [groups, setGroups] = React.useState<Group[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
@@ -68,13 +71,11 @@ export default function AdminGroupsPage() {
     }
   };
 
-  const toggleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDir('asc');
-    }
+  // DataTable derives the next direction with the same rule the old header
+  // buttons used: flip when the key is unchanged, otherwise start ascending.
+  const handleSort = (key: string, dir: SortDir) => {
+    setSortField(key as SortField);
+    setSortDir(dir);
   };
 
   const filtered = groups
@@ -94,15 +95,82 @@ export default function AdminGroupsPage() {
       return sortDir === 'asc' ? cmp : -cmp;
     });
 
-  const SortHeader = ({ field, label }: { field: SortField; label: string }) => (
-    <button
-      onClick={() => toggleSort(field)}
-      className="flex items-center gap-1 text-sm font-medium text-[var(--pm-muted)] hover:text-[var(--pm-ink)]"
-    >
-      {label}
-      <ArrowUpDown className="h-3 w-3" />
-    </button>
-  );
+  // The whole row navigates (as the wrapping <Link> used to). The in-cell links
+  // stop propagation so a click does not also fire the row handler.
+  const stopRowClick = (e: React.MouseEvent) => e.stopPropagation();
+
+  const columns: Column<Group>[] = [
+    {
+      key: 'name',
+      label: 'Name',
+      sortable: true,
+      render: (group) => (
+        <div className="flex items-center gap-3">
+          {group.color ? (
+            <span
+              className="h-3 w-3 flex-shrink-0 rounded-full"
+              style={{ backgroundColor: group.color }}
+              aria-hidden="true"
+            />
+          ) : null}
+          <Link
+            href={`/admin/groups/${group.id}`}
+            onClick={stopRowClick}
+            className="truncate font-medium text-[var(--pm-ink)] hover:text-[var(--pm-coral)]"
+          >
+            {group.name}
+          </Link>
+        </div>
+      ),
+    },
+    {
+      key: 'slug',
+      label: 'Slug',
+      render: (group) => (
+        <span className="font-mono text-xs text-[var(--pm-muted)]">/g/{group.slug}</span>
+      ),
+    },
+    {
+      key: 'memberCount',
+      label: 'Members',
+      sortable: true,
+      align: 'right',
+      render: (group) => (
+        <span className="tabular-nums">{group.memberCount} members</span>
+      ),
+    },
+    {
+      key: 'visibility',
+      label: 'Visibility',
+      render: (group) => (
+        <span className="capitalize">{group.visibility.replace('_', ' ')}</span>
+      ),
+    },
+    {
+      key: 'createdAt',
+      label: 'Created',
+      sortable: true,
+      render: (group) => (
+        <span className="whitespace-nowrap text-[var(--pm-muted)]">
+          {new Date(group.createdAt).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      align: 'right',
+      render: (group) => (
+        <Link
+          href={`/admin/groups/${group.id}`}
+          onClick={stopRowClick}
+          className="whitespace-nowrap text-sm text-[var(--pm-coral)] hover:text-[var(--pm-coral-dark)]"
+        >
+          View &rarr;
+        </Link>
+      ),
+    },
+  ];
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -186,59 +254,19 @@ export default function AdminGroupsPage() {
         </div>
       </Card>
 
-      {loading && groups.length === 0 ? (
-        <p className="text-[var(--pm-muted)]">Loading...</p>
-      ) : filtered.length === 0 ? (
-        <p className="text-[var(--pm-muted)]">No circles match your filters.</p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {/* Table header */}
-          <div className="hidden grid-cols-12 gap-4 px-4 sm:grid">
-            <div className="col-span-3"><SortHeader field="name" label="Name" /></div>
-            <div className="col-span-2 text-sm text-[var(--pm-muted)]">Slug</div>
-            <div className="col-span-2"><SortHeader field="memberCount" label="Members" /></div>
-            <div className="col-span-2 text-sm text-[var(--pm-muted)]">Visibility</div>
-            <div className="col-span-2"><SortHeader field="createdAt" label="Created" /></div>
-            <div className="col-span-1" />
-          </div>
-
-          {filtered.map((group) => (
-            <Link key={group.id} href={`/admin/groups/${group.id}`}>
-              <Card className="cursor-pointer p-4 transition-colors hover:border-[var(--pm-coral)]">
-                <CardContent>
-                  <div className="grid grid-cols-12 items-center gap-4">
-                    <div className="col-span-12 flex items-center gap-3 sm:col-span-3">
-                      {group.color ? (
-                        <span
-                          className="h-3 w-3 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: group.color }}
-                          aria-hidden="true"
-                        />
-                      ) : null}
-                      <p className="truncate font-medium">{group.name}</p>
-                    </div>
-                    <div className="col-span-4 text-sm text-[var(--pm-muted)] sm:col-span-2">
-                      /g/{group.slug}
-                    </div>
-                    <div className="col-span-2 text-sm sm:col-span-2">
-                      {group.memberCount} members
-                    </div>
-                    <div className="col-span-3 text-sm capitalize sm:col-span-2">
-                      {group.visibility.replace('_', ' ')}
-                    </div>
-                    <div className="col-span-2 text-sm text-[var(--pm-muted)] sm:col-span-2">
-                      {new Date(group.createdAt).toLocaleDateString()}
-                    </div>
-                    <div className="col-span-1 text-right">
-                      <span className="text-sm text-[var(--pm-coral)]">View &rarr;</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
+      <DataTable<Group>
+        caption="Circles"
+        columns={columns}
+        data={filtered}
+        rowKey="id"
+        sortKey={sortField}
+        sortDir={sortDir}
+        onSort={handleSort}
+        onRowClick={(group) => router.push(`/admin/groups/${group.id}`)}
+        loading={loading && groups.length === 0}
+        emptyIcon={<LayoutGrid className="h-10 w-10" />}
+        emptyMessage="No circles match your filters."
+      />
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { Card } from '@pm-operator/ui/components/Card';
 import { Input } from '@pm-operator/ui/components/Input';
 import { CalendarDays, List, Trash2, Calendar, Filter, Search } from 'lucide-react';
 import type { Event } from '@pm-operator/api';
-import DataTable from '@/components/admin/DataTable';
+import DataTable, { type Column } from '@/components/admin/DataTable';
 import LoadingState from '@/components/admin/LoadingState';
 import EmptyState from '@/components/admin/EmptyState';
 import ErrorState from '@/components/admin/ErrorState';
@@ -156,12 +156,13 @@ export default function AdminEventsPage() {
     [filtered]
   );
 
-  const columns = [
+  // No onSort is wired here — the list is always ordered by startsAt — so no
+  // column is flagged sortable and no sort affordance is advertised.
+  const columns: Column<Event>[] = [
     {
       key: 'title',
       label: 'Title',
-      sortable: true,
-      render: (row: Event) => (
+      render: (row) => (
         <button
           type="button"
           onClick={() => router.push(`/admin/events/${row.id}`)}
@@ -174,9 +175,8 @@ export default function AdminEventsPage() {
     {
       key: 'startsAt',
       label: 'Date/Time',
-      sortable: true,
-      render: (row: Event) => (
-        <span className="text-sm text-[var(--pm-muted)]">
+      render: (row) => (
+        <span className="whitespace-nowrap text-sm text-[var(--pm-muted)]">
           {new Date(row.startsAt).toLocaleDateString()}
           {' '}
           {new Date(row.startsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -186,22 +186,23 @@ export default function AdminEventsPage() {
     {
       key: 'location',
       label: 'Location',
-      render: (row: Event) => (
+      render: (row) => (
         <span className="text-sm text-[var(--pm-muted)]">{row.location || '-'}</span>
       ),
     },
     {
       key: 'capacity',
       label: 'Capacity',
-      render: (row: Event) => (
-        <span className="text-sm">{row.capacity ? `${row.capacity}` : 'Unlimited'}</span>
+      align: 'right',
+      render: (row) => (
+        <span className="text-sm tabular-nums">{row.capacity ? `${row.capacity}` : 'Unlimited'}</span>
       ),
     },
     {
       key: 'scope',
       label: 'Scope',
-      render: (row: Event) => (
-        <span className="text-xs rounded-full bg-[var(--pm-paper-2)] px-2 py-0.5">
+      render: (row) => (
+        <span className="whitespace-nowrap rounded-[var(--pm-radius-pill)] border border-[var(--pm-line)] bg-[var(--pm-paper-2)] px-2 py-0.5 text-xs">
           {row.groupId ? 'Circle' : 'Global'}
         </span>
       ),
@@ -365,23 +366,23 @@ export default function AdminEventsPage() {
           icon={<CalendarDays className="h-12 w-12" />}
           title="No events found"
           message={search ? 'Try a different search term.' : filterUpcoming ? 'No upcoming events.' : 'No past events.'}
+          className="rounded-[var(--pm-radius-lg)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-4 py-16"
         />
       ) : (
-        <Card>
-          <DataTable
-            columns={columns}
-            data={filtered as any}
-            rowKey="id"
-            actions={[
-              {
-                label: 'Delete',
-                icon: <Trash2 className="h-4 w-4" />,
-                danger: true,
-                onClick: (row) => remove((row as unknown as Event).id),
-              },
-            ]}
-          />
-        </Card>
+        <DataTable<Event>
+          caption="Events"
+          columns={columns}
+          data={filtered}
+          rowKey="id"
+          actions={[
+            {
+              label: 'Delete',
+              icon: <Trash2 className="h-4 w-4" />,
+              danger: true,
+              onClick: (row) => remove(row.id),
+            },
+          ]}
+        />
       )}
     </div>
   );
