@@ -218,3 +218,13 @@ Source: `design/REDESIGN-PLAN.md` §4.9 (decision D-A). Approved by Izzy 2026-08
 
 - `POINT_WEIGHTS.invite_accepted` raised from 5 to 15 (`packages/api/src/contracts/points.ts`). Supersedes the 2026-08-01 INVITE-3 addendum's weight of 5 and the `invite_accepted | 5` rows in `06-technical-spec.md` / `07-ux-spec.md`.
 - Existing `point_events` rows keep their historical values — **no backfill** (same rule as D1).
+
+## 2026-08-09 — Profile pages are public by design
+
+Surfaced while adding the DevCard middleware allowlist (D-B). Confirmed by Izzy 2026-08-09.
+
+- `/u/{slug}` profile pages are **publicly readable**, as are `/g/…` circles and `/p/…` posts. This is intended, and consistent with D-B making DevCards public and shareable.
+- Mechanically: `COMMUNITY_ROUTE_REGEX` in `apps/web/middleware.ts` reads `(g\/|p\/|u\/|leaderboards|…)(\/|$)` — the `u\/` branch consumes the slash and the trailing group then requires another slash or end-of-string, so only the bare `/u/` matches. `apps/web/app/(community)/u/[slug]/page.tsx` treats the session as optional and renders for anonymous visitors.
+- **Do not "fix" this regex** without a product decision: tightening it to `/^\/(g|p|u)\//` would gate public circles and post permalinks, which `prod-smoke.spec.ts` asserts must stay anonymously readable.
+- Still gated: `/settings`, `/messages`, `/bookmarks`, `/notifications`, `/moderation`, and all `/api/v1/` writes. `apps/web/e2e/access-matrix.spec.ts` asserts exactly that, and that the DevCard allowlist does not widen it.
+- Note: `design/REDESIGN-PLAN.md` §4.6 assumed profiles were gated ("a prefix mistake would expose all `/u/` profile pages"). That premise was wrong; the allowlist is still written as an exact-segment match as defence in depth.
