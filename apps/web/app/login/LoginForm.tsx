@@ -3,19 +3,25 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { AlertCircle } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
 import { createAuthClient } from '@/auth/client';
 import { ensureUserProfile } from './actions';
 import { getAuthCallbackUrl } from '@/site-url';
+import { GitHubMark, GoogleMark, LinkedInMark } from './ProviderIcons';
 
 type Mode = 'sign-in' | 'sign-up';
 
 const PROVIDERS = [
-  { id: 'github', label: 'Continue with GitHub' },
-  { id: 'google', label: 'Continue with Google' },
-  { id: 'linkedin_oidc', label: 'Continue with LinkedIn' },
+  { id: 'github', label: 'Continue with GitHub', Mark: GitHubMark },
+  { id: 'google', label: 'Continue with Google', Mark: GoogleMark },
+  { id: 'linkedin_oidc', label: 'Continue with LinkedIn', Mark: LinkedInMark },
 ] as const;
+
+// Shared focus ring for the bare <button>/<a> controls in this card. Button and
+// Input already wire this themselves; these three did not.
+const FOCUS_RING = 'rounded focus-visible:outline-none focus-visible:shadow-[var(--pm-focus)]';
 
 export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
   const router = useRouter();
@@ -26,10 +32,27 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [showPassword, setShowPassword] = React.useState(false);
-  const [errors, setErrors] = React.useState<{ email?: string; password?: string; form?: string }>({});
+  // /auth/callback redirects to /login?error=<msg> when exchangeCodeForSession
+  // fails. Seed it once on mount so the OAuth round-trip failure is visible
+  // instead of silently dropped; any later interaction clears it.
+  const [errors, setErrors] = React.useState<{ email?: string; password?: string; form?: string }>(
+    () => {
+      const urlError = searchParams.get('error');
+      return urlError ? { form: urlError } : {};
+    }
+  );
   const [isLoading, setIsLoading] = React.useState(false);
+  // Set the moment an OAuth handler fires. signInWithOAuth navigates the browser
+  // away, so without this the user can click a second provider in the gap.
+  const [pendingProvider, setPendingProvider] = React.useState<string | null>(null);
+
+  const busy = isLoading || pendingProvider !== null;
 
   const supabase = createAuthClient();
+
+  function clearFormError() {
+    setErrors((prev) => (prev.form ? { ...prev, form: undefined } : prev));
+  }
 
   function validateField(name: 'email' | 'password', value: string) {
     if (name === 'email') {
@@ -107,23 +130,34 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
   }
 
   async function handleOAuth(provider: (typeof PROVIDERS)[number]['id']) {
+    setPendingProvider(provider);
+    setErrors((prev) => ({ ...prev, form: undefined }));
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: { redirectTo: getAuthCallbackUrl(returnUrl) },
     });
     if (error) {
+      // On success the browser is already navigating away, so the pending state
+      // is only released on the failure path.
+      setPendingProvider(null);
       setErrors((prev) => ({ ...prev, form: error.message }));
     }
   }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md space-y-6 rounded-2xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 shadow-[var(--pm-shadow-lg)]">
+      <section
+        aria-labelledby="auth-heading"
+        className="w-full max-w-md space-y-6 rounded-2xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 shadow-[var(--pm-shadow-lg)]"
+      >
         <div className="text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--pm-coral-dark)]">
             PromptMetrics Operator
           </p>
-          <h1 className="mt-2 font-serif text-3xl font-semibold tracking-tight text-[var(--pm-ink)]">
+          <h1
+            id="auth-heading"
+            className="mt-2 font-serif text-3xl font-semibold tracking-tight text-[var(--pm-ink)]"
+          >
             {mode === 'sign-in' ? 'Welcome back' : 'Join the community'}
           </h1>
           <p className="mt-2 text-[var(--pm-muted)]">
@@ -132,16 +166,18 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
         </div>
 
         <div className="space-y-3">
-          {PROVIDERS.map((provider) => (
+          {PROVIDERS.map(({ id, label, Mark }) => (
             <Button
-              key={provider.id}
+              key={id}
               variant="secondary"
               size="lg"
-              className="w-full"
-              onClick={() => handleOAuth(provider.id)}
+              className="relative w-full text-base"
+              onClick={() => handleOAuth(id)}
               type="button"
+              disabled={busy}
             >
-              {provider.label}
+              <Mark className="absolute left-4 h-5 w-5 shrink-0" />
+              <span>{pendingProvider === id ? 'Redirecting…' : label}</span>
             </Button>
           ))}
           <p className="text-center text-xs text-[var(--pm-muted-soft)]">
@@ -165,12 +201,15 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
             label="Email"
             autoComplete="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              clearFormError();
+            }}
             onBlur={() =>
               setErrors((prev) => ({ ...prev, email: validateField('email', email) }))
             }
             error={errors.email}
-            disabled={isLoading}
+            disabled={busy}
           />
 
           <div className="relative">
@@ -178,32 +217,41 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
               id="password"
               type={showPassword ? 'text' : 'password'}
               label="Password"
+              className="pr-16"
               autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                clearFormError();
+              }}
               onBlur={() =>
                 setErrors((prev) => ({ ...prev, password: validateField('password', password) }))
               }
               error={errors.password}
-              disabled={isLoading}
+              disabled={busy}
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-[2.1rem] text-sm text-[var(--pm-muted)] hover:text-[var(--pm-ink)]"
+              className={`absolute right-3 top-[2.1rem] px-1 text-sm font-medium text-[var(--pm-muted)] transition-colors hover:text-[var(--pm-ink)] ${FOCUS_RING}`}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-pressed={showPassword}
             >
               {showPassword ? 'Hide' : 'Show'}
             </button>
           </div>
 
           {errors.form ? (
-            <p className="text-sm text-[var(--pm-danger)]" role="alert">
-              {errors.form}
-            </p>
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-[color-mix(in_srgb,var(--pm-danger)_35%,transparent)] bg-[var(--pm-danger-bg)] px-3 py-2 text-sm text-[var(--pm-danger)]"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>{errors.form}</span>
+            </div>
           ) : null}
 
-          <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
+          <Button type="submit" size="lg" className="w-full" disabled={busy}>
             {mode === 'sign-in' ? 'Sign in' : 'Create account'}
           </Button>
         </form>
@@ -211,15 +259,20 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
         <div className="flex items-center justify-center gap-2 text-sm">
           <button
             type="button"
-            onClick={() => setMode((m) => (m === 'sign-in' ? 'sign-up' : 'sign-in'))}
-            className="text-[var(--pm-link)] hover:underline"
+            onClick={() => {
+              setMode((m) => (m === 'sign-in' ? 'sign-up' : 'sign-in'));
+              clearFormError();
+            }}
+            className={`font-medium text-[var(--pm-link)] hover:underline ${FOCUS_RING}`}
           >
             {mode === 'sign-in' ? 'Create an account' : 'Sign in instead'}
           </button>
-          <span className="text-[var(--pm-muted)]">·</span>
+          <span aria-hidden="true" className="text-[var(--pm-muted-soft)]">
+            ·
+          </span>
           <Link
             href={`/forgot-password${returnUrl ? `?returnUrl=${encodeURIComponent(returnUrl)}` : ''}`}
-            className="text-[var(--pm-link)] hover:underline"
+            className={`font-medium text-[var(--pm-link)] hover:underline ${FOCUS_RING}`}
           >
             Forgot password?
           </Link>
@@ -228,7 +281,7 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
         <p className="text-center text-xs text-[var(--pm-muted-soft)]">
           EU-hosted · Public knowledge · Agent-ready API
         </p>
-      </div>
+      </section>
     </main>
   );
 }

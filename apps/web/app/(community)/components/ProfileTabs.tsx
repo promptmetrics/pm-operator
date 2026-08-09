@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Flame } from 'lucide-react';
+import { Award, CheckCircle2, FileText, Flame } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Card } from '@pm-operator/ui/components/Card';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
@@ -24,18 +24,76 @@ import type {
   UserBadgesResponse,
 } from '@pm-operator/api';
 import type { AcceptedSolutionItem } from '@/lib/services/community';
+import type { CirclePointsSlice } from '@/lib/services/users';
 
 type Tab = 'posts' | 'solutions' | 'comments' | 'bookmarks';
 
 const MAX_BADGE_CHIPS = 4;
+const MAX_BREAKDOWN_ROWS = 5;
 
 const railCardClass =
-  'rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-4 shadow-[var(--pm-shadow)]';
+  'rounded-[var(--pm-radius-lg)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-4 shadow-[var(--pm-shadow)]';
+
+const railHeadingClass =
+  'mb-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--pm-muted)]';
 
 const postListClass = 'flex flex-col gap-4';
 
 function formatJoined(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+/**
+ * Fixed locale — this component server-renders first, so a host-dependent
+ * number format would produce a hydration mismatch.
+ */
+function formatNumber(value: number): string {
+  return value.toLocaleString('en-US');
+}
+
+interface BreakdownRow {
+  slug: string;
+  name: string;
+  color: string | null;
+  points: number;
+  /** null when the row comes from the ranking projection, which has no share. */
+  share: number | null;
+  acceptedSolutions: number;
+}
+
+/**
+ * One list, two possible sources. The ledger breakdown (point_events grouped by
+ * circle) is the honest answer to "where does this member earn?", so it wins.
+ * Members whose points predate circle attribution have an empty ledger
+ * breakdown but still have ranking rows, so those stand in rather than leaving
+ * an empty card. Accepted-solution counts are merged in from the ranking rows
+ * either way — no extra query, both payloads are already on the page.
+ */
+function breakdownRows(
+  circlePoints: CirclePointsSlice[],
+  circles: CircleContribution[]
+): BreakdownRow[] {
+  const solutionsBySlug = new Map(circles.map((c) => [c.group.slug, c.acceptedSolutions]));
+
+  if (circlePoints.length > 0) {
+    return circlePoints.slice(0, MAX_BREAKDOWN_ROWS).map((slice) => ({
+      slug: slice.group.slug,
+      name: slice.group.name,
+      color: slice.group.color,
+      points: slice.points,
+      share: slice.share,
+      acceptedSolutions: solutionsBySlug.get(slice.group.slug) ?? 0,
+    }));
+  }
+
+  return circles.slice(0, MAX_BREAKDOWN_ROWS).map((circle) => ({
+    slug: circle.group.slug,
+    name: circle.group.name,
+    color: circle.group.color,
+    points: circle.score,
+    share: null,
+    acceptedSolutions: circle.acceptedSolutions,
+  }));
 }
 
 interface ProfileTabsProps {
@@ -48,6 +106,7 @@ interface ProfileTabsProps {
   badges: UserBadgesResponse;
   bookmarks?: PostListItem[];
   circles: CircleContribution[];
+  circlePoints: CirclePointsSlice[];
   streak: MyStreakResponse | null;
 }
 
@@ -61,11 +120,13 @@ export function ProfileTabs({
   badges,
   bookmarks,
   circles,
+  circlePoints,
   streak,
 }: ProfileTabsProps) {
   const [tab, setTab] = React.useState<Tab>('posts');
   const isMe = currentUserId === user.id;
   const { levelInfo } = user;
+  const displayName = user.fullName || user.username;
 
   // Follow state (WS9): viewer-specific, toggled client-side via the follow
   // route. Counts come from the profile payload and refresh from the response.
@@ -77,6 +138,9 @@ export function ProfileTabs({
   const [followPending, setFollowPending] = React.useState(false);
   const [messagePending, setMessagePending] = React.useState(false);
   const router = useRouter();
+
+  const rows = breakdownRows(circlePoints, circles);
+  const ledgerBacked = circlePoints.length > 0;
 
   const toggleFollow = async () => {
     if (!currentUserId || isMe || followPending) return;
@@ -118,115 +182,175 @@ export function ProfileTabs({
 
   return (
     <>
-      <header className="-mx-4 -mt-6 mb-6 border-b border-[var(--pm-line)] bg-[var(--pm-paper-2)] px-4 py-8">
-        <div className="mx-auto flex max-w-6xl flex-col items-start gap-4 sm:flex-row sm:items-center">
-          <Avatar
-            src={user.pictureUrl ?? undefined}
-            alt={user.username}
-            fallback={user.fullName || user.username}
-            size="xl"
-            className="h-[84px] w-[84px] text-xl"
-            badge={
-              <LevelBadge
-                level={user.level}
-                size="md"
-                className="h-7 w-7 border-[3px] border-[var(--pm-paper-2)] text-xs"
+      {/* Full-bleed header band. The teal cover mirrors the DevCard so the two
+          surfaces read as the same object seen from different distances. */}
+      <header className="-mx-4 -mt-6 mb-6 border-b border-[var(--pm-line)] bg-[var(--pm-paper-2)]">
+        <div
+          aria-hidden="true"
+          className="h-20 bg-[linear-gradient(135deg,var(--pm-teal)_0%,var(--pm-teal-dark)_100%)]"
+        />
+        <div className="mx-auto max-w-6xl px-4 pb-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+            {/* The offset lives on a wrapper: Avatar puts `className` on the
+                image root, which sits inside its own badge wrapper span. */}
+            <div className="-mt-10 shrink-0">
+              <Avatar
+                src={user.pictureUrl ?? undefined}
+                alt={user.username}
+                fallback={displayName}
+                size="xl"
+                className="h-[84px] w-[84px] border-4 border-[var(--pm-paper-2)] text-xl"
+                badge={
+                  <LevelBadge
+                    level={levelInfo.level}
+                    size="md"
+                    className="h-7 w-7 border-[3px] border-[var(--pm-paper-2)] text-xs"
+                  />
+                }
               />
-            }
-          />
-          <div className="flex-1">
-            <h1 className="font-serif text-[28px] font-semibold leading-tight text-[var(--pm-ink)]">
-              {user.fullName || user.username}
-            </h1>
-            <p className="mt-1 text-sm text-[var(--pm-muted)]">
-              /u/{user.userslug} · Level {levelInfo.level} · {levelInfo.name} · joined{' '}
-              {formatJoined(user.joinedAt)}
-            </p>
-            {badges.earned.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {badges.earned.slice(0, MAX_BADGE_CHIPS).map(({ badge }) => (
-                  <Badge key={badge.id} variant="coral">{badge.name}</Badge>
-                ))}
-                {badges.earned.length > MAX_BADGE_CHIPS ? (
-                  <Badge variant="outline">+{badges.earned.length - MAX_BADGE_CHIPS} more</Badge>
-                ) : null}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="font-serif text-[28px] font-semibold leading-tight text-[var(--pm-ink)]">
+                {displayName}
+              </h1>
+              <p className="mt-1 text-sm text-[var(--pm-muted)]">
+                /u/{user.userslug} · Level {levelInfo.level} · {levelInfo.name} · joined{' '}
+                {formatJoined(user.joinedAt)}
+              </p>
+              <p className="mt-1.5 text-[13px] text-[var(--pm-muted)]">
+                {isMe ? (
+                  <Link
+                    href={`/u/${user.userslug}/followers`}
+                    className="hover:text-[var(--pm-coral-dark)] hover:underline"
+                  >
+                    {formatNumber(counts.followerCount)} followers
+                  </Link>
+                ) : (
+                  <span>{formatNumber(counts.followerCount)} followers</span>
+                )}{' '}
+                ·{' '}
+                {isMe ? (
+                  <Link
+                    href={`/u/${user.userslug}/following`}
+                    className="hover:text-[var(--pm-coral-dark)] hover:underline"
+                  >
+                    {formatNumber(counts.followingCount)} following
+                  </Link>
+                ) : (
+                  <span>{formatNumber(counts.followingCount)} following</span>
+                )}
+              </p>
+            </div>
+            {isMe ? (
+              <Button variant="secondary" asChild>
+                <Link href="/settings">Edit profile</Link>
+              </Button>
+            ) : currentUserId ? (
+              <div className="flex shrink-0 gap-2">
+                <Button
+                  variant={following ? 'secondary' : 'primary'}
+                  onClick={toggleFollow}
+                  disabled={followPending}
+                >
+                  {following ? 'Following' : 'Follow'}
+                </Button>
+                <Button variant="secondary" onClick={startConversation} disabled={messagePending}>
+                  Message
+                </Button>
               </div>
             ) : null}
-            <p className="mt-2 text-[13px] text-[var(--pm-muted)]">
-              {isMe ? (
-                <Link
-                  href={`/u/${user.userslug}/followers`}
-                  className="hover:text-[var(--pm-coral-dark)] hover:underline"
-                >
-                  {counts.followerCount.toLocaleString()} followers
-                </Link>
-              ) : (
-                <span>{counts.followerCount.toLocaleString()} followers</span>
-              )}{' '}
-              ·{' '}
-              {isMe ? (
-                <Link
-                  href={`/u/${user.userslug}/following`}
-                  className="hover:text-[var(--pm-coral-dark)] hover:underline"
-                >
-                  {counts.followingCount.toLocaleString()} following
-                </Link>
-              ) : (
-                <span>{counts.followingCount.toLocaleString()} following</span>
-              )}
-            </p>
           </div>
-          {isMe ? (
-            <Button variant="secondary" asChild>
-              <Link href="/settings">Edit profile</Link>
-            </Button>
-          ) : currentUserId ? (
-            <div className="flex gap-2">
-              <Button
-                variant={following ? 'secondary' : 'primary'}
-                onClick={toggleFollow}
-                disabled={followPending}
-              >
-                {following ? 'Following' : 'Follow'}
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={startConversation}
-                disabled={messagePending}
-              >
-                Message
-              </Button>
-            </div>
+
+          {badges.earned.length > 0 ? (
+            <ul
+              aria-label="Badges earned"
+              data-testid="profile-badge-chips"
+              className="mt-4 flex flex-wrap gap-2"
+            >
+              {badges.earned.slice(0, MAX_BADGE_CHIPS).map(({ badge, awardedAt }) => (
+                <li
+                  key={badge.id}
+                  data-testid="profile-badge-chip"
+                  title={`Earned ${formatJoined(awardedAt)}`}
+                  className="inline-flex items-center gap-2 rounded-[var(--pm-radius-pill)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] py-1 pl-1 pr-3"
+                >
+                  {badge.iconUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={badge.iconUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className="flex h-6 w-6 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--pm-teal)_16%,transparent)] text-[11px] font-bold text-[var(--pm-teal-dark)]"
+                    >
+                      {badge.name.charAt(0)}
+                    </span>
+                  )}
+                  <span className="text-[13px] font-medium text-[var(--pm-ink)]">{badge.name}</span>
+                </li>
+              ))}
+              {badges.earned.length > MAX_BADGE_CHIPS ? (
+                <li data-testid="profile-badge-chip-overflow" className="inline-flex items-center">
+                  <Badge variant="outline">+{badges.earned.length - MAX_BADGE_CHIPS} more</Badge>
+                </li>
+              ) : null}
+            </ul>
           ) : null}
         </div>
       </header>
 
       <div className="mx-auto grid max-w-6xl items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-6">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard value={user.reputationScore.toLocaleString()} label="Points" />
-            <StatCard value={user.acceptedSolutions} label="Solutions" />
-            <StatCard value={user.postsCount} label="Posts" />
+          <div
+            role="list"
+            aria-label="Profile stats"
+            className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+          >
             <StatCard
-              value={user.streakDays}
+              role="listitem"
+              data-testid="profile-stat"
+              value={formatNumber(user.reputationScore)}
+              label="Points"
+              icon={<Award className="h-5 w-5" aria-hidden="true" />}
+            />
+            <StatCard
+              role="listitem"
+              data-testid="profile-stat"
+              value={formatNumber(user.acceptedSolutions)}
+              label="Solutions"
+              icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
+            />
+            <StatCard
+              role="listitem"
+              data-testid="profile-stat"
+              value={formatNumber(user.postsCount)}
+              label="Posts"
+              icon={<FileText className="h-5 w-5" aria-hidden="true" />}
+            />
+            <StatCard
+              role="listitem"
+              data-testid="profile-stat"
+              value={formatNumber(user.streakDays)}
               label="Day streak"
               icon={<Flame className="h-5 w-5" aria-hidden="true" />}
             />
           </div>
 
-          <div className={railCardClass}>
+          <section className={railCardClass} data-testid="level-progress">
             <div className="mb-2.5 flex items-baseline justify-between gap-3 text-[13px]">
               <span className="font-bold text-[var(--pm-ink)]">
                 Level {levelInfo.level} · {levelInfo.name}
               </span>
               <span className="text-[var(--pm-muted)]">
                 {levelInfo.nextLevel && levelInfo.pointsToNext !== null
-                  ? `${levelInfo.pointsToNext} pts to Level ${levelInfo.nextLevel.level} · ${levelInfo.nextLevel.name}`
+                  ? `${formatNumber(levelInfo.pointsToNext)} pts to Level ${levelInfo.nextLevel.level} · ${levelInfo.nextLevel.name}`
                   : 'Max level'}
               </span>
             </div>
-            <Progress value={levelInfo.progressPercent} />
-          </div>
+            <Progress
+              value={levelInfo.progressPercent}
+              aria-label={`Progress to level ${levelInfo.nextLevel?.level ?? levelInfo.level}`}
+            />
+          </section>
 
           <div>
             <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -308,7 +432,9 @@ export function ProfileTabs({
                         className="prose prose-sm max-w-none text-[var(--pm-muted)]"
                         dangerouslySetInnerHTML={{ __html: comment.content }}
                       />
-                      <p className="mt-2 text-xs text-[var(--pm-muted)]">{timeAgo(comment.createdAt)}</p>
+                      <p className="mt-2 text-xs text-[var(--pm-muted)]">
+                        {timeAgo(comment.createdAt)}
+                      </p>
                     </Card>
                   ))}
                 </div>
@@ -332,8 +458,8 @@ export function ProfileTabs({
         </div>
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24">
-          <section className={railCardClass}>
-            <h2 className="mb-3 font-serif text-base font-semibold text-[var(--pm-ink)]">Streak</h2>
+          <section className={railCardClass} aria-label="Streak">
+            <h2 className={railHeadingClass}>This week</h2>
             {streak ? (
               <>
                 <StreakGrid days={streak.days} />
@@ -350,56 +476,90 @@ export function ProfileTabs({
             )}
           </section>
 
-          {circles.length > 0 ? (
-            <section className={railCardClass}>
-              <h2 className="mb-3 font-serif text-base font-semibold text-[var(--pm-ink)]">Circles</h2>
-              <ul className="space-y-2.5">
-                {circles.map((circle) => (
-                  <li key={circle.group.slug} className="flex items-center gap-2 text-sm">
-                    <span
-                      aria-hidden="true"
-                      className="h-2 w-2 shrink-0 rounded-full"
-                      style={{ backgroundColor: circle.group.color ?? 'var(--pm-muted-soft)' }}
-                    />
-                    <Link
-                      href={`/g/${circle.group.slug}`}
-                      className="min-w-0 truncate text-[var(--pm-ink)] hover:text-[var(--pm-coral-dark)]"
-                    >
-                      {circle.group.name}
-                    </Link>
-                    {circle.acceptedSolutions > 0 ? (
-                      <span className="ml-auto shrink-0 text-xs text-[var(--pm-muted)]">
-                        {circle.acceptedSolutions} solutions
+          {rows.length > 0 ? (
+            <section
+              className={railCardClass}
+              aria-label="Points by circle"
+              data-testid="circle-points-breakdown"
+            >
+              <h2 className={railHeadingClass}>Points by circle</h2>
+              <ul className="flex flex-col gap-3">
+                {rows.map((row) => (
+                  <li key={row.slug} data-testid="circle-points-row">
+                    <div className="flex items-baseline gap-2">
+                      <span
+                        aria-hidden="true"
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: row.color ?? 'var(--pm-muted-soft)' }}
+                      />
+                      <Link
+                        href={`/g/${row.slug}`}
+                        className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--pm-ink)] hover:text-[var(--pm-coral-dark)]"
+                      >
+                        {row.name}
+                      </Link>
+                      <span className="shrink-0 font-mono text-xs text-[var(--pm-muted)]">
+                        {formatNumber(row.points)} pts
                       </span>
+                    </div>
+                    {row.share !== null ? (
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <div
+                          aria-hidden="true"
+                          className="h-1.5 flex-1 overflow-hidden rounded-[var(--pm-radius-pill)] bg-[var(--pm-paper-3)]"
+                        >
+                          <div
+                            className="h-full rounded-[var(--pm-radius-pill)]"
+                            style={{
+                              width: `${Math.max(row.share, 2)}%`,
+                              backgroundColor: row.color ?? 'var(--pm-teal)',
+                            }}
+                          />
+                        </div>
+                        <span className="w-9 shrink-0 text-right text-[11px] text-[var(--pm-muted)]">
+                          {row.share}%
+                        </span>
+                      </div>
+                    ) : null}
+                    {row.acceptedSolutions > 0 ? (
+                      <p className="mt-1 text-[11px] text-[var(--pm-muted)]">
+                        {row.acceptedSolutions} accepted{' '}
+                        {row.acceptedSolutions === 1 ? 'solution' : 'solutions'}
+                      </p>
                     ) : null}
                   </li>
                 ))}
               </ul>
+              <p className="mt-3 text-[11px] leading-relaxed text-[var(--pm-muted)]">
+                {ledgerBacked
+                  ? 'Share of points earned inside circles. Site-wide activity is not counted here.'
+                  : 'All-time score per circle.'}
+              </p>
             </section>
           ) : null}
 
           {badges.earned.length > 0 || badges.progress.length > 0 ? (
-            <section className={railCardClass}>
-              <h2 className="mb-3 font-serif text-base font-semibold text-[var(--pm-ink)]">
-                Achievements
-              </h2>
+            <section className={railCardClass} aria-label="Achievements">
+              <h2 className={railHeadingClass}>Achievements</h2>
               <ul className="space-y-2 text-sm">
                 {badges.earned.map(({ badge }) => (
                   <li key={badge.id} className="flex items-center gap-2">
-                    <span className="font-mono text-[var(--pm-green)]" aria-hidden="true">
-                      ✓
-                    </span>
+                    <CheckCircle2
+                      className="h-3.5 w-3.5 shrink-0 text-[var(--pm-green)]"
+                      aria-hidden="true"
+                    />
                     <span className="text-[var(--pm-ink)]">{badge.name}</span>
                   </li>
                 ))}
                 {badges.progress.map(({ badge, current, threshold }) => (
                   <li key={badge.id} className="flex items-center gap-2">
-                    <span className="font-mono text-[var(--pm-muted-soft)]" aria-hidden="true">
-                      ○
-                    </span>
+                    <span
+                      className="h-3.5 w-3.5 shrink-0 rounded-full border border-[var(--pm-line-2)]"
+                      aria-hidden="true"
+                    />
                     <span className="text-[var(--pm-muted)]">{badge.name}</span>
-                    <span className="ml-auto text-xs text-[var(--pm-muted)]">
-                      ({current}/{threshold})
+                    <span className="ml-auto font-mono text-xs text-[var(--pm-muted)]">
+                      {current}/{threshold}
                     </span>
                   </li>
                 ))}
@@ -414,7 +574,7 @@ export function ProfileTabs({
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 text-center">
+    <div className="rounded-[var(--pm-radius-lg)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 text-center">
       <p className="text-[var(--pm-muted)]">{message}</p>
     </div>
   );

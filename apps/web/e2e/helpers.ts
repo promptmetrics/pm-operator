@@ -339,6 +339,72 @@ export async function deleteFlag(flagId: string): Promise<void> {
   await db.delete(schema.flags).where(eq(schema.flags.id, flagId));
 }
 
+type NotificationInsert = typeof schema.notifications.$inferInsert;
+
+/**
+ * Seed a notification row directly. notifications.user_id is ON DELETE CASCADE,
+ * so deleteTestUser() cleans these up — no separate teardown needed.
+ */
+export async function createNotification(opts: {
+  userId: string;
+  type: NotificationInsert['type'];
+  payload?: Record<string, unknown>;
+  actorId?: string | null;
+  readAt?: Date | null;
+}): Promise<string> {
+  const db = serviceDb();
+  const [row] = await db
+    .insert(schema.notifications)
+    .values({
+      userId: opts.userId,
+      actorId: opts.actorId ?? null,
+      type: opts.type,
+      payload: opts.payload ?? {},
+      readAt: opts.readAt ?? null,
+    })
+    .returning({ id: schema.notifications.id });
+  if (!row) throw new Error('Failed to create notification');
+  return row.id;
+}
+
+export async function createPublicGroup(
+  adminUserId: string,
+  slug?: string,
+  name?: string
+): Promise<{ id: string; slug: string; name: string }> {
+  const db = serviceDb();
+  const groupSlug = slug ?? slugify('circle');
+  const groupName = name ?? `Circle ${groupSlug}`;
+
+  const [group] = await db
+    .insert(schema.groups)
+    .values({
+      slug: groupSlug,
+      name: groupName,
+      visibility: 'public',
+      color: '#3f8f82',
+      createdBy: adminUserId,
+    })
+    .returning();
+
+  if (!group) throw new Error('Failed to create group');
+
+  // The group keeps a separate admin so the member under test is never the
+  // last admin — leaveGroup() rejects that with a 409.
+  await db.insert(schema.groupMemberships).values({
+    groupId: group.id,
+    userId: adminUserId,
+    role: 'admin',
+  });
+
+  return { id: group.id, slug: group.slug, name: groupName };
+}
+
+export async function deleteGroup(groupId: string): Promise<void> {
+  const db = serviceDb();
+  await db.delete(schema.groups).where(eq(schema.groups.id, groupId));
+}
+
 export async function countPointEvents(
   userId: string,
   eventType?: string

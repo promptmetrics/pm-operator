@@ -99,6 +99,65 @@ export async function listUserCircleContributions(
   }));
 }
 
+// Where a member actually earns reputation, straight off the ledger (track 5C).
+export interface CirclePointsSlice {
+  group: { slug: string; name: string; color: string | null };
+  points: number;
+  /** Whole-percent share of the member's circle-attributed points (0–100). */
+  share: number;
+}
+
+// ONE query, deliberately. point_events is the source of truth for the points
+// economy, so grouping it by group_id answers "where does this member earn?"
+// without a second round trip: the window function carries the all-circles
+// total on every row, so `share` needs no follow-up aggregate. The profile page
+// slots this into an existing 2-wide wave (pool = 3, and the community layout
+// rail already spends one query on every navigation).
+//
+// Deliberately NOT user_scores: that table is the *ranking* projection (see
+// listUserCircleContributions), whereas the ledger explains the score event by
+// event. Rows with a null group_id (global awards such as daily_visit) drop out
+// on the inner join, which is the point — this breakdown only covers
+// circle-attributed reputation.
+export async function listUserCirclePoints(
+  db: DrizzleClient,
+  userId: string,
+  limit = 5
+): Promise<CirclePointsSlice[]> {
+  const pointsSum = sql<string>`sum(${schema.pointEvents.points})`;
+
+  const rows = await db
+    .select({
+      slug: schema.groups.slug,
+      name: schema.groups.name,
+      color: schema.groups.color,
+      points: pointsSum,
+      total: sql<string>`sum(sum(${schema.pointEvents.points})) over ()`,
+    })
+    .from(schema.pointEvents)
+    .innerJoin(schema.groups, eq(schema.groups.id, schema.pointEvents.groupId))
+    .where(
+      and(
+        eq(schema.pointEvents.userId, userId),
+        ne(schema.pointEvents.groupId, schema.GLOBAL_GROUP_ID)
+      )
+    )
+    .groupBy(schema.groups.id, schema.groups.slug, schema.groups.name, schema.groups.color)
+    .orderBy(desc(pointsSum))
+    .limit(limit);
+
+  const total = toNumber(rows[0]?.total);
+
+  return rows.map((row) => {
+    const points = toNumber(row.points);
+    return {
+      group: { slug: row.slug, name: row.name, color: row.color },
+      points,
+      share: total > 0 ? Math.round((points / total) * 100) : 0,
+    };
+  });
+}
+
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 // Mon–Sun streak week (T2.3, shared by GET /api/v1/me/streak and the profile

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CheckCircle2, AlertCircle, Clock, Lock } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Clock, Lock, Users } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { createServiceDb } from '@/lib/db';
 import { getSession } from '@/lib/auth/server';
@@ -19,7 +19,7 @@ export default async function InviteRoute({ params }: { params: Promise<{ code: 
 
   if (!invite) {
     return (
-      <Frame icon={<AlertCircle className="h-7 w-7 text-[var(--pm-danger)]" />} title="Invite link not found">
+      <Frame icon={<AlertCircle className="h-5 w-5" />} tone="danger" title="Invite link not found">
         <p className="text-sm text-[var(--pm-muted)]">
           This invite link is invalid or has been removed. Ask a member for a new one.
         </p>
@@ -33,17 +33,16 @@ export default async function InviteRoute({ params }: { params: Promise<{ code: 
   // Not logged in: show what they're joining and prompt sign-in, redirecting back.
   if (!session) {
     return (
-      <Frame
-        icon={<Lock className="h-7 w-7 text-[var(--pm-coral-dark)]" />}
-        title={`You're invited to ${group.name}`}
-      >
+      <Frame icon={<Lock className="h-5 w-5" />} title={`You're invited to ${group.name}`}>
         <p className="text-sm text-[var(--pm-muted)]">
           {group.description ?? 'Join this circle to take part in the conversation.'}
         </p>
-        <p className="text-sm text-[var(--pm-muted)]">{group.memberCount.toLocaleString()} members</p>
+        <MetaLine>{group.memberCount.toLocaleString()} members</MetaLine>
         <div className="flex flex-wrap gap-3">
           <Button asChild>
-            <Link href={`/login?returnUrl=${encodeURIComponent(`/invite/${code}`)}`}>Sign in to join</Link>
+            <Link href={`/login?returnUrl=${encodeURIComponent(`/invite/${code}`)}`}>
+              Sign in to join
+            </Link>
           </Button>
           <BackToFeed variant="secondary" />
         </div>
@@ -54,20 +53,24 @@ export default async function InviteRoute({ params }: { params: Promise<{ code: 
   if (invite.alreadyMember) {
     return (
       <Frame
-        icon={<CheckCircle2 className="h-7 w-7 text-[var(--pm-green)]" />}
+        icon={<CheckCircle2 className="h-5 w-5" />}
+        tone="success"
         title={`You're already a member of ${group.name}`}
       >
         <p className="text-sm text-[var(--pm-muted)]">You joined this circle previously.</p>
-        <Button asChild>
-          <Link href={`/g/${group.slug}`}>Go to circle</Link>
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild>
+            <Link href={`/g/${group.slug}`}>Go to circle</Link>
+          </Button>
+          <BackToFeed variant="secondary" />
+        </div>
       </Frame>
     );
   }
 
   if (invite.expired) {
     return (
-      <Frame icon={<Clock className="h-7 w-7 text-[var(--pm-danger)]" />} title="Invite link expired">
+      <Frame icon={<Clock className="h-5 w-5" />} tone="danger" title="Invite link expired">
         <p className="text-sm text-[var(--pm-muted)]">
           This invite link has passed its expiry date. Ask a member for a new one.
         </p>
@@ -78,7 +81,7 @@ export default async function InviteRoute({ params }: { params: Promise<{ code: 
 
   if (invite.fullyRedeemed) {
     return (
-      <Frame icon={<AlertCircle className="h-7 w-7 text-[var(--pm-danger)]" />} title="Invite link fully used">
+      <Frame icon={<AlertCircle className="h-5 w-5" />} tone="danger" title="Invite link fully used">
         <p className="text-sm text-[var(--pm-muted)]">
           This invite link has reached its use limit and can no longer be redeemed.
         </p>
@@ -88,40 +91,76 @@ export default async function InviteRoute({ params }: { params: Promise<{ code: 
   }
 
   return (
-    <Frame
-      icon={<Lock className="h-7 w-7 text-[var(--pm-coral-dark)]" />}
-      title={`You're invited to ${group.name}`}
-    >
+    <Frame icon={<Lock className="h-5 w-5" />} title={`You're invited to ${group.name}`}>
       <p className="text-sm text-[var(--pm-muted)]">
         {group.description ?? 'Join this circle to take part in the conversation.'}
       </p>
-      <p className="text-sm text-[var(--pm-muted)]">
+      <MetaLine>
         {group.memberCount.toLocaleString()} members
         {invite.role && invite.role !== 'member' ? ` · joining as ${invite.role}` : ''}
-      </p>
-      <InviteRedemptionCard slug={group.slug} code={invite.code} groupName={group.name} role={invite.role} />
+      </MetaLine>
+      <InviteRedemptionCard
+        slug={group.slug}
+        code={invite.code}
+        groupName={group.name}
+        role={invite.role}
+      />
     </Frame>
   );
 }
 
+function MetaLine({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="flex items-center gap-1.5 text-sm text-[var(--pm-muted)]">
+      <Users className="h-4 w-4 shrink-0 text-[var(--pm-muted-soft)]" aria-hidden="true" />
+      {children}
+    </p>
+  );
+}
+
+// Tone drives only the icon chip — the card chrome stays identical across all
+// six states so the page reads as one surface regardless of outcome.
+const TONE_CHIP: Record<'neutral' | 'success' | 'danger', string> = {
+  neutral: 'bg-[var(--pm-coral-tint)] text-[var(--pm-coral-dark)]',
+  success: 'bg-[var(--pm-green-bg)] text-[var(--pm-green)]',
+  danger: 'bg-[var(--pm-danger-bg)] text-[var(--pm-danger)]',
+};
+
 function Frame({
   icon,
   title,
+  tone = 'neutral',
   children,
 }: {
   icon: React.ReactNode;
   title: string;
+  tone?: 'neutral' | 'success' | 'danger';
   children: React.ReactNode;
 }) {
   return (
-    <div className="mx-auto max-w-xl">
-      <div className="rounded-2xl border border-[var(--pm-line)] bg-[var(--pm-paper-2)] p-8 shadow-[var(--pm-shadow)]">
-        <div className="mb-4 flex items-center gap-3">
-          {icon}
-          <h1 className="font-serif text-2xl font-semibold text-[var(--pm-ink)]">{title}</h1>
+    <div className="mx-auto max-w-xl py-8">
+      <section
+        aria-labelledby="invite-heading"
+        className="rounded-2xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 shadow-[var(--pm-shadow-lg)]"
+      >
+        <p className="text-xs font-semibold uppercase tracking-widest text-[var(--pm-coral-dark)]">
+          Circle invite
+        </p>
+        <div className="mt-3 mb-4 flex items-start gap-3">
+          <span
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${TONE_CHIP[tone]}`}
+          >
+            {icon}
+          </span>
+          <h1
+            id="invite-heading"
+            className="font-serif text-2xl font-semibold leading-tight text-[var(--pm-ink)]"
+          >
+            {title}
+          </h1>
         </div>
         <div className="flex flex-col gap-4">{children}</div>
-      </div>
+      </section>
     </div>
   );
 }

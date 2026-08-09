@@ -3,6 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { MailCheck } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
 import { createAuthClient } from '@/auth/client';
@@ -48,25 +49,44 @@ export function ForgotPasswordForm() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md space-y-6 rounded-2xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 shadow-[var(--pm-shadow-lg)]">
+      <section
+        aria-labelledby="reset-heading"
+        className="w-full max-w-md space-y-6 rounded-2xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 shadow-[var(--pm-shadow-lg)]"
+      >
         <div className="text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--pm-coral-dark)]">
             PromptMetrics Operator
           </p>
-          <h1 className="mt-2 font-serif text-3xl font-semibold tracking-tight text-[var(--pm-ink)]">Reset your password</h1>
+          <h1
+            id="reset-heading"
+            className="mt-2 font-serif text-3xl font-semibold tracking-tight text-[var(--pm-ink)]"
+          >
+            Reset your password
+          </h1>
           <p className="mt-2 text-[var(--pm-muted)]">
             Enter your email and we will send you a reset link.
           </p>
         </div>
 
         {sent ? (
-          <div className="space-y-6 text-center">
-            <p className="text-[var(--pm-ink)]">
-              If an account exists for {email}, you will receive a password reset email shortly.
-            </p>
-            <Link href={`/login?returnUrl=${encodeURIComponent(returnUrl)}`}>
-              <Button variant="secondary" className="w-full">Back to sign in</Button>
-            </Link>
+          <div className="space-y-6">
+            <div
+              role="status"
+              className="flex items-start gap-2 rounded-lg border border-[var(--pm-green-line)] bg-[var(--pm-green-bg)] px-3 py-3 text-sm text-[var(--pm-ink)]"
+            >
+              <MailCheck
+                className="mt-0.5 h-4 w-4 shrink-0 text-[var(--pm-green)]"
+                aria-hidden="true"
+              />
+              <span>
+                If an account exists for{' '}
+                <span className="font-medium break-all">{email}</span>, you will receive a password
+                reset email shortly.
+              </span>
+            </div>
+            <Button asChild variant="secondary" size="lg" className="w-full">
+              <Link href={`/login?returnUrl=${encodeURIComponent(returnUrl)}`}>Back to sign in</Link>
+            </Button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -88,15 +108,21 @@ export function ForgotPasswordForm() {
           </form>
         )}
 
-        <div className="text-center text-sm">
-          <Link
-            href={`/login?returnUrl=${encodeURIComponent(returnUrl)}`}
-            className="text-[var(--pm-coral)] hover:underline"
-          >
-            Back to sign in
-          </Link>
-        </div>
-      </div>
+        {sent ? null : (
+          <div className="text-center text-sm">
+            <Link
+              href={`/login?returnUrl=${encodeURIComponent(returnUrl)}`}
+              className="rounded font-medium text-[var(--pm-link)] hover:underline focus-visible:outline-none focus-visible:shadow-[var(--pm-focus)]"
+            >
+              Back to sign in
+            </Link>
+          </div>
+        )}
+
+        <p className="text-center text-xs text-[var(--pm-muted-soft)]">
+          EU-hosted · Public knowledge · Agent-ready API
+        </p>
+      </section>
     </main>
   );
 }
