@@ -1,4 +1,15 @@
 import 'server-only';
+import { safeFetch, readBodyCapped } from './services/safe-fetch';
+
+// Share images for post pages. Post pages are PUBLIC (see the note on
+// COMMUNITY_ROUTE_REGEX in middleware.ts), so generateMetadata here runs for
+// anonymous visitors and for link-preview crawlers — meaning a member-supplied
+// URL reaches fetchOgImage on every uncached view by anyone.
+//
+// That is why the fetch goes through safeFetch. This module used to call
+// `fetch(url, { redirect: 'follow' })` with no destination check at all, which
+// let any member point the server at an internal address (169.254.169.254 and
+// friends) simply by posting a link that redirects there.
 
 interface CacheEntry {
   url: string | null;
@@ -55,40 +66,44 @@ export async function fetchOgImage(url: string): Promise<string | null> {
     return cached.url;
   }
 
+  const miss = () => {
+    cache.set(url, { url: null, expiresAt: Date.now() + CACHE_TTL_MS });
+    return null;
+  };
+
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    const res = await fetch(url, {
-      signal: controller.signal,
+    // safeFetch re-checks the destination on every redirect hop and returns
+    // null for blocked schemes, ports, credentials, private/loopback targets,
+    // timeouts, and network errors.
+    const result = await safeFetch(url, {
+      timeoutMs: FETCH_TIMEOUT_MS,
       headers: {
         accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'user-agent': 'Mozilla/5.0 (compatible; PromptMetricsBot/1.0; +https://promptmetrics.dev)',
       },
-      redirect: 'follow',
     });
-    clearTimeout(timeout);
+    if (!result) return miss();
+
+    const { response: res, finalUrl } = result;
 
     if (!res.ok) {
-      cache.set(url, { url: null, expiresAt: Date.now() + CACHE_TTL_MS });
-      return null;
+      await res.body?.cancel().catch(() => undefined);
+      return miss();
     }
 
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
-      cache.set(url, { url: null, expiresAt: Date.now() + CACHE_TTL_MS });
-      return null;
+      await res.body?.cancel().catch(() => undefined);
+      return miss();
     }
 
-    const buffer = await res.arrayBuffer();
-    const truncated = buffer.slice(0, MAX_HTML_BYTES);
-    const html = new TextDecoder('utf-8', { fatal: false }).decode(truncated);
-    const imageUrl = parseOgImage(html, res.url || url);
+    const html = await readBodyCapped(res, MAX_HTML_BYTES);
+    const imageUrl = parseOgImage(html, finalUrl.toString());
 
     cache.set(url, { url: imageUrl, expiresAt: Date.now() + CACHE_TTL_MS });
     return imageUrl;
   } catch {
-    cache.set(url, { url: null, expiresAt: Date.now() + CACHE_TTL_MS });
-    return null;
+    return miss();
   }
 }
 

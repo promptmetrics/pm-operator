@@ -12,7 +12,8 @@ import type {
 import { POINT_WEIGHTS, levelForScore } from '@pm-operator/api';
 import { getAvatarReadUrl } from '../storage';
 import { htmlToText } from '../html-to-text';
-import { toISO, toNumber, isAdminOrModerator } from './shared';
+import { toISO, toNumber, isAdminOrModerator, redactForViewer } from './shared';
+import { viewerCanModerateSql } from './posts';
 import { insertNotification } from './notifications';
 import { awardPoints, trackDailyStat, advanceStreak } from './points';
 import { sendTransactional } from '../email';
@@ -72,9 +73,14 @@ async function toCommentDetail(
   row: typeof comments.$inferSelect,
   author: typeof users.$inferSelect,
   currentUserId?: string,
-  viewerHasLiked?: boolean | null
+  viewerHasLiked?: boolean | null,
+  viewerCanModerate?: boolean | null
 ): Promise<CommentDetail> {
-  const isHidden = row.status === 'hidden' && row.authorId !== currentUserId && !isAdminOrModerator(author.role);
+  // commentVisibilityFilter lets any circle member retrieve a hidden comment's
+  // row, so this redaction is what actually withholds the text. It must key off
+  // the VIEWER's privilege — keying off the author's role meant a hidden
+  // comment written by an admin was readable by every member of the circle.
+  const isHidden = redactForViewer(row.status, row.authorId, currentUserId, viewerCanModerate);
   return {
     id: row.id,
     postId: row.postId,
@@ -123,6 +129,7 @@ function commentSelect(db: DrizzleClient, currentUserId?: string) {
       comment: comments,
       author: users,
       viewerHasLiked: viewerHasLikedCommentSql(currentUserId),
+      viewerCanModerate: viewerCanModerateSql(currentUserId, posts.groupId),
     })
     .from(comments)
     .innerJoin(posts, eq(comments.postId, posts.id))
@@ -161,8 +168,8 @@ export async function listCommentsForPost(
     const byId = new Map<string, CommentDetail>();
     const roots: CommentDetail[] = [];
 
-    for (const { comment: commentRow, author, viewerHasLiked } of rows) {
-      const detail = await toCommentDetail(commentRow, author, currentUserId, viewerHasLiked);
+    for (const { comment: commentRow, author, viewerHasLiked, viewerCanModerate } of rows) {
+      const detail = await toCommentDetail(commentRow, author, currentUserId, viewerHasLiked, viewerCanModerate);
       detail.replies = [];
       byId.set(detail.id, detail);
       if (detail.parentCommentId) {
@@ -213,8 +220,8 @@ export async function listCommentsForPost(
 
   const rootDetails = new Map<string, CommentDetail>();
   const rootsInOrder: CommentDetail[] = [];
-  for (const { comment: commentRow, author, viewerHasLiked } of pagedRootRows) {
-    const detail = await toCommentDetail(commentRow, author, currentUserId, viewerHasLiked);
+  for (const { comment: commentRow, author, viewerHasLiked, viewerCanModerate } of pagedRootRows) {
+    const detail = await toCommentDetail(commentRow, author, currentUserId, viewerHasLiked, viewerCanModerate);
     detail.replies = [];
     rootDetails.set(detail.id, detail);
     rootsInOrder.push(detail);
@@ -222,8 +229,14 @@ export async function listCommentsForPost(
 
   let acceptedComment: CommentDetail | null = null;
   if (acceptedRows[0]) {
-    const { comment: commentRow, author, viewerHasLiked } = acceptedRows[0];
-    acceptedComment = await toCommentDetail(commentRow, author, currentUserId, viewerHasLiked);
+    const { comment: commentRow, author, viewerHasLiked, viewerCanModerate } = acceptedRows[0];
+    acceptedComment = await toCommentDetail(
+      commentRow,
+      author,
+      currentUserId,
+      viewerHasLiked,
+      viewerCanModerate
+    );
     acceptedComment.replies = [];
     rootDetails.set(acceptedComment.id, acceptedComment);
   }
@@ -240,8 +253,8 @@ export async function listCommentsForPost(
       )
       .orderBy(asc(comments.createdAt));
 
-    for (const { comment: commentRow, author, viewerHasLiked } of replyRows) {
-      const detail = await toCommentDetail(commentRow, author, currentUserId, viewerHasLiked);
+    for (const { comment: commentRow, author, viewerHasLiked, viewerCanModerate } of replyRows) {
+      const detail = await toCommentDetail(commentRow, author, currentUserId, viewerHasLiked, viewerCanModerate);
       const parent = detail.parentCommentId ? rootDetails.get(detail.parentCommentId) : undefined;
       parent?.replies?.push(detail);
     }
@@ -399,7 +412,10 @@ export async function updateComment(
     where: eq(users.id, updated.authorId),
   });
   if (!author) throw new Error('Author not found');
-  return toCommentDetail(updated, author, currentUserId);
+  // canEdit above already proved this viewer is the author, a global
+  // admin/moderator, or a moderator of the circle — so don't redact the row
+  // they just edited back at them.
+  return toCommentDetail(updated, author, currentUserId, undefined, true);
 }
 
 export async function deleteComment(

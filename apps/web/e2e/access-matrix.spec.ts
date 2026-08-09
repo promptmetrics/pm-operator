@@ -6,13 +6,30 @@ import {
   signIn,
   serviceDb,
   createInviteOnlyGroup,
+  createPublicGroup,
   createPublishedPost,
   createHiddenPost,
   createGroupInvite,
   addGroupMember,
   countPointEvents,
 } from './helpers';
-import { pointEvents } from '@pm-operator/db';
+import { pointEvents, posts } from '@pm-operator/db';
+
+/** The slug a post is reachable at — createPublishedPost only returns the id. */
+async function postSlugOf(postId: string): Promise<string> {
+  const row = await serviceDb().query.posts.findFirst({
+    where: eq(posts.id, postId),
+    columns: { slug: true },
+  });
+  if (!row) throw new Error(`No post ${postId}`);
+  return row.slug;
+}
+
+async function setPostStatus(postId: string, status: 'draft' | 'flagged' | 'hidden') {
+  await serviceDb().update(posts).set({ status }).where(eq(posts.id, postId));
+}
+
+const MODERATED_PLACEHOLDER = 'Removed by moderator';
 
 const usersToClean: string[] = [];
 
@@ -260,4 +277,112 @@ test('toggling a reaction does not create duplicate like_given point events', as
 
   const likeGivenCount = await countPointEvents(liker.id, 'like_given');
   expect(likeGivenCount).toBe(1);
+});
+
+// --- Public post reads, and what must NOT be publicly readable ---
+//
+// These tests work as a set, the same way the DevCard triad above does. The
+// first proves post pages are open to anonymous visitors — that is deliberate
+// product behavior (non-members read; they sign in to engage), and it survives
+// only because COMMUNITY_ROUTE_REGEX's trailing `(\/|$)` stops `/g/a/b` from
+// matching. Nothing asserted it until now, so a tidy-up of that regex would
+// have silently broken every shared link with CI still green.
+//
+// The rest prove the gate being open does not mean the door is off its hinges:
+// once middleware is out of the picture, postVisibilityFilter is the only thing
+// deciding what an anonymous caller sees.
+
+test('anonymous visitors can read a post in a public circle', async ({ page }) => {
+  const author = await createTestUser({ role: 'admin', onboardingComplete: true });
+  usersToClean.push(author.id);
+
+  const group = await createPublicGroup(author.id);
+  const postId = await createPublishedPost(group.id, author.id, 'Publicly readable post');
+  const slug = await postSlugOf(postId);
+
+  const res = await page.goto(`/g/${group.slug}/${slug}`);
+  expect(res?.status(), 'a public post must not redirect or error for a signed-out visitor').toBe(200);
+  expect(page.url(), 'must not bounce to /login').not.toContain('/login');
+  await expect(page.getByRole('heading', { name: 'Publicly readable post' })).toBeVisible();
+});
+
+test('a post declined by moderation is not readable by anonymous visitors', async ({ page }) => {
+  const author = await createTestUser({ role: 'admin', onboardingComplete: true });
+  usersToClean.push(author.id);
+
+  const group = await createPublicGroup(author.id);
+  const postId = await createPublishedPost(group.id, author.id, 'Declined by a moderator');
+  const slug = await postSlugOf(postId);
+
+  // Declining in /admin/moderation/approval sets status to 'draft'. The queue
+  // empties either way, so if this leaks the moderator gets no signal at all.
+  await setPostStatus(postId, 'draft');
+
+  await page.goto(`/g/${group.slug}/${slug}`);
+  await expect(page.getByRole('heading', { name: MODERATED_PLACEHOLDER })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Declined by a moderator' })).toHaveCount(0);
+});
+
+test('a flagged post is not readable by anonymous visitors', async ({ page }) => {
+  const author = await createTestUser({ role: 'admin', onboardingComplete: true });
+  usersToClean.push(author.id);
+
+  const group = await createPublicGroup(author.id);
+  const postId = await createPublishedPost(group.id, author.id, 'Flagged for review');
+  const slug = await postSlugOf(postId);
+  await setPostStatus(postId, 'flagged');
+
+  await page.goto(`/g/${group.slug}/${slug}`);
+  await expect(page.getByRole('heading', { name: MODERATED_PLACEHOLDER })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Flagged for review' })).toHaveCount(0);
+});
+
+// Redaction used to test the POST AUTHOR's role rather than the viewer's, so a
+// hidden post written by an admin rendered in full to whoever could fetch it.
+test('a hidden post written by an admin is not readable by anonymous visitors', async ({ page }) => {
+  const author = await createTestUser({ role: 'admin', onboardingComplete: true });
+  usersToClean.push(author.id);
+
+  const group = await createPublicGroup(author.id);
+  const postId = await createPublishedPost(group.id, author.id, 'Hidden admin authored post');
+  const slug = await postSlugOf(postId);
+  await setPostStatus(postId, 'hidden');
+
+  await page.goto(`/g/${group.slug}/${slug}`);
+  await expect(page.getByRole('heading', { name: MODERATED_PLACEHOLDER })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Hidden admin authored post' })).toHaveCount(0);
+});
+
+test('anonymous visitors cannot read a post in an invite-only circle', async ({ page }) => {
+  const author = await createTestUser({ role: 'admin', onboardingComplete: true });
+  usersToClean.push(author.id);
+
+  const { id: groupId, slug: groupSlug } = await createInviteOnlyGroup(author.id);
+  const postId = await createPublishedPost(groupId, author.id, 'Members only material');
+  const slug = await postSlugOf(postId);
+
+  await page.goto(`/g/${groupSlug}/${slug}`);
+  await expect(page.getByRole('heading', { name: MODERATED_PLACEHOLDER })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Members only material' })).toHaveCount(0);
+});
+
+test('a declined post stays out of anonymous search and feed results', async ({ page }) => {
+  const author = await createTestUser({ role: 'admin', onboardingComplete: true });
+  usersToClean.push(author.id);
+
+  const group = await createPublicGroup(author.id);
+  const postId = await createPublishedPost(group.id, author.id, 'Zebracorn declined artifact');
+  await setPostStatus(postId, 'draft');
+
+  // search.ts and community.ts each kept a private copy of the visibility
+  // filter; this asserts they now share the corrected one.
+  const searchRes = await page.request.get('/api/v1/search?q=Zebracorn');
+  expect(searchRes.status()).toBe(200);
+  const searchBody = await searchRes.json();
+  expect(searchBody.data.results.map((r: { id: string }) => r.id)).not.toContain(postId);
+
+  const feedRes = await page.request.get(`/api/v1/feed?groupSlug=${group.slug}`);
+  expect(feedRes.status()).toBe(200);
+  const feedBody = await feedRes.json();
+  expect(feedBody.data.posts.map((p: { id: string }) => p.id)).not.toContain(postId);
 });

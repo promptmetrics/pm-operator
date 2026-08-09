@@ -14,54 +14,18 @@ import type {
 } from '@pm-operator/api';
 import { levelForScore } from '@pm-operator/api';
 import { getAvatarReadUrl } from '../storage';
-import { toISO, toNumber, isAdminOrModerator } from './shared';
+import { toISO, toNumber, redactForViewer } from './shared';
 import {
   viewerHasLikedPostSql,
   viewerHasBookmarkedPostSql,
-  postVisibilityFilter as sharedPostVisibilityFilter,
+  viewerCanModerateSql,
+  postVisibilityFilter,
 } from './posts';
 
-function postVisibilityFilter(currentUserId: string | undefined) {
-  const notDeleted = sql`${schema.posts.status} <> 'deleted'`;
-  if (!currentUserId) {
-    return and(
-      notDeleted,
-      sql`${schema.groups.visibility} = 'public'`,
-      sql`${schema.posts.status} <> 'hidden'`
-    );
-  }
-  const isAuthor = eq(schema.posts.authorId, currentUserId);
-  const isMember = sql`exists (
-    select 1 from ${schema.groupMemberships}
-    where ${schema.groupMemberships.groupId} = ${schema.posts.groupId}
-      and ${schema.groupMemberships.userId} = ${currentUserId}
-  )`;
-  const isAdmin = sql`exists (
-    select 1 from ${schema.users}
-    where ${schema.users.id} = ${currentUserId}
-      and ${schema.users.role} = 'admin'
-  )`;
-  return and(
-    notDeleted,
-    or(
-      sql`${schema.groups.visibility} = 'public'`,
-      isAuthor,
-      isMember,
-      isAdmin
-    ),
-    or(
-      sql`${schema.posts.status} <> 'hidden'`,
-      isAuthor,
-      isAdmin,
-      sql`exists (
-        select 1 from ${schema.groupMemberships}
-        where ${schema.groupMemberships.groupId} = ${schema.posts.groupId}
-          and ${schema.groupMemberships.userId} = ${currentUserId}
-          and ${schema.groupMemberships.role} in ('admin', 'moderator')
-      )`
-    )
-  );
-}
+// This file used to shadow the import above with a byte-for-byte private copy
+// of postVisibilityFilter, while still calling the shared one in one place. The
+// copy would have gone stale the moment the shared filter was corrected to hide
+// declined (`draft`) and `flagged` posts. One implementation, imported.
 
 async function toPostListItem(
   row: {
@@ -179,7 +143,7 @@ export async function listGroupsWithPostCounts(
     .from(schema.groups)
     .leftJoin(
       schema.posts,
-      and(eq(schema.posts.groupId, schema.groups.id), sharedPostVisibilityFilter(currentUserId))
+      and(eq(schema.posts.groupId, schema.groups.id), postVisibilityFilter(currentUserId))
     )
     .where(groupVisibility)
     .groupBy(schema.groups.id)
@@ -506,6 +470,7 @@ export async function listAcceptedSolutionsByAuthor(
       post: schema.posts,
       group: schema.groups,
       author: schema.users,
+      viewerCanModerate: viewerCanModerateSql(currentUserId, schema.posts.groupId),
     })
     .from(schema.comments)
     .innerJoin(schema.posts, eq(schema.posts.acceptedCommentId, schema.comments.id))
@@ -521,24 +486,20 @@ export async function listAcceptedSolutionsByAuthor(
     .limit(limit);
 
   const items: AcceptedSolutionItem[] = [];
-  for (const { comment, post, group, author } of rows) {
+  for (const { comment, post, group, author, viewerCanModerate } of rows) {
+    const redact = redactForViewer(
+      comment.status,
+      comment.authorId,
+      currentUserId,
+      viewerCanModerate
+    );
     items.push({
       id: comment.id,
       postId: post.id,
       authorId: comment.authorId,
       parentCommentId: comment.parentCommentId,
-      content:
-        comment.status === 'hidden' &&
-        comment.authorId !== currentUserId &&
-        !isAdminOrModerator(author.role)
-          ? ''
-          : comment.content,
-      contentPlain:
-        comment.status === 'hidden' &&
-        comment.authorId !== currentUserId &&
-        !isAdminOrModerator(author.role)
-          ? ''
-          : comment.contentPlain,
+      content: redact ? '' : comment.content,
+      contentPlain: redact ? '' : comment.contentPlain,
       upvotes: comment.upvotes,
       status: comment.status,
       createdAt: toISO(comment.createdAt),
@@ -573,7 +534,13 @@ export async function listCommentsByAuthor(
   limit = 20
 ): Promise<CommentDetail[]> {
   const rows = await db
-    .select({ comment: schema.comments, author: schema.users, post: schema.posts, group: schema.groups })
+    .select({
+      comment: schema.comments,
+      author: schema.users,
+      post: schema.posts,
+      group: schema.groups,
+      viewerCanModerate: viewerCanModerateSql(currentUserId, schema.posts.groupId),
+    })
     .from(schema.comments)
     .innerJoin(schema.users, eq(schema.comments.authorId, schema.users.id))
     .innerJoin(schema.posts, eq(schema.comments.postId, schema.posts.id))
@@ -619,24 +586,20 @@ export async function listCommentsByAuthor(
     .limit(limit);
 
   const out: CommentDetail[] = [];
-  for (const { comment, author, post, group } of rows) {
+  for (const { comment, author, post, group, viewerCanModerate } of rows) {
+    const redact = redactForViewer(
+      comment.status,
+      comment.authorId,
+      currentUserId,
+      viewerCanModerate
+    );
     out.push({
       id: comment.id,
       postId: comment.postId,
       authorId: comment.authorId,
       parentCommentId: comment.parentCommentId,
-      content:
-        comment.status === 'hidden' &&
-        comment.authorId !== currentUserId &&
-        !isAdminOrModerator(author.role)
-          ? ''
-          : comment.content,
-      contentPlain:
-        comment.status === 'hidden' &&
-        comment.authorId !== currentUserId &&
-        !isAdminOrModerator(author.role)
-          ? ''
-          : comment.contentPlain,
+      content: redact ? '' : comment.content,
+      contentPlain: redact ? '' : comment.contentPlain,
       upvotes: comment.upvotes,
       status: comment.status,
       createdAt: toISO(comment.createdAt),

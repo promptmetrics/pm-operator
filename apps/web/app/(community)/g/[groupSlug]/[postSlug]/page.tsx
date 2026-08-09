@@ -8,6 +8,11 @@ import { getAvatarReadUrl } from '@/lib/storage';
 import { resolvePostShareImage } from '@/lib/og-image';
 import { PostDetailPage } from '../../../components/PostDetailPage';
 
+// generateMetadata reaches lib/og-image -> services/safe-fetch, which uses
+// node:dns. Node is already the default for pages; this makes the dependency
+// explicit so the route can't be flipped to edge without the build complaining.
+export const runtime = 'nodejs';
+
 export async function generateMetadata({
   params,
 }: {

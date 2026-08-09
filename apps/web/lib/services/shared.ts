@@ -74,3 +74,27 @@ export async function toUserPublicProfile(row: UserRow): Promise<UserPublicProfi
 export function isAdminOrModerator(role: string): boolean {
   return role === 'admin' || role === 'moderator';
 }
+
+/**
+ * Should this row's content be blanked for the current viewer?
+ *
+ * Blank anything not `published` unless the viewer wrote it or can moderate it.
+ * `viewerCanModerate` must describe the VIEWER — pass the value selected by
+ * viewerCanModerateSql (posts.ts), never a role read off the row's author. The
+ * previous checks tested the author's role, which inverted the rule twice over:
+ * content written by an admin rendered in full to everyone, while a circle
+ * moderator got blanked content they were entitled to read.
+ *
+ * The visibility filters should already have excluded these rows from anyone
+ * without a claim to them; this is the second layer, not the first.
+ */
+export function redactForViewer(
+  status: string,
+  authorId: string,
+  currentUserId: string | undefined,
+  viewerCanModerate: boolean | null | undefined
+): boolean {
+  if (status === 'published') return false;
+  if (currentUserId && authorId === currentUserId) return false;
+  return !viewerCanModerate;
+}

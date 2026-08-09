@@ -10,6 +10,7 @@ import type {
 } from '@pm-operator/api';
 import { levelForScore } from '@pm-operator/api';
 import { toISO, toNumber, toExcerpt } from './shared';
+import { postVisibilityFilter } from './posts';
 import { getPostImageReadUrl, getAvatarReadUrl } from '../storage';
 
 function sanitizeTsQueryTerm(term: string): string | null {
@@ -18,45 +19,10 @@ function sanitizeTsQueryTerm(term: string): string | null {
   return cleaned.length > 0 ? `${cleaned}:*` : null;
 }
 
-function postVisibilityFilter(currentUserId: string | undefined) {
-  const notDeleted = sql`${schema.posts.status} <> 'deleted'`;
-  if (!currentUserId) {
-    return and(
-      notDeleted,
-      sql`${schema.groups.visibility} = 'public'`,
-      sql`${schema.posts.status} <> 'hidden'`
-    );
-  }
-  const isAuthor = eq(schema.posts.authorId, currentUserId);
-  const isAdmin = sql`exists (
-    select 1 from ${schema.users}
-    where ${schema.users.id} = ${currentUserId} and ${schema.users.role} = 'admin'
-  )`;
-  return and(
-    notDeleted,
-    or(
-      sql`${schema.groups.visibility} = 'public'`,
-      isAuthor,
-      sql`exists (
-        select 1 from ${schema.groupMemberships}
-        where ${schema.groupMemberships.groupId} = ${schema.posts.groupId}
-          and ${schema.groupMemberships.userId} = ${currentUserId}
-      )`,
-      isAdmin
-    ),
-    or(
-      sql`${schema.posts.status} <> 'hidden'`,
-      isAuthor,
-      isAdmin,
-      sql`exists (
-        select 1 from ${schema.groupMemberships}
-        where ${schema.groupMemberships.groupId} = ${schema.posts.groupId}
-          and ${schema.groupMemberships.userId} = ${currentUserId}
-          and ${schema.groupMemberships.role} in ('admin', 'moderator')
-      )`
-    )
-  );
-}
+// Post visibility comes from posts.ts (imported above). This file used to keep
+// a byte-for-byte copy, and copies go stale: the shared filter was corrected to
+// hide declined (`draft`) and `flagged` posts, and a private copy here would
+// have kept serving them in search results. Import it; don't re-derive it.
 
 export async function searchPosts(
   db: DrizzleClient,

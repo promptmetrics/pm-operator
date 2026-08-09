@@ -1,4 +1,5 @@
 import { eq, ne, lt, and, or, sql, desc, asc, isNotNull, isNull, inArray, count } from 'drizzle-orm';
+import type { AnyColumn, SQL } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type { FeedQuery, FeedResponse, PostDetail, CreatePostRequest, PatchPostRequest, PostListItem } from '@pm-operator/api';
@@ -6,7 +7,7 @@ import { getAvatarReadUrl, getPostImageReadUrl } from '../storage';
 import { htmlToText } from '../html-to-text';
 import { sanitizeHtml } from '../sanitize-html';
 import { levelForScore } from '@pm-operator/api';
-import { toISO, toNumber, toExcerpt, isAdminOrModerator } from './shared';
+import { toISO, toNumber, toExcerpt, isAdminOrModerator, redactForViewer } from './shared';
 import { autoFlagIfWatched } from './flags';
 import { buildLinkPreview } from './unfurl';
 
@@ -82,14 +83,21 @@ async function uniquePostSlug(
   return slug;
 }
 
+// The single visibility chokepoint. Post pages are publicly readable (see the
+// note on COMMUNITY_ROUTE_REGEX in middleware.ts), so this filter — not the
+// auth gate — is what stands between the open internet and the posts table.
+// Import it; do not re-implement it. search.ts and community.ts each carried a
+// private copy, and all three drifted into the same hole.
+//
+// Both branches allowlist `published` rather than denylisting bad statuses.
+// Declining a post in the approval queue sets it to `draft`
+// (api/v1/admin/moderation/approval), and a denylist naming only
+// `deleted`/`hidden` left declined posts world-readable at their slug. With an
+// allowlist, anything later added to postStatusEnum is private by default.
 export function postVisibilityFilter(currentUserId: string | undefined) {
-  const notDeleted = sql`${schema.posts.status} <> 'deleted'`;
+  const isPublished = sql`${schema.posts.status} = 'published'`;
   if (!currentUserId) {
-    return and(
-      notDeleted,
-      sql`${schema.groups.visibility} = 'public'`,
-      sql`${schema.posts.status} <> 'hidden'`
-    );
+    return and(sql`${schema.groups.visibility} = 'public'`, isPublished);
   }
   const isAuthor = eq(schema.posts.authorId, currentUserId);
   const isMember = sql`exists (
@@ -103,16 +111,19 @@ export function postVisibilityFilter(currentUserId: string | undefined) {
       and ${schema.users.role} = 'admin'
   )`;
 
+  // Deleted is absolute — not even the author gets it back.
   return and(
-    notDeleted,
+    sql`${schema.posts.status} <> 'deleted'`,
     or(
       sql`${schema.groups.visibility} = 'public'`,
       isAuthor,
       isMember,
       isAdmin
     ),
+    // Unpublished (draft/flagged/hidden) is visible only to the author, a
+    // global admin, or a moderator of the circle it lives in.
     or(
-      sql`${schema.posts.status} <> 'hidden'`,
+      isPublished,
       isAuthor,
       isAdmin,
       sql`exists (
@@ -156,6 +167,38 @@ function orderByClause(sort: SortValue) {
     default:
       return [desc(schema.posts.createdAt)];
   }
+}
+
+/**
+ * True when the VIEWER may read content that isn't published — a global
+ * admin/moderator, or an admin/moderator of the circle the row lives in.
+ *
+ * Redaction checks used to test `author.role`, the role of whoever wrote the
+ * post, which is the wrong person entirely: a hidden post by an admin rendered
+ * unredacted to everyone, and a circle moderator got redacted content they were
+ * entitled to see. Pass the group-id column of whichever table you're querying.
+ *
+ * Correlated subquery on purpose — folding it into the existing SELECT costs no
+ * extra round-trip, and the connection pool is too small to spend one here.
+ */
+export function viewerCanModerateSql(
+  currentUserId: string | undefined,
+  groupIdRef: SQL | AnyColumn
+) {
+  if (!currentUserId) return sql<boolean>`false`;
+  return sql<boolean>`(
+    exists (
+      select 1 from ${schema.users}
+      where ${schema.users.id} = ${currentUserId}
+        and ${schema.users.role} in ('admin', 'moderator')
+    )
+    or exists (
+      select 1 from ${schema.groupMemberships}
+      where ${schema.groupMemberships.groupId} = ${groupIdRef}
+        and ${schema.groupMemberships.userId} = ${currentUserId}
+        and ${schema.groupMemberships.role} in ('admin', 'moderator')
+    )
+  )`;
 }
 
 export function viewerHasLikedPostSql(currentUserId: string | undefined) {
@@ -402,6 +445,7 @@ export async function getPostById(
       acceptedSolutions: asCount.count,
       viewerHasLiked: viewerHasLikedPostSql(currentUserId),
       viewerHasBookmarked: viewerHasBookmarkedPostSql(currentUserId),
+      viewerCanModerate: viewerCanModerateSql(currentUserId, schema.posts.groupId),
     })
     .from(schema.posts)
     .innerJoin(schema.groups, eq(schema.posts.groupId, schema.groups.id))
@@ -416,9 +460,9 @@ export async function getPostById(
     .limit(1);
 
   if (!row[0]) return null;
-  const { post, group, author, acceptedSolutions, viewerHasLiked, viewerHasBookmarked } = row[0];
+  const { post, group, author, acceptedSolutions, viewerHasLiked, viewerHasBookmarked, viewerCanModerate } = row[0];
 
-  const isHidden = post.status === 'hidden' && post.authorId !== currentUserId && !isAdminOrModerator(author.role);
+  const isHidden = redactForViewer(post.status, post.authorId, currentUserId, viewerCanModerate);
 
   return {
     id: post.id,
@@ -497,6 +541,7 @@ export async function getPostBySlug(
       acceptedSolutions: asCount.count,
       viewerHasLiked: viewerHasLikedPostSql(currentUserId),
       viewerHasBookmarked: viewerHasBookmarkedPostSql(currentUserId),
+      viewerCanModerate: viewerCanModerateSql(currentUserId, schema.posts.groupId),
     })
     .from(schema.posts)
     .innerJoin(schema.groups, eq(schema.posts.groupId, schema.groups.id))
@@ -512,9 +557,9 @@ export async function getPostBySlug(
     .limit(1);
 
   if (!row[0]) return null;
-  const { post, group, author, acceptedSolutions, viewerHasLiked, viewerHasBookmarked } = row[0];
+  const { post, group, author, acceptedSolutions, viewerHasLiked, viewerHasBookmarked, viewerCanModerate } = row[0];
 
-  const isHidden = post.status === 'hidden' && post.authorId !== currentUserId && !isAdminOrModerator(author.role);
+  const isHidden = redactForViewer(post.status, post.authorId, currentUserId, viewerCanModerate);
 
   return {
     id: post.id,

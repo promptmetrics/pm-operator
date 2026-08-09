@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:unit": "vitest run",
+    "screenshots": "SCREENSHOTS=1 playwright test screenshots --reporter=list",
     "clean": "rm -rf .next .turbo node_modules"
   },
   "dependencies": {

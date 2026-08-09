@@ -3,6 +3,26 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 const PUBLIC_FILE_REGEX = /\.(?:png|jpg|jpeg|gif|svg|ico|css|js|woff2?|ttf|eot)$/;
 
+// READ THE TRAILING `(\/|$)` BEFORE TOUCHING THIS.
+//
+// It anchors the match to the end of the prefix, so the `g\/`, `p\/`, and `u\/`
+// branches only ever match the bare index paths — `/g/`, `/p/`, `/u/`. An
+// actual post URL like `/g/show-your-build/my-post` does NOT match and is
+// therefore PUBLIC, which is the intended product behavior: non-members read
+// posts and circles, and are prompted to sign in when they try to like,
+// comment, or join.
+//
+//   /g/                      -> true  (gated)
+//   /g/show-your-build       -> false (public)
+//   /g/show-your-build/post  -> false (public)
+//   /settings                -> true  (gated)
+//
+// "Tidying" this to `^\/(g|p|u)\//` silently kills public post sharing — every
+// shared link would bounce to /login and every crawler would unfurl the login
+// page. access-matrix.spec.ts asserts the anonymous 200 so CI catches that.
+//
+// Because these pages are public, postVisibilityFilter (services/posts.ts) —
+// not this gate — is what decides which posts an anonymous caller may read.
 const COMMUNITY_ROUTE_REGEX =
   /^\/(g\/|p\/|u\/|leaderboards|settings|search|notifications|moderation|messages|bookmarks)(\/|$)/;
 
