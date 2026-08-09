@@ -7,9 +7,12 @@ import { createServiceDb } from '@/lib/db';
 // declared explicitly so the route can't be flipped to edge without the build
 // complaining (mirrors the post detail page's runtime guard).
 export const runtime = 'nodejs';
-// Regenerate hourly via ISR — keeps the sitemap off the request hot path and
-// off the DB pool except once per revalidation window.
-export const revalidate = 3600;
+// Force dynamic: like every other DB-backed route in this app, render on
+// demand at runtime. A `revalidate` value would make Next ISR-prerender the
+// route at build time, which calls createServiceDb() — and the CI build
+// environment has no DATABASE_URL, so that fails the build. force-dynamic
+// skips build-time prerender entirely; DATABASE_URL is present at runtime.
+export const dynamic = 'force-dynamic';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://promptmetrics.dev').replace(/\/$/, '');
 
