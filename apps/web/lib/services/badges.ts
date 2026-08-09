@@ -6,27 +6,15 @@ import {
   type BadgeCriteria,
   type StreakBadgeCriteria,
   type PointEventType,
-  type PublicBadge,
   type UserBadgesResponse,
 } from '@pm-operator/api';
+import { getCachedBadgeCatalog } from './badges-catalog-cache';
 import { toISO, toNumber } from './shared';
 
 type CountingCriteria = Exclude<BadgeCriteria, StreakBadgeCriteria>;
 
 function isStreakCriteria(criteria: BadgeCriteria): criteria is StreakBadgeCriteria {
   return 'type' in criteria && criteria.type === 'streak';
-}
-
-function toPublicBadge(badge: typeof schema.badges.$inferSelect): PublicBadge {
-  return {
-    id: badge.id,
-    slug: badge.slug,
-    name: badge.name,
-    description: badge.description,
-    iconUrl: badge.iconUrl,
-    sortOrder: badge.sortOrder,
-    createdAt: toISO(badge.createdAt),
-  };
 }
 
 /**
@@ -208,13 +196,18 @@ export async function getUserBadges(
   db: DrizzleClient,
   userId: string
 ): Promise<UserBadgesResponse> {
-  const [user, allBadges, userBadgeRows] = await Promise.all([
+  // The catalog is viewer-independent, so it is served from the shared 300 s
+  // cache: 0 queries warm, 1 cold. Awaited ALONE and BEFORE the wave below —
+  // never inside it — so a cold cache adds a sequential step instead of
+  // widening the wave. That drops this function from 3 concurrent queries to
+  // 2, which is the whole page-side budget once the community layout's rail
+  // query (1, concurrent with the page) is counted against the pool of 3.
+  const catalog = await getCachedBadgeCatalog();
+
+  const [user, userBadgeRows] = await Promise.all([
     db.query.users.findFirst({
       where: eq(schema.users.id, userId),
       columns: { streakDays: true },
-    }),
-    db.query.badges.findMany({
-      orderBy: [schema.badges.sortOrder, schema.badges.createdAt],
     }),
     db.query.userBadges.findMany({
       where: eq(schema.userBadges.userId, userId),
@@ -226,30 +219,32 @@ export async function getUserBadges(
   const earned: UserBadgesResponse['earned'] = [];
   const progress: UserBadgesResponse['progress'] = [];
 
-  for (const badge of allBadges) {
+  for (const { badge, criteria } of catalog) {
     const earnedRow = earnedByBadgeId.get(badge.id);
     if (earnedRow) {
-      earned.push({ badge: toPublicBadge(badge), awardedAt: toISO(earnedRow.awardedAt) });
+      earned.push({ badge, awardedAt: toISO(earnedRow.awardedAt) });
       continue;
     }
 
     // Badges with free-form criteria (e.g. manually awarded ones) have no
     // computable progress; skip them until they are earned.
-    const parsed = badgeCriteriaSchema.safeParse(badge.criteria);
+    const parsed = badgeCriteriaSchema.safeParse(criteria);
     if (!parsed.success) continue;
 
     if (isStreakCriteria(parsed.data)) {
       progress.push({
-        badge: toPublicBadge(badge),
+        badge,
         current: Math.min(user?.streakDays ?? 0, parsed.data.days),
         threshold: parsed.data.days,
       });
       continue;
     }
 
+    // N+1, kept sequential on purpose: one query per badge with computable
+    // criteria, awaited one at a time so it can never breach the pool.
     const current = await countForUser(db, userId, parsed.data);
     progress.push({
-      badge: toPublicBadge(badge),
+      badge,
       current: Math.min(current, parsed.data.threshold),
       threshold: parsed.data.threshold,
     });

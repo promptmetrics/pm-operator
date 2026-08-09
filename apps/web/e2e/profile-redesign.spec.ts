@@ -49,8 +49,11 @@ test.afterEach(async () => {
   }
 });
 
+// Admin because this spec seeds its own circles through POST /api/v1/groups,
+// and createGroup() rejects anyone who isn't an admin or moderator. The
+// profile surfaces under test render identically for either role.
 async function signInAsMember(page: Page): Promise<TestUser> {
-  const user = await createTestUser({ onboardingComplete: true });
+  const user = await createTestUser({ role: 'admin', onboardingComplete: true });
   usersToClean.push(user.id);
   await signIn(page, user.email, user.password);
   return user;

@@ -40,44 +40,56 @@ type EmailSwitchKey =
 /**
  * The five email switches (plan D-C). `live: false` means the value is stored
  * in users.preferences but no job reads it yet — the row says so inline, so the
- * UI never implies mail goes out today. Only `weeklyDigest` is live: the
- * weekly-digest cron filters on preferences->>'weeklyDigest' = 'true'.
+ * UI never implies mail goes out today.
+ *
+ * `defaultOn` must mirror what the backend does with a MISSING value, or the
+ * toggle lies and saving the form silently changes delivery:
+ *   - weeklyDigest is opt-IN — the cron filters on
+ *     preferences->>'weeklyDigest' = 'true', so unset means no digest.
+ *   - the transactional switches are opt-OUT — sendTransactional only
+ *     suppresses on an explicit `false`, so unset means mail is sent.
  */
 const EMAIL_SWITCHES: {
   key: EmailSwitchKey;
   label: string;
   description: string;
   live: boolean;
+  defaultOn: boolean;
 }[] = [
   {
     key: 'emailReplies',
     label: 'Replies to my posts',
     description: 'Someone comments on a post or answer of yours',
     live: false,
+    defaultOn: true,
   },
   {
     key: 'emailSolutions',
     label: 'Solution accepted',
     description: 'Your answer gets accepted (+25 pts)',
-    live: false,
+    live: true,
+    defaultOn: true,
   },
   {
     key: 'emailMentions',
     label: 'Mentions',
     description: 'Someone @mentions you',
     live: false,
+    defaultOn: true,
   },
   {
     key: 'weeklyDigest',
     label: 'Weekly digest',
     description: 'Monday recap of your circles',
     live: true,
+    defaultOn: false,
   },
   {
     key: 'emailFollows',
     label: 'New followers',
     description: 'Someone follows you',
     live: false,
+    defaultOn: true,
   },
 ];
 
@@ -138,7 +150,7 @@ export function SettingsPage({ user, memberships }: SettingsPageProps) {
         body: JSON.stringify({
           fullName: fullName || undefined,
           preferences: Object.fromEntries(
-            EMAIL_SWITCHES.map((s) => [s.key, !!preferences[s.key]])
+            EMAIL_SWITCHES.map((s) => [s.key, preferences[s.key] ?? s.defaultOn])
           ),
         }),
       });
@@ -243,7 +255,7 @@ export function SettingsPage({ user, memberships }: SettingsPageProps) {
                   label={s.label}
                   description={s.description}
                   live={s.live}
-                  checked={!!preferences[s.key]}
+                  checked={preferences[s.key] ?? s.defaultOn}
                   onChange={(v) => setPreferences((p) => ({ ...p, [s.key]: v }))}
                 />
               ))}

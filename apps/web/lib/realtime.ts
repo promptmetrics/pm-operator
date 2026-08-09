@@ -26,21 +26,29 @@ export interface RealtimeInsertCallbacks<T extends IdRow> {
   onStatus?: (status: RealtimeChannelStatus) => void;
 }
 
+/**
+ * Stand-in channel used when the Supabase env vars are absent. supabase-js
+ * channel methods are chainable and return the channel, so this returns
+ * *itself* for every method — `.on(...).subscribe(...)` then behaves the way it
+ * does against a real client instead of throwing mid-chain.
+ */
+function missingEnvRealtimeChannel(): RealtimeChannel {
+  const channel: RealtimeChannel = new Proxy({} as RealtimeChannel, {
+    get(_target, prop) {
+      // Never look thenable: an accidental `await channel` would otherwise call
+      // this trap for `then` and hang.
+      if (prop === 'then' || typeof prop === 'symbol') return undefined;
+      return () => channel;
+    },
+  });
+  return channel;
+}
+
 function missingEnvRealtimeClient(): RealtimeClient {
   return new Proxy({} as RealtimeClient, {
     get(_target, prop) {
       if (prop === 'channel') {
-        return () =>
-          new Proxy(
-            {},
-            {
-              get(_ch, chProp) {
-                if (chProp === 'on') return () => missingEnvRealtimeClient();
-                if (chProp === 'subscribe') return () => {};
-                return () => missingEnvRealtimeClient();
-              },
-            }
-          );
+        return () => missingEnvRealtimeChannel();
       }
       if (prop === 'removeChannel') {
         return async () => {};
@@ -100,6 +108,29 @@ function removeChannel(client: RealtimeClient, channel: RealtimeChannel) {
   client.removeChannel(channel).catch(() => {});
 }
 
+let channelSeq = 0;
+
+/**
+ * Give every subscription its own channel topic.
+ *
+ * `createBrowserClient` is a singleton in the browser, and supabase-js's
+ * `client.channel(topic)` hands back the EXISTING channel when one with that
+ * topic is already registered. `RealtimeChannel.on()` throws once its channel
+ * is joining or joined ("cannot add `postgres_changes` callbacks ... after
+ * `subscribe()`"), so a second component subscribing to the same subject used
+ * to crash — which is exactly what the header NotificationBell and the
+ * /notifications page did to each other on `user:<id>:notifications`. The
+ * throw happens inside an effect, so it took the whole route down to the
+ * global error boundary.
+ *
+ * A per-call suffix keeps the channels separate, and it also means each
+ * subscriber's cleanup removes only the channel it opened.
+ */
+function uniqueTopic(topic: string): string {
+  channelSeq += 1;
+  return `${topic}:s${channelSeq}`;
+}
+
 /**
  * Resolve a circle slug to its group_id UUID using the same API route that
  * delegates to the getGroupBySlug service.
@@ -135,7 +166,7 @@ export async function subscribeToGroupPosts<T extends IdRow>(
   const deduper = getDeduper(opts);
 
   const channel = client
-    .channel(`group:${groupId}:posts`)
+    .channel(uniqueTopic(`group:${groupId}:posts`))
     .on(
       'postgres_changes',
       {
@@ -172,7 +203,7 @@ export function subscribeToPostComments<T extends IdRow>(
   const deduper = getDeduper(opts);
 
   const channel = client
-    .channel(`post:${postId}:comments`)
+    .channel(uniqueTopic(`post:${postId}:comments`))
     .on(
       'postgres_changes',
       {
@@ -211,7 +242,7 @@ export function subscribeToConversation<T extends IdRow>(
   const deduper = getDeduper(opts);
 
   const channel = client
-    .channel(`conversation:${conversationId}:messages`)
+    .channel(uniqueTopic(`conversation:${conversationId}:messages`))
     .on(
       'postgres_changes',
       {
@@ -248,7 +279,7 @@ export function subscribeToUserNotifications<T extends IdRow>(
   const deduper = getDeduper(opts);
 
   const channel = client
-    .channel(`user:${userId}:notifications`)
+    .channel(uniqueTopic(`user:${userId}:notifications`))
     .on(
       'postgres_changes',
       {

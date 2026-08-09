@@ -73,12 +73,16 @@ export const userPreferencesSchema = z.object({
   checklistCompletedAt: z.string().optional(),
   // Per-event email switches surfaced by the Settings screen (plan D-C). The
   // five switches on that screen are emailReplies / emailSolutions /
-  // emailMentions / weeklyDigest / emailFollows. Only `weeklyDigest` (declared
-  // above) drives a real send today — the weekly-digest cron filters on
-  // `preferences->>'weeklyDigest' = 'true'`. The four keys below are STORED
-  // ONLY: no job reads them yet. They are recorded now so consent is already
-  // captured when the transactional emails are built, and the Settings copy
-  // says so explicitly rather than implying mail goes out today.
+  // emailMentions / weeklyDigest / emailFollows.
+  //
+  // Two drive real sends today:
+  //   - `weeklyDigest` (declared above) — opt-IN; the cron filters on
+  //     `preferences->>'weeklyDigest' = 'true'`.
+  //   - `emailSolutions` — opt-OUT; `sendTransactional` suppresses the
+  //     solution-accepted mail only on an explicit `false`.
+  // emailReplies / emailMentions / emailFollows are STORED ONLY: no job reads
+  // them yet. They are recorded now so consent is already captured when those
+  // transactional emails are built, and the Settings copy says so per row.
   emailReplies: z.boolean().optional(),
   emailSolutions: z.boolean().optional(),
   emailMentions: z.boolean().optional(),

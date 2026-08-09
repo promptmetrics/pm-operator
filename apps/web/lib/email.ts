@@ -9,11 +9,16 @@
 // missing, every send degrades to a logged no-op and NEVER throws, so email can
 // never break the calling (accept-solution / accept-invite / digest-cron) flow.
 //
-// Preference gating:
-//   - Transactional (solution/invite): users.preferences.emailNotifications —
-//     default ON (sent unless explicitly false).
+// Preference gating (all OPT-OUT: a missing value means SEND):
+//   - Master kill-switch: users.preferences.emailNotifications — default ON, so
+//     a transactional send is suppressed only when it is explicitly false. The
+//     redesigned Settings screen no longer surfaces this key, but values stored
+//     by the old UI are still honored.
+//   - Per-event switch: the designed Settings switch that maps to the event
+//     (EVENT_SWITCH below). Only an explicit false suppresses, so users who
+//     never touched the switch keep receiving mail exactly as before.
 //   - Weekly digest: users.preferences.weeklyDigest — default OFF (sent only
-//     when explicitly true).
+//     when explicitly true), gated by the digest cron, not here.
 
 import 'server-only';
 import { eq } from 'drizzle-orm';
@@ -41,10 +46,27 @@ type TransactionalEvent = 'solution_accepted' | 'invite_accepted';
 
 interface UserPrefs {
   emailNotifications?: boolean;
+  emailSolutions?: boolean;
   weeklyDigest?: boolean;
   reducedMotion?: boolean;
   newsletter?: boolean;
 }
+
+/**
+ * The Settings switch that governs each transactional event (plan D-C). The
+ * Settings screen exposes emailReplies / emailSolutions / emailMentions /
+ * weeklyDigest / emailFollows; `solution_accepted` is the one transactional
+ * event with a designed switch, so it is the one mapped here.
+ *
+ * `invite_accepted` has NO switch on that screen — deliberately null, meaning
+ * it stays governed by the emailNotifications master kill-switch alone. Give it
+ * a switch here only once one is designed, or invites become unsuppressable by
+ * a control users can't see.
+ */
+const EVENT_SWITCH: Record<TransactionalEvent, keyof UserPrefs | null> = {
+  solution_accepted: 'emailSolutions',
+  invite_accepted: null,
+};
 
 export interface WeeklyDigestData {
   posts: number;
@@ -91,8 +113,9 @@ async function loopsSend(
 }
 
 /**
- * Send a transactional email (solution accepted, invite accepted). Honors
- * emailNotifications (default on). Never throws.
+ * Send a transactional email (solution accepted, invite accepted). Honors the
+ * emailNotifications master kill-switch plus the event's designed Settings
+ * switch, both opt-out (default on). Never throws.
  */
 export async function sendTransactional(
   event: TransactionalEvent,
@@ -107,6 +130,9 @@ export async function sendTransactional(
     if (!recipient?.email) return;
     const prefs = (recipient.preferences ?? {}) as UserPrefs;
     if (prefs.emailNotifications === false) return;
+    // Strict === false, never a truthiness check: undefined must keep sending.
+    const eventSwitch = EVENT_SWITCH[event];
+    if (eventSwitch && prefs[eventSwitch] === false) return;
     await loopsSend(TX_ID[event], recipient.email, {
       name: recipient.fullName || recipient.username,
       ...opts.dataVariables,
