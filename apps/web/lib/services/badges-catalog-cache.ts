@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { unstable_cache } from 'next/cache';
+import { revalidateTag, unstable_cache } from 'next/cache';
 import type { PublicBadge } from '@pm-operator/api';
 import * as schema from '@pm-operator/db';
 import { createServiceDb } from '@/lib/db';
@@ -31,6 +31,8 @@ export interface CatalogBadge {
   criteria: unknown;
 }
 
+const BADGE_CATALOG_TAG = 'badges-catalog';
+
 export const getCachedBadgeCatalog = unstable_cache(
   async (): Promise<CatalogBadge[]> => {
     const rows = await createServiceDb().query.badges.findMany({
@@ -50,5 +52,16 @@ export const getCachedBadgeCatalog = unstable_cache(
     }));
   },
   ['badges-catalog'],
-  { revalidate: 300 }
+  { revalidate: 300, tags: [BADGE_CATALOG_TAG] }
 );
+
+/**
+ * Drop the cached catalog immediately. Without this, a badge an admin just
+ * created stays invisible on every profile and DevCard for up to the 300 s TTL.
+ * Call it from a route handler or server action after any badge mutation.
+ */
+export function revalidateBadgeCatalog(): void {
+  // Next 16's revalidateTag takes a cache-life profile as its second argument;
+  // `expire: 0` purges the entry now rather than letting it age out.
+  revalidateTag(BADGE_CATALOG_TAG, { expire: 0 });
+}

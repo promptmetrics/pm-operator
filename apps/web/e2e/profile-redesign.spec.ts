@@ -85,20 +85,24 @@ async function createPost(page: Page, groupSlug: string, title: string) {
   expect(res.status()).toBe(200);
 }
 
-async function grantBadge(userId: string, name: string): Promise<void> {
-  const db = serviceDb();
-  const [badge] = await db
-    .insert(schema.badges)
-    .values({
+// Creates the badge through the admin API rather than inserting it directly:
+// the badge catalog is served from a shared 300 s unstable_cache, and only the
+// real create path calls revalidateBadgeCatalog(). A direct insert would stay
+// invisible behind a warm cache entry left by an earlier test.
+async function grantBadge(page: Page, userId: string, name: string): Promise<void> {
+  const res = await page.request.post('/api/v1/admin/badges', {
+    data: {
       slug: slugify('profile-badge'),
       name,
       description: 'Granted by the profile redesign spec.',
+      criteria: { eventType: 'topic_created', threshold: 1_000_000 },
       sortOrder: 0,
-    })
-    .returning();
-  if (!badge) throw new Error('Failed to create test badge');
+    },
+  });
+  expect(res.status()).toBe(201);
+  const badge = (await res.json()).data as { id: string };
   badgesToClean.push(badge.id);
-  await db.insert(schema.userBadges).values({ userId, badgeId: badge.id });
+  await serviceDb().insert(schema.userBadges).values({ userId, badgeId: badge.id });
 }
 
 test('the profile shows four stat tiles and a level progress bar', async ({ page }) => {
@@ -154,8 +158,8 @@ test('earned badges render as chips in the header and in the achievements rail',
 
   const first = `Ledger Wrangler ${Date.now()}`;
   const second = `Pipeline Plumber ${Date.now()}`;
-  await grantBadge(user.id, first);
-  await grantBadge(user.id, second);
+  await grantBadge(page, user.id, first);
+  await grantBadge(page, user.id, second);
 
   await page.goto(`/u/${user.userslug}`);
   await dismissOverlays(page);

@@ -262,10 +262,10 @@ export function SettingsPage({ user, memberships }: SettingsPageProps) {
             </div>
 
             <p className="mt-[14px] border-t border-[var(--pm-line)] pt-3 text-[11.5px] leading-[1.55] text-[var(--pm-muted)]">
-              Only the weekly digest sends email today. The other four are saved to your account
-              now and will start sending when those emails ship — switching one on won’t put mail
-              in your inbox yet. You can change any of these at any time; changes take effect on
-              the next send.
+              The weekly digest and solution-accepted emails send today. The other three are
+              saved to your account now and will start sending when those emails ship — switching
+              one on won’t put mail in your inbox yet. You can change any of these at any time;
+              changes take effect on the next send.
             </p>
           </fieldset>
         </Card>

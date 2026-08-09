@@ -160,8 +160,9 @@ test.describe('Settings — email notification switches', () => {
     await expect(
       main(page).getByText('Only the weekly digest sends email today')
     ).toBeVisible();
-    // The four stored-only switches each carry an inline caveat badge.
-    await expect(main(page).getByText('not sending yet')).toHaveCount(4);
+    // The stored-only switches each carry an inline caveat badge. weeklyDigest
+    // and emailSolutions both drive real sends now, so three remain.
+    await expect(main(page).getByText('not sending yet')).toHaveCount(3);
   });
 
   test('toggles persist across a reload', async ({ page }) => {
@@ -172,14 +173,17 @@ test.describe('Settings — email notification switches', () => {
     const digest = main(page).getByRole('switch', { name: 'Weekly digest' });
     const mentions = main(page).getByRole('switch', { name: 'Mentions' });
 
-    // Everything starts off for a fresh user (preferences = {}).
+    // A fresh user (preferences = {}) sees each switch in the state the backend
+    // actually behaves as: the digest cron needs an explicit 'true' so it starts
+    // off, while the transactional switches suppress only on an explicit false,
+    // so they start on. Toggle each AWAY from its default.
     await expect(digest).toHaveAttribute('aria-checked', 'false');
-    await expect(mentions).toHaveAttribute('aria-checked', 'false');
+    await expect(mentions).toHaveAttribute('aria-checked', 'true');
 
     await digest.click();
     await mentions.click();
     await expect(digest).toHaveAttribute('aria-checked', 'true');
-    await expect(mentions).toHaveAttribute('aria-checked', 'true');
+    await expect(mentions).toHaveAttribute('aria-checked', 'false');
 
     await main(page).getByRole('button', { name: 'Save changes' }).click();
     // role=status "Saved ✓" only renders after the PATCH resolves — wait on it
@@ -195,12 +199,12 @@ test.describe('Settings — email notification switches', () => {
     );
     await expect(main(page).getByRole('switch', { name: 'Mentions' })).toHaveAttribute(
       'aria-checked',
-      'true'
+      'false'
     );
-    // Untouched switches stay off.
+    // An untouched transactional switch keeps its opt-out default.
     await expect(main(page).getByRole('switch', { name: 'New followers' })).toHaveAttribute(
       'aria-checked',
-      'false'
+      'true'
     );
   });
 

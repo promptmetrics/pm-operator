@@ -1,4 +1,5 @@
 import { eq, and, or, sql, desc, asc, count, like, inArray, gte, lte, isNull } from 'drizzle-orm';
+import { revalidateBadgeCatalog } from './badges-catalog-cache';
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type {
@@ -298,6 +299,10 @@ export async function adminCreateBadge(
     .returning();
 
   if (!badge) throw new Error('Failed to create badge');
+
+  // The catalog is cached globally for 300 s; without this the new badge stays
+  // invisible on every profile and DevCard until the entry expires.
+  revalidateBadgeCatalog();
 
   return {
     id: badge.id,
