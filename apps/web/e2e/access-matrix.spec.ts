@@ -71,18 +71,15 @@ test('the DevCard PNG is public and served as image/png', async ({ page }) => {
   expect(missing.status()).toBe(404);
 });
 
-test('every other /u/ route stays gated for signed-out visitors', async ({ page }) => {
-  const user = await createTestUser({ onboardingComplete: true });
-  usersToClean.push(user.id);
-
-  const slug = user.userslug;
-  const gated = [
-    `/u/${slug}`, // the profile itself
-    `/u/${slug}/followers`,
-    `/u/${slug}/following`,
-    `/u/${slug}/devcard/edit`, // deeper than the allowlisted segment
-    `/u/${slug}/devcardx`, // shares the prefix, is not the DevCard
-  ];
+// NOTE ON SCOPE: profile pages are NOT behind the middleware gate, and were
+// not before the DevCard work. COMMUNITY_ROUTE_REGEX's `u\/` branch consumes
+// the slash and then requires another one, so it only ever matched the bare
+// `/u/` — same for `/g/` and `/p/`, which are deliberately public (an
+// anonymous visitor can read a public circle and post; see prod-smoke). So
+// this test asserts what the DevCard allowlist is actually responsible for:
+// it must not widen access to anything that IS gated today.
+test('the devcard allowlist does not widen access to gated routes', async ({ page }) => {
+  const gated = ['/settings', '/messages', '/bookmarks', '/notifications', '/moderation'];
 
   for (const path of gated) {
     // Redirects are followed, so the FINAL url is the assertion: a gated path
@@ -91,7 +88,7 @@ test('every other /u/ route stays gated for signed-out visitors', async ({ page 
     expect(res.url(), `${path} should redirect a signed-out visitor to login`).toContain('/login');
   }
 
-  // Same for the PNG namespace: only the exact one-segment form resolves.
+  // The PNG namespace resolves only in its exact one-segment form.
   const gatedPng = await page.request.get('/api/og/devcard');
   expect(gatedPng.status()).toBe(404);
 });

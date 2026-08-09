@@ -238,7 +238,14 @@ test('dismissing a flag leaves a resolution receipt and moves it into History', 
     .click();
   await expect(page.getByTestId('flag-row').filter({ hasText: reason })).toHaveCount(1);
 
-  // ...and Open no longer lists it.
-  await queueView.getByRole('button', { name: 'Open' }).click();
+  // ...and a fresh load of Open no longer lists it. Reload rather than just
+  // switching filters: the receipt deliberately keeps the resolved card on
+  // screen until the queue is refetched, so clicking Open races that refetch.
+  await page.goto('/moderation');
+  await dismissOverlays(page);
+  await expect(queueView.getByRole('button', { name: 'Open' })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
   await expect(page.getByTestId('flag-row').filter({ hasText: reason })).toHaveCount(0);
 });
