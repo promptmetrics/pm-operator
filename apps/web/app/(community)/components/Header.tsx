@@ -11,6 +11,7 @@ import { levelForScore } from '@pm-operator/api';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { LevelBadge } from '@pm-operator/ui/components/LevelBadge';
+import { OperatorLockup } from '@pm-operator/ui/components/Logo';
 import { Progress } from '@pm-operator/ui/components/Progress';
 import { NotificationBell } from './NotificationBell';
 import { useRail } from './RailProvider';
@@ -132,9 +133,8 @@ export function Header({ onSearchClick }: HeaderProps = {}) {
           >
             <PanelLeft className="h-5 w-5" aria-hidden="true" />
           </Button>
-          <Link href="/feed" className="flex items-baseline gap-1.5">
-            <span className="font-serif text-xl font-semibold text-[var(--pm-ink)]">operator</span>
-            <span className="hidden text-xs font-medium text-[var(--pm-coral)] sm:inline">.promptmetrics</span>
+          <Link href="/feed" aria-label="Operator home">
+            <OperatorLockup size="md" nameClassName="hidden sm:inline" />
           </Link>
         </div>
 

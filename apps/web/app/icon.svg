@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Operator">
+  <!-- Operator identity, direction 1b: the PromptMetrics quatrefoil in its solid
+       cut, reversed out of an ink tile. Literal hex, not var(--pm-*) — a favicon
+       is fetched outside the document and resolves no custom properties. Keep in
+       sync with packages/ui/src/components/Logo.tsx and tokens.css. -->
+  <rect width="512" height="512" rx="128" fill="#161c1a"/>
+  <g transform="translate(256 256)" fill="#e9f1ee" fill-rule="evenodd">
+    <path d="M2 -16 C -18 -78 24 -150 92 -160 C 150 -168 178 -120 162 -74 C 142 -24 56 -6 2 -16 Z M58 -64 C 72 -96 110 -104 120 -84 C 128 -66 104 -44 80 -46 C 66 -47 54 -54 58 -64 Z"/>
+    <path d="M2 -16 C -18 -78 24 -150 92 -160 C 150 -168 178 -120 162 -74 C 142 -24 56 -6 2 -16 Z M58 -64 C 72 -96 110 -104 120 -84 C 128 -66 104 -44 80 -46 C 66 -47 54 -54 58 -64 Z" transform="rotate(90)"/>
+    <path d="M2 -16 C -18 -78 24 -150 92 -160 C 150 -168 178 -120 162 -74 C 142 -24 56 -6 2 -16 Z M58 -64 C 72 -96 110 -104 120 -84 C 128 -66 104 -44 80 -46 C 66 -47 54 -54 58 -64 Z" transform="rotate(180)"/>
+    <path d="M2 -16 C -18 -78 24 -150 92 -160 C 150 -168 178 -120 162 -74 C 142 -24 56 -6 2 -16 Z M58 -64 C 72 -96 110 -104 120 -84 C 128 -66 104 -44 80 -46 C 66 -47 54 -54 58 -64 Z" transform="rotate(270)"/>
+  </g>
+</svg>

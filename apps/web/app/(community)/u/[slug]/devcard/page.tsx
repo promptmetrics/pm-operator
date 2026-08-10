@@ -9,6 +9,7 @@ import { getUserBadges } from '@/lib/services/badges';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { LevelBadge } from '@pm-operator/ui/components/LevelBadge';
 import { StreakGrid } from '@pm-operator/ui/components/StreakGrid';
+import { OperatorLockup } from '@pm-operator/ui/components/Logo';
 import { DevCardActions } from './DevCardActions';
 
 // T8.7 DevCard (UX spec §3.7): a shareable operator summary — level, streak,
@@ -231,12 +232,7 @@ export default async function DevCardRoute({ params }: { params: Promise<{ slug:
 
         {/* Reference footer strip: brand mark left, membership date right. */}
         <div className="flex items-center justify-between border-t border-[var(--pm-line)] bg-[var(--pm-paper)] px-6 py-3">
-          <span className="flex items-baseline gap-1">
-            <span className="font-serif text-[13px] font-semibold text-[var(--pm-ink)]">
-              operator
-            </span>
-            <span className="text-[10px] font-semibold text-[var(--pm-coral)]">.promptmetrics</span>
-          </span>
+          <OperatorLockup size="sm" />
           <span className="font-mono text-[10.5px] text-[var(--pm-muted-soft)]">
             Since {formatJoined(user.joinedAt)}
           </span>

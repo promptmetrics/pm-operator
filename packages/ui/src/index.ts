@@ -18,6 +18,7 @@ export {
   DropdownMenuSeparator,
 } from "./components/DropdownMenu";
 export { LevelBadge } from "./components/LevelBadge";
+export { OperatorMark, OperatorLockup } from "./components/Logo";
 export { StatCard } from "./components/StatCard";
 export { StreakGrid } from "./components/StreakGrid";
 export { DateTile } from "./components/DateTile";
@@ -33,5 +34,11 @@ export type { StatCardProps } from "./components/StatCard";
 export type { StreakGridProps, StreakDay, StreakDayState } from "./components/StreakGrid";
 export type { DateTileProps } from "./components/DateTile";
 export type { PodiumCardProps } from "./components/PodiumCard";
+export type {
+  OperatorMarkProps,
+  OperatorMarkSize,
+  OperatorLockupProps,
+  OperatorLockupSize,
+} from "./components/Logo";
 export { RichTextEditor } from "./editor/RichTextEditor";
 export { RichTextToolbar } from "./editor/RichTextToolbar";

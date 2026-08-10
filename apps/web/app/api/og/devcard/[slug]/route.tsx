@@ -28,10 +28,29 @@ const CORAL = '#b8446a'; // --pm-coral
 const TEAL = '#3f8f82'; // --pm-teal
 const TEAL_DARK = '#276358'; // --pm-teal-dark
 
+// Operator mark, direction 1b: the solid-cut quatrefoil reversed out of an ink
+// tile. Embedded as a data URI rather than as inline JSX <svg> because satori
+// renders SVG elements unreliably but handles <img> data URIs. Flattened for the
+// same reason the palette above is literal hex — no <use>, no custom properties.
+// Keep in step with packages/ui/src/components/Logo.tsx and app/icon.svg.
+const MARK_BLADE =
+  'M2 -16 C -18 -78 24 -150 92 -160 C 150 -168 178 -120 162 -74 C 142 -24 56 -6 2 -16 Z ' +
+  'M58 -64 C 72 -96 110 -104 120 -84 C 128 -66 104 -44 80 -46 C 66 -47 54 -54 58 -64 Z';
+
+const MARK_DATA_URI = `data:image/svg+xml;base64,${Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">` +
+    `<rect width="512" height="512" rx="128" fill="${INK}"/>` +
+    `<g transform="translate(256 256)" fill="${PAPER}" fill-rule="evenodd">` +
+    [0, 90, 180, 270]
+      .map((deg) => `<path d="${MARK_BLADE}" transform="rotate(${deg})"/>`)
+      .join('') +
+    `</g></svg>`
+).toString('base64')}`;
+
 // Read once per lambda instance, then reused. The files are committed under
 // apps/web/assets/fonts (see the README there) precisely so this never becomes
 // a request-time fetch to fonts.googleapis.com.
-let fontsPromise: Promise<{ regular: Buffer; bold: Buffer }> | undefined;
+let fontsPromise: Promise<{ regular: Buffer; bold: Buffer; mono: Buffer }> | undefined;
 
 function loadFonts() {
   if (!fontsPromise) {
@@ -39,7 +58,8 @@ function loadFonts() {
     fontsPromise = Promise.all([
       readFile(path.join(dir, 'Fraunces-Regular.ttf')),
       readFile(path.join(dir, 'Fraunces-Bold.ttf')),
-    ]).then(([regular, bold]) => ({ regular, bold }));
+      readFile(path.join(dir, 'JetBrainsMono-Regular.ttf')),
+    ]).then(([regular, bold, mono]) => ({ regular, bold, mono }));
   }
   return fontsPromise;
 }
@@ -102,8 +122,19 @@ function DevCardImage({ summary }: { summary: DevCardSummary }) {
           backgroundImage: `linear-gradient(135deg, ${TEAL} 0%, ${TEAL_DARK} 100%)`,
         }}
       >
-        <div style={{ display: 'flex', fontSize: 28, letterSpacing: 4, color: '#ffffff' }}>
-          OPERATOR STACK
+        {/* Lockup, mirroring the page header: ink tile, then "operator." in the
+            mono face and "promptmetrics" in the serif. White here rather than
+            the page's teal-dark/ink, which would sink into the teal band. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <img src={MARK_DATA_URI} width={52} height={52} alt="" />
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+            <div style={{ display: 'flex', fontFamily: 'JetBrains Mono', fontSize: 26, color: '#ffffff', opacity: 0.9 }}>
+              operator.
+            </div>
+            <div style={{ display: 'flex', fontSize: 34, fontWeight: 700, color: '#ffffff' }}>
+              promptmetrics
+            </div>
+          </div>
         </div>
         <div
           style={{
@@ -261,6 +292,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     fonts: [
       { name: 'Fraunces', data: fonts.regular, weight: 400, style: 'normal' },
       { name: 'Fraunces', data: fonts.bold, weight: 700, style: 'normal' },
+      { name: 'JetBrains Mono', data: fonts.mono, weight: 400, style: 'normal' },
     ],
     headers: {
       'Content-Type': 'image/png',

@@ -88,6 +88,24 @@ test('the DevCard PNG is public and served as image/png', async ({ page }) => {
   expect(missing.status()).toBe(404);
 });
 
+// The favicon has to reach signed-out visitors — they are most of who ever sees
+// a tab. It stays public only because middleware's matcher excludes any path
+// containing a dot; a generated `icon.tsx` would serve at `/icon` (no dot) and
+// get redirected to /login, which in a browser looks exactly like "no favicon".
+test('the app icon is public and served as SVG', async ({ page }) => {
+  const res = await page.request.get('/icon.svg');
+  expect(res.status()).toBe(200);
+  expect(res.url(), 'the icon must not redirect a signed-out visitor to login').not.toContain(
+    '/login'
+  );
+  expect(res.headers()['content-type']).toContain('image/svg+xml');
+
+  // The solid cut is what survives at 16px, so assert the knockout is intact
+  // rather than just that some bytes came back.
+  const body = await res.text();
+  expect(body).toContain('fill-rule="evenodd"');
+});
+
 // NOTE ON SCOPE: profile pages are NOT behind the middleware gate, and were
 // not before the DevCard work. COMMUNITY_ROUTE_REGEX's `u\/` branch consumes
 // the slash and then requires another one, so it only ever matched the bare
