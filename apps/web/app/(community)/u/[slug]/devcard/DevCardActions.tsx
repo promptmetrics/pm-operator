@@ -36,8 +36,8 @@ export function DevCardActions({ shareUrl, pngPath, userslug }: DevCardActionsPr
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button variant="secondary" size="sm" onClick={copyLink}>
+    <div className="mt-4 flex gap-2.5">
+      <Button variant="secondary" className="flex-1" onClick={copyLink}>
         {copied ? (
           <Check className="h-4 w-4" aria-hidden="true" />
         ) : (
@@ -46,7 +46,8 @@ export function DevCardActions({ shareUrl, pngPath, userslug }: DevCardActionsPr
         {copied ? 'Link copied' : 'Copy link'}
       </Button>
 
-      <Button variant="secondary" size="sm" asChild>
+      {/* Reference: the PNG export is the raspberry filled action. */}
+      <Button variant="primary" className="flex-1" asChild>
         <a href={pngPath} download={`devcard-${userslug}.png`}>
           <Download className="h-4 w-4" aria-hidden="true" />
           Download PNG

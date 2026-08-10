@@ -26,7 +26,7 @@ export const LevelBadge = React.forwardRef<HTMLSpanElement, LevelBadgeProps>(
         ref={ref}
         aria-label={`Level ${level}`}
         className={cn(
-          "inline-flex shrink-0 items-center justify-center rounded-full border-2 border-[var(--pm-paper-inset)] bg-[var(--pm-coral)] font-extrabold leading-none text-[var(--pm-coral-ink)]",
+          "inline-flex shrink-0 items-center justify-center rounded-full border-2 border-[var(--pm-paper-inset)] bg-[var(--pm-ink)] font-extrabold leading-none text-[var(--pm-on-ink)]",
           sizeClasses[size],
           className
         )}

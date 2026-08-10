@@ -18,8 +18,9 @@ export interface StreakGridProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const stateClasses: Record<StreakDayState, string> = {
-  done: "bg-[var(--pm-coral)]",
-  pending: "border border-dashed border-[var(--pm-coral)] bg-[var(--pm-coral-tint)]",
+  done: "bg-[var(--pm-teal)]",
+  pending:
+    "border border-dashed border-[var(--pm-teal)] bg-[color-mix(in_srgb,var(--pm-teal)_11%,transparent)]",
   empty: "bg-[var(--pm-paper-3)]",
 };
 

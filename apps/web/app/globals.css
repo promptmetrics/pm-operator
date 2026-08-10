@@ -2,6 +2,10 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
 
+/* Scan the shared UI package so Tailwind compiles arbitrary-value classes
+ * (e.g. bg-[var(--pm-ink)]) that are only used inside @pm-operator/ui. */
+@source '../../../packages/ui/src';
+
 /*
  * App-level layer only. The canonical Paper v3 tokens (--pm-* and the color
  * scales) live in @pm-operator/ui/styles/tokens.css, imported first in

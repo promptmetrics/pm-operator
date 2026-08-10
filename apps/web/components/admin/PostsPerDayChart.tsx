@@ -63,7 +63,7 @@ export default function PostsPerDayChart({ points }: PostsPerDayChartProps) {
                   height: heightPx,
                   backgroundColor: isEmpty
                     ? 'var(--pm-line-2)'
-                    : 'var(--pm-coral)',
+                    : 'var(--pm-teal)',
                 }}
               />
             </div>

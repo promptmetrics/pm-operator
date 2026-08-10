@@ -12,11 +12,11 @@ interface MessagesTwoPaneProps {
 /**
  * /messages: inbox and thread side by side.
  *
- * The split is pure CSS at the `md` breakpoint (768px) — no matchMedia, so the
+ * The split is pure CSS at an 800px breakpoint — no matchMedia, so the
  * server and client markup agree and there is no hydration flash:
- *   - md and up: the inbox column is always shown; the thread pane holds either
- *     the selected conversation or the "nothing selected" placeholder.
- *   - below md: exactly one pane is visible. No selection shows the inbox;
+ *   - 800px and up: the inbox column is always shown; the thread pane holds
+ *     either the selected conversation or the "nothing selected" placeholder.
+ *   - below 800px: exactly one pane is visible. No selection shows the inbox;
  *     a selection shows the thread, whose back button clears it.
  *
  * Selecting a conversation is React state only — no router.push — so the pane
@@ -64,12 +64,12 @@ export function MessagesTwoPane({ currentUserId }: MessagesTwoPaneProps) {
       </div>
 
       <div
-        className="flex min-h-0 gap-4 md:gap-6"
+        className="flex min-h-0 gap-4 min-[800px]:gap-6"
         style={{ height: 'calc(100dvh - 12rem)', minHeight: '24rem' }}
       >
         <div
           data-testid="messages-inbox"
-          className={`w-full shrink-0 overflow-y-auto md:block md:w-[300px] ${
+          className={`w-full shrink-0 overflow-y-auto min-[800px]:block min-[800px]:w-[300px] ${
             selectedId ? 'hidden' : 'block'
           }`}
         >
@@ -83,7 +83,7 @@ export function MessagesTwoPane({ currentUserId }: MessagesTwoPaneProps) {
 
         <div
           data-testid="messages-thread-pane"
-          className={`min-w-0 flex-1 ${selectedId ? 'block' : 'hidden md:block'}`}
+          className={`min-w-0 flex-1 ${selectedId ? 'block' : 'hidden min-[800px]:block'}`}
         >
           {selectedId ? (
             // Keyed so switching conversations resets messages/draft/realtime

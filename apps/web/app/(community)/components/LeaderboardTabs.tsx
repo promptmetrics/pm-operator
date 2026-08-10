@@ -172,7 +172,7 @@ export function LeaderboardTabs({ initialEntries, initialViewer }: LeaderboardTa
             </span>
           </Link>
         </td>
-        <td className="px-4 py-3 text-right font-mono text-sm font-semibold text-[var(--pm-coral-dark)]">
+        <td className="px-4 py-3 text-right font-mono text-sm font-semibold text-[var(--pm-ink)]">
           {formatScore(entry, def)}
         </td>
       </tr>
@@ -205,6 +205,10 @@ export function LeaderboardTabs({ initialEntries, initialViewer }: LeaderboardTa
           {podium.map((entry, slot) => {
             const first = slot === 1;
             if (!entry) return <li key={`podium-empty-${slot}`} aria-hidden="true" />;
+            // The displayed rank comes from the podium slot (visual 2nd · 1st
+            // · 3rd), not entry.rank — rank() over (...) gives ties the same
+            // rank, so the 3rd tile could otherwise read "2".
+            const displayRank = [2, 1, 3][slot];
             const crown = first && board === 'weekly';
             const score = formatScore(entry, def);
             return (
@@ -212,17 +216,16 @@ export function LeaderboardTabs({ initialEntries, initialViewer }: LeaderboardTa
                 <Link
                   href={`/u/${entry.userslug}`}
                   data-testid="podium-tile"
-                  data-rank={entry.rank}
+                  data-rank={displayRank}
                   data-slot={first ? 'first' : 'side'}
-                  aria-label={`Rank ${entry.rank}: ${entry.username}, ${score}${
+                  aria-label={`Rank ${displayRank}: ${entry.username}, ${score}${
                     crown ? ', operator of the week' : ''
                   }`}
                   className="block rounded-[var(--pm-radius-lg)] focus:outline-none focus-visible:shadow-[var(--pm-focus)]"
                 >
                   <PodiumCard
-                    rank={entry.rank}
+                    rank={displayRank}
                     name={entry.username}
-                    subtitle={levelLabel(entry.level)}
                     score={score}
                     highlight={first}
                     badge={crown ? '⭐ Operator of the week' : undefined}
@@ -246,19 +249,7 @@ export function LeaderboardTabs({ initialEntries, initialViewer }: LeaderboardTa
 
       <Card className="overflow-hidden">
         <table data-testid="leaderboard-table" className="w-full text-left text-sm">
-          <thead className="bg-[var(--pm-paper-2)] text-xs uppercase tracking-wide text-[var(--pm-muted)]">
-            <tr>
-              <th scope="col" className="w-14 px-4 py-2.5 text-right font-medium">
-                Rank
-              </th>
-              <th scope="col" className="px-4 py-2.5 font-medium">
-                Member
-              </th>
-              <th scope="col" className="px-4 py-2.5 text-right font-medium">
-                Score
-              </th>
-            </tr>
-          </thead>
+          {/* No header row per the reference — the columns are self-evident. */}
           <tbody className="divide-y divide-[var(--pm-line)]">
             {entries.map((entry) => renderRow(entry, false))}
             {viewer && !viewerListed ? (

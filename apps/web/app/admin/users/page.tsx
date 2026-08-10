@@ -7,7 +7,7 @@ import { Card } from '@pm-operator/ui/components/Card';
 import { useToast } from '@pm-operator/ui/components/Toast';
 import type { UserListItem, UserRole } from '@pm-operator/api';
 import { Search, Users } from 'lucide-react';
-import DataTable, { type Column } from '@/components/admin/DataTable';
+import DataTable, { TABLE_ACTION_CHIP, type Column } from '@/components/admin/DataTable';
 
 const ROLES: UserRole[] = ['member', 'moderator', 'admin'];
 
@@ -176,8 +176,8 @@ export default function AdminUsersPage() {
       label: 'Actions',
       align: 'right',
       render: (user) => (
-        <Link href={`/admin/users/${user.id}`}>
-          <Button variant="secondary" size="sm">View</Button>
+        <Link href={`/admin/users/${user.id}`} className={TABLE_ACTION_CHIP}>
+          View
         </Link>
       ),
     },

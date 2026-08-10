@@ -150,7 +150,7 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
         aria-labelledby="auth-heading"
         className="w-full max-w-md space-y-6 rounded-2xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 shadow-[var(--pm-shadow-lg)]"
       >
-        <div className="text-center">
+        <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--pm-coral-dark)]">
             PromptMetrics Operator
           </p>
@@ -161,7 +161,8 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
             {mode === 'sign-in' ? 'Welcome back' : 'Join the community'}
           </h1>
           <p className="mt-2 text-[var(--pm-muted)]">
-            A Skool-style space for AI operators, founders, and teams shipping with agents.
+            A community for AI operators — questions, builds, and solutions from people shipping
+            with agents.
           </p>
         </div>
 
@@ -171,7 +172,7 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
               key={id}
               variant="secondary"
               size="lg"
-              className="relative w-full text-base"
+              className="relative w-full justify-start pl-12 text-base"
               onClick={() => handleOAuth(id)}
               type="button"
               disabled={busy}
@@ -180,8 +181,8 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
               <span>{pendingProvider === id ? 'Redirecting…' : label}</span>
             </Button>
           ))}
-          <p className="text-center text-xs text-[var(--pm-muted-soft)]">
-            We only read your public profile and email.
+          <p className="text-xs text-[var(--pm-muted-soft)]">
+            We only read your public profile — never your repos or contacts.
           </p>
         </div>
 
@@ -199,6 +200,7 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
             id="email"
             type="email"
             label="Email"
+            placeholder="you@company.com"
             autoComplete="email"
             value={email}
             onChange={(e) => {
@@ -212,12 +214,25 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
             disabled={busy}
           />
 
-          <div className="relative">
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label htmlFor="password" className="text-sm font-medium text-[var(--pm-ink)]">
+                Password
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className={`text-xs font-medium text-[var(--pm-link)] hover:underline ${FOCUS_RING}`}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
             <Input
               id="password"
               type={showPassword ? 'text' : 'password'}
-              label="Password"
-              className="pr-16"
+              placeholder="••••••••"
               autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'}
               value={password}
               onChange={(e) => {
@@ -230,15 +245,6 @@ export function LoginForm({ initialMode = 'sign-in' }: { initialMode?: Mode }) {
               error={errors.password}
               disabled={busy}
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              className={`absolute right-3 top-[2.1rem] px-1 text-sm font-medium text-[var(--pm-muted)] transition-colors hover:text-[var(--pm-ink)] ${FOCUS_RING}`}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              aria-pressed={showPassword}
-            >
-              {showPassword ? 'Hide' : 'Show'}
-            </button>
           </div>
 
           {errors.form ? (

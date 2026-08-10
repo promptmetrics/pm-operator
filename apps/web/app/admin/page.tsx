@@ -193,7 +193,7 @@ export default function AdminDashboardPage() {
   if (loading) {
     return (
       <div className="mx-auto max-w-5xl">
-        <h1 className="mb-6 text-2xl font-semibold">Admin dashboard</h1>
+        <h1 className="mb-6 text-2xl font-semibold">Community health</h1>
         <LoadingState type="card" rows={3} />
       </div>
     );
@@ -202,7 +202,7 @@ export default function AdminDashboardPage() {
   if (error) {
     return (
       <div className="mx-auto max-w-5xl">
-        <h1 className="mb-6 text-2xl font-semibold">Admin dashboard</h1>
+        <h1 className="mb-6 text-2xl font-semibold">Community health</h1>
         <ErrorState
           message={error.message}
           variant={error.variant}
@@ -218,9 +218,9 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <h1 className="mb-1 text-2xl font-semibold">Admin dashboard</h1>
+      <h1 className="mb-1 text-2xl font-semibold">Community health</h1>
       <p className="mb-6 text-sm text-[var(--pm-muted)]">
-        The last seven days, measured against the seven before them.
+        Last 7 days vs the week before
       </p>
 
       {/* Week-over-week KPI tiles */}

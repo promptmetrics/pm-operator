@@ -3,17 +3,15 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Award, CheckCircle2, FileText, Flame } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
 import { Card } from '@pm-operator/ui/components/Card';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { Badge } from '@pm-operator/ui/components/Badge';
 import { Chip } from '@pm-operator/ui/components/Chip';
 import { LevelBadge } from '@pm-operator/ui/components/LevelBadge';
-import { StatCard } from '@pm-operator/ui/components/StatCard';
 import { StreakGrid } from '@pm-operator/ui/components/StreakGrid';
 import { Progress } from '@pm-operator/ui/components/Progress';
-import { FeedCard } from './FeedCard';
+import { PostRow } from './PostRow';
 import { timeAgo } from '@/lib/format';
 import type {
   UserProfileDetail,
@@ -182,86 +180,83 @@ export function ProfileTabs({
 
   return (
     <>
-      {/* Full-bleed header band. The teal cover mirrors the DevCard so the two
-          surfaces read as the same object seen from different distances. */}
-      <header className="-mx-4 -mt-6 mb-6 border-b border-[var(--pm-line)] bg-[var(--pm-paper-2)]">
-        <div
-          aria-hidden="true"
-          className="h-20 bg-[linear-gradient(135deg,var(--pm-teal)_0%,var(--pm-teal-dark)_100%)]"
-        />
-        <div className="mx-auto max-w-6xl px-4 pb-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-            {/* The offset lives on a wrapper: Avatar puts `className` on the
-                image root, which sits inside its own badge wrapper span. */}
-            <div className="-mt-10 shrink-0">
-              <Avatar
-                src={user.pictureUrl ?? undefined}
-                alt={user.username}
-                fallback={displayName}
-                size="xl"
-                className="h-[84px] w-[84px] border-4 border-[var(--pm-paper-2)] text-xl"
-                badge={
-                  <LevelBadge
-                    level={levelInfo.level}
-                    size="md"
-                    className="h-7 w-7 border-[3px] border-[var(--pm-paper-2)] text-xs"
-                  />
-                }
+      {/* Clean header card per the redesign reference: white card, avatar
+          with an ink level badge, serif name, level meta, bio. Stats and the
+          level-progress bar live inside the same card. */}
+      <header className="mx-auto mb-6 max-w-6xl rounded-[var(--pm-radius-lg)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-6 shadow-[var(--pm-shadow)]">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <Avatar
+            src={user.pictureUrl ?? undefined}
+            alt={user.username}
+            fallback={displayName}
+            size="xl"
+            className="h-[76px] w-[76px] shrink-0 text-xl"
+            badge={
+              <LevelBadge
+                level={levelInfo.level}
+                size="md"
+                className="h-7 w-7 border-[3px] border-[var(--pm-paper-inset)] text-xs"
               />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h1 className="font-serif text-[28px] font-semibold leading-tight text-[var(--pm-ink)]">
-                {displayName}
-              </h1>
-              <p className="mt-1 text-sm text-[var(--pm-muted)]">
-                /u/{user.userslug} · Level {levelInfo.level} · {levelInfo.name} · joined{' '}
-                {formatJoined(user.joinedAt)}
-              </p>
-              <p className="mt-1.5 text-[13px] text-[var(--pm-muted)]">
-                {isMe ? (
-                  <Link
-                    href={`/u/${user.userslug}/followers`}
-                    className="hover:text-[var(--pm-coral-dark)] hover:underline"
-                  >
-                    {formatNumber(counts.followerCount)} followers
-                  </Link>
-                ) : (
-                  <span>{formatNumber(counts.followerCount)} followers</span>
-                )}{' '}
-                ·{' '}
-                {isMe ? (
-                  <Link
-                    href={`/u/${user.userslug}/following`}
-                    className="hover:text-[var(--pm-coral-dark)] hover:underline"
-                  >
-                    {formatNumber(counts.followingCount)} following
-                  </Link>
-                ) : (
-                  <span>{formatNumber(counts.followingCount)} following</span>
-                )}
-              </p>
-            </div>
-            {isMe ? (
-              <Button variant="secondary" asChild>
-                <Link href="/settings">Edit profile</Link>
-              </Button>
-            ) : currentUserId ? (
-              <div className="flex shrink-0 gap-2">
-                <Button
-                  variant={following ? 'secondary' : 'primary'}
-                  onClick={toggleFollow}
-                  disabled={followPending}
+            }
+          />
+          <div className="min-w-0 flex-1">
+            <h1 className="font-serif text-2xl font-semibold leading-tight text-[var(--pm-ink)]">
+              {displayName}
+            </h1>
+            <p className="mt-1 text-[13px] text-[var(--pm-muted)]">
+              Lv {levelInfo.level} · {levelInfo.name} · Joined {formatJoined(user.joinedAt)}
+            </p>
+            <p className="mt-1 text-[13px] text-[var(--pm-muted)]">
+              /u/{user.userslug} ·{' '}
+              {isMe ? (
+                <Link
+                  href={`/u/${user.userslug}/followers`}
+                  className="hover:text-[var(--pm-coral-dark)] hover:underline"
                 >
-                  {following ? 'Following' : 'Follow'}
-                </Button>
-                <Button variant="secondary" onClick={startConversation} disabled={messagePending}>
-                  Message
-                </Button>
-              </div>
+                  {formatNumber(counts.followerCount)} followers
+                </Link>
+              ) : (
+                <span>{formatNumber(counts.followerCount)} followers</span>
+              )}{' '}
+              ·{' '}
+              {isMe ? (
+                <Link
+                  href={`/u/${user.userslug}/following`}
+                  className="hover:text-[var(--pm-coral-dark)] hover:underline"
+                >
+                  {formatNumber(counts.followingCount)} following
+                </Link>
+              ) : (
+                <span>{formatNumber(counts.followingCount)} following</span>
+              )}
+            </p>
+            {user.aboutMe ? (
+              <p className="mt-2 max-w-[56ch] text-[13.5px] leading-relaxed text-[var(--pm-ink-2)]">
+                {user.aboutMe}
+              </p>
             ) : null}
           </div>
+          {isMe ? (
+            <Button variant="secondary" asChild className="shrink-0">
+              <Link href="/settings">Edit profile</Link>
+            </Button>
+          ) : currentUserId ? (
+            <div className="flex shrink-0 gap-2">
+              <Button
+                variant={following ? 'secondary' : 'primary'}
+                onClick={toggleFollow}
+                disabled={followPending}
+              >
+                {following ? 'Following' : 'Follow'}
+              </Button>
+              <Button variant="secondary" onClick={startConversation} disabled={messagePending}>
+                Message
+              </Button>
+            </div>
+          ) : null}
+        </div>
 
-          {badges.earned.length > 0 ? (
+        {badges.earned.length > 0 ? (
             <ul
               aria-label="Badges earned"
               data-testid="profile-badge-chips"
@@ -295,63 +290,38 @@ export function ProfileTabs({
               ) : null}
             </ul>
           ) : null}
+
+        {/* Reference order: Points / Posts / Solutions / Streak — big number,
+            plain label, no icons. */}
+        <div
+          role="list"
+          aria-label="Profile stats"
+          className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4"
+        >
+          <ProfileStat value={formatNumber(user.reputationScore)} label="Points" />
+          <ProfileStat value={formatNumber(user.postsCount)} label="Posts" />
+          <ProfileStat value={formatNumber(user.acceptedSolutions)} label="Solutions" />
+          <ProfileStat value={`${formatNumber(user.streakDays)}d`} label="Streak" />
+        </div>
+
+        <div className="mt-4" data-testid="level-progress">
+          <div className="mb-1.5 flex items-baseline justify-between gap-3 text-[11.5px] text-[var(--pm-muted)]">
+            <span>Level progress</span>
+            <span>
+              {levelInfo.nextLevel && levelInfo.pointsToNext !== null
+                ? `${formatNumber(levelInfo.pointsToNext)} pts to Lv ${levelInfo.nextLevel.level}`
+                : 'Max level'}
+            </span>
+          </div>
+          <Progress
+            value={levelInfo.progressPercent}
+            aria-label={`Progress to level ${levelInfo.nextLevel?.level ?? levelInfo.level}`}
+          />
         </div>
       </header>
 
       <div className="mx-auto grid max-w-6xl items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-6">
-          <div
-            role="list"
-            aria-label="Profile stats"
-            className="grid grid-cols-2 gap-3 sm:grid-cols-4"
-          >
-            <StatCard
-              role="listitem"
-              data-testid="profile-stat"
-              value={formatNumber(user.reputationScore)}
-              label="Points"
-              icon={<Award className="h-5 w-5" aria-hidden="true" />}
-            />
-            <StatCard
-              role="listitem"
-              data-testid="profile-stat"
-              value={formatNumber(user.acceptedSolutions)}
-              label="Solutions"
-              icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
-            />
-            <StatCard
-              role="listitem"
-              data-testid="profile-stat"
-              value={formatNumber(user.postsCount)}
-              label="Posts"
-              icon={<FileText className="h-5 w-5" aria-hidden="true" />}
-            />
-            <StatCard
-              role="listitem"
-              data-testid="profile-stat"
-              value={formatNumber(user.streakDays)}
-              label="Day streak"
-              icon={<Flame className="h-5 w-5" aria-hidden="true" />}
-            />
-          </div>
-
-          <section className={railCardClass} data-testid="level-progress">
-            <div className="mb-2.5 flex items-baseline justify-between gap-3 text-[13px]">
-              <span className="font-bold text-[var(--pm-ink)]">
-                Level {levelInfo.level} · {levelInfo.name}
-              </span>
-              <span className="text-[var(--pm-muted)]">
-                {levelInfo.nextLevel && levelInfo.pointsToNext !== null
-                  ? `${formatNumber(levelInfo.pointsToNext)} pts to Level ${levelInfo.nextLevel.level} · ${levelInfo.nextLevel.name}`
-                  : 'Max level'}
-              </span>
-            </div>
-            <Progress
-              value={levelInfo.progressPercent}
-              aria-label={`Progress to level ${levelInfo.nextLevel?.level ?? levelInfo.level}`}
-            />
-          </section>
-
           <div>
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <Chip active={tab === 'posts'} onClick={() => setTab('posts')}>
@@ -378,7 +348,7 @@ export function ProfileTabs({
               posts.length > 0 ? (
                 <div className={postListClass}>
                   {posts.map((post) => (
-                    <FeedCard key={post.id} post={post} currentUserId={currentUserId} />
+                    <PostRow key={post.id} post={post} />
                   ))}
                 </div>
               ) : (
@@ -447,7 +417,7 @@ export function ProfileTabs({
               bookmarks && bookmarks.length > 0 ? (
                 <div className={postListClass}>
                   {bookmarks.map((post) => (
-                    <FeedCard key={post.id} post={post} currentUserId={currentUserId} />
+                    <PostRow key={post.id} post={post} />
                   ))}
                 </div>
               ) : (
@@ -459,15 +429,16 @@ export function ProfileTabs({
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24">
           <section className={railCardClass} aria-label="Streak">
-            <h2 className={railHeadingClass}>This week</h2>
             {streak ? (
               <>
-                <StreakGrid days={streak.days} />
-                <p className="mt-2.5 text-xs text-[var(--pm-muted)]">
-                  {streak.current > 0
-                    ? `${streak.current} days and counting · best ${streak.best} · post or comment today to keep it alive`
-                    : 'No streak yet — post or comment today to start one'}
+                <h2 className="mb-1 font-serif text-[15px] font-semibold text-[var(--pm-ink)]">
+                  🔥 {streak.current > 0 ? `${streak.current}-day streak` : 'No streak yet'}
+                </h2>
+                <p className="mb-3 text-xs text-[var(--pm-muted)]">
+                  Post or comment today to {streak.current > 0 ? 'keep it alive' : 'start one'}.
+                  Best: {streak.best} days.
                 </p>
+                <StreakGrid days={streak.days} />
               </>
             ) : (
               <p className="text-xs text-[var(--pm-muted)]">
@@ -540,27 +511,26 @@ export function ProfileTabs({
 
           {badges.earned.length > 0 || badges.progress.length > 0 ? (
             <section className={railCardClass} aria-label="Achievements">
-              <h2 className={railHeadingClass}>Achievements</h2>
-              <ul className="space-y-2 text-sm">
+              <h2 className="mb-2.5 font-serif text-[15px] font-semibold text-[var(--pm-ink)]">
+                Achievements
+              </h2>
+              {/* Reference renders achievements as pill chips: earned in ink,
+                  in-progress muted with their live counter. */}
+              <ul className="flex flex-wrap gap-[7px]">
                 {badges.earned.map(({ badge }) => (
-                  <li key={badge.id} className="flex items-center gap-2">
-                    <CheckCircle2
-                      className="h-3.5 w-3.5 shrink-0 text-[var(--pm-green)]"
-                      aria-hidden="true"
-                    />
-                    <span className="text-[var(--pm-ink)]">{badge.name}</span>
+                  <li
+                    key={badge.id}
+                    className="inline-flex items-center rounded-[var(--pm-radius-pill)] border border-[var(--pm-line)] bg-[var(--pm-paper)] px-3 py-1 text-[11.5px] font-medium text-[var(--pm-ink-2)]"
+                  >
+                    {badge.name}
                   </li>
                 ))}
                 {badges.progress.map(({ badge, current, threshold }) => (
-                  <li key={badge.id} className="flex items-center gap-2">
-                    <span
-                      className="h-3.5 w-3.5 shrink-0 rounded-full border border-[var(--pm-line-2)]"
-                      aria-hidden="true"
-                    />
-                    <span className="text-[var(--pm-muted)]">{badge.name}</span>
-                    <span className="ml-auto font-mono text-xs text-[var(--pm-muted)]">
-                      {current}/{threshold}
-                    </span>
+                  <li
+                    key={badge.id}
+                    className="inline-flex items-center rounded-[var(--pm-radius-pill)] border border-[var(--pm-line)] bg-[var(--pm-paper)] px-3 py-1 text-[11.5px] font-medium text-[var(--pm-muted)]"
+                  >
+                    {badge.name} · {current}/{threshold}
                   </li>
                 ))}
               </ul>
@@ -576,6 +546,22 @@ function EmptyState({ message }: { message: string }) {
   return (
     <div className="rounded-[var(--pm-radius-lg)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 text-center">
       <p className="text-[var(--pm-muted)]">{message}</p>
+    </div>
+  );
+}
+
+/** Reference stat tile: mono number over a plain muted label, no icon. */
+function ProfileStat({ value, label }: { value: string; label: string }) {
+  return (
+    <div
+      role="listitem"
+      data-testid="profile-stat"
+      className="rounded-[var(--pm-radius-lg)] border border-[var(--pm-line)] bg-[var(--pm-paper)] p-3"
+    >
+      <p className="font-mono text-[19px] font-semibold leading-tight text-[var(--pm-ink)]">
+        {value}
+      </p>
+      <p className="mt-0.5 text-[11.5px] text-[var(--pm-muted)]">{label}</p>
     </div>
   );
 }

@@ -3,13 +3,10 @@
 import * as React from 'react';
 import Link from 'next/link';
 import {
-  Heart,
-  MessageSquare,
   Flag,
   CheckCircle2,
   Wrench,
   Rocket,
-  Bookmark,
   MoreHorizontal,
   Star,
   Pin,
@@ -18,7 +15,6 @@ import { FlagDialog } from './FlagDialog';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { Card, CardContent } from '@pm-operator/ui/components/Card';
 import { Badge } from '@pm-operator/ui/components/Badge';
-import { Tag } from '@pm-operator/ui/components/Tag';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { Button } from '@pm-operator/ui/components/Button';
 import {
@@ -33,6 +29,14 @@ import { apiErrorMessage } from '@/lib/api/client-errors';
 import type { PostListItem, SearchResult } from '@pm-operator/api';
 
 type PostItem = PostListItem | SearchResult;
+
+// Action-row pills (reference: "▲ 14" · "💬 3" · "◈") — same class recipe as
+// the post-detail pills.
+const pillClass =
+  'inline-flex items-center gap-1.5 rounded-[var(--pm-radius-pill)] border bg-[var(--pm-paper)] px-3 py-1.5 text-[13px] transition-colors focus:outline-none focus-visible:shadow-[var(--pm-focus)] disabled:pointer-events-none disabled:opacity-60';
+const pillIdle =
+  'border-[var(--pm-line)] text-[var(--pm-muted)] hover:border-[var(--pm-coral)] hover:text-[var(--pm-coral-dark)]';
+const pillActive = 'border-[var(--pm-coral)] bg-[var(--pm-coral-tint)] text-[var(--pm-coral-dark)]';
 
 interface FeedCardProps {
   post: PostItem;
@@ -60,8 +64,26 @@ const CATEGORY_COLORS = [
   'var(--pm-cat-professional)',
 ];
 
+// Near-black group colors (e.g. #000000 from seeded test data) render as an
+// unreadable dark chip; fall back to the tinted palette instead.
+function isUnsafeDark(color: string): boolean {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+  if (!m) return false;
+  let hex = m[1];
+  if (hex.length === 3) {
+    hex = hex
+      .split('')
+      .map((c) => c + c)
+      .join('');
+  }
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  return 0.299 * r + 0.587 * g + 0.114 * b < 70;
+}
+
 function groupColor(post: PostItem): string {
-  if (post.group.color) return post.group.color;
+  if (post.group.color && !isUnsafeDark(post.group.color)) return post.group.color;
   let hash = 0;
   for (let i = 0; i < post.group.slug.length; i++) {
     hash = post.group.slug.charCodeAt(i) + ((hash << 5) - hash);
@@ -172,8 +194,14 @@ export function FeedCard({
       <Card className="transition-shadow hover:shadow-[var(--pm-shadow-lg)]">
         <CardContent className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <Link href={`/g/${post.group.slug}`}>
-              <Tag color={categoryColor}>{post.group.name}</Tag>
+            {/* Reference pattern: circle is a plain colored text link; the
+                type chip beside it carries the tint. */}
+            <Link
+              href={`/g/${post.group.slug}`}
+              className="text-[12.5px] font-semibold hover:underline"
+              style={{ color: categoryColor }}
+            >
+              {post.group.name}
             </Link>
             {post.type === 'question' ? (
               <Badge variant="blue" className="gap-1">
@@ -239,63 +267,66 @@ export function FeedCard({
 
           {post.linkPreview ? <LinkPreviewCard preview={post.linkPreview} /> : null}
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Link href={`/u/${post.author.userslug}`}>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <Link href={`/u/${post.author.userslug}`} className="shrink-0">
                 <Avatar
                   alt={post.author.username}
                   fallback={post.author.username}
                   size="xs"
                 />
               </Link>
-              <div className="flex flex-col text-xs">
-                <Link href={`/u/${post.author.userslug}`} className="font-medium text-[var(--pm-ink-2)] hover:text-[var(--pm-ink)]">
+              <div className="flex min-w-0 flex-col text-xs">
+                <Link href={`/u/${post.author.userslug}`} className="truncate font-medium text-[var(--pm-ink-2)] hover:text-[var(--pm-ink)]">
                   {post.author.username}
                 </Link>
+                {/* No mid-word breaks at 375px: each meta group stays intact
+                    and the line wraps between groups. */}
                 <span className="text-[var(--pm-muted-soft)]">
-                  {post.author.reputationScore} pts · {post.author.acceptedSolutions} solutions · {timeAgo(post.createdAt)}
+                  <span className="whitespace-nowrap">Lv {post.author.level}</span>{' '}
+                  ·{' '}
+                  <span className="whitespace-nowrap">
+                    {post.author.acceptedSolutions} solutions
+                  </span>{' '}
+                  · <span className="whitespace-nowrap">{timeAgo(post.createdAt)}</span>
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
+            <div className="flex items-center gap-1.5">
+              {/* Bordered pill buttons per the reference: ▲ upvote, 💬 comments,
+                  ◈ bookmark. Same handlers as before — visual only. */}
+              <button
+                type="button"
                 aria-label={liked ? 'Unlike' : 'Like'}
                 aria-pressed={liked}
                 onClick={handleLike}
                 disabled={!currentUserId || toggling}
-                className="gap-1"
+                className={`${pillClass} font-mono text-xs font-semibold ${
+                  liked ? pillActive : pillIdle
+                }`}
               >
-                <Heart
-                  className={`h-4 w-4 ${liked ? 'fill-[var(--pm-coral)] text-[var(--pm-coral)]' : 'text-[var(--pm-muted)]'}`}
-                  aria-hidden="true"
-                />
-                <span className="text-xs text-[var(--pm-muted)]">{formatNumber(likeCount)}</span>
-              </Button>
+                <span aria-hidden="true">▲</span> {formatNumber(likeCount)}
+              </button>
 
-              <Link href={`/g/${post.group.slug}/${post.slug}`}>
-                <Button variant="ghost" size="sm" className="gap-1">
-                  <MessageSquare className="h-4 w-4 text-[var(--pm-muted)]" aria-hidden="true" />
-                  <span className="text-xs text-[var(--pm-muted)]">{formatNumber(post.commentCount)}</span>
-                </Button>
+              <Link
+                href={`/g/${post.group.slug}/${post.slug}`}
+                className={`${pillClass} ${pillIdle}`}
+              >
+                <span aria-hidden="true">💬</span> {formatNumber(post.commentCount)}
               </Link>
 
               {currentUserId ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <button
+                  type="button"
                   aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark'}
                   aria-pressed={bookmarked}
                   onClick={handleBookmark}
                   disabled={bookmarking}
+                  className={`${pillClass} ${bookmarked ? pillActive : pillIdle}`}
                 >
-                  <Bookmark
-                    className={`h-4 w-4 ${bookmarked ? 'fill-[var(--pm-coral)] text-[var(--pm-coral)]' : 'text-[var(--pm-muted)]'}`}
-                    aria-hidden="true"
-                  />
-                </Button>
+                  <span aria-hidden="true">◈</span>
+                </button>
               ) : null}
 
               {overflowMenu}

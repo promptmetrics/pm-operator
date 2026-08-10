@@ -53,7 +53,7 @@ export function ForgotPasswordForm() {
         aria-labelledby="reset-heading"
         className="w-full max-w-md space-y-6 rounded-2xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 shadow-[var(--pm-shadow-lg)]"
       >
-        <div className="text-center">
+        <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--pm-coral-dark)]">
             PromptMetrics Operator
           </p>
@@ -64,7 +64,8 @@ export function ForgotPasswordForm() {
             Reset your password
           </h1>
           <p className="mt-2 text-[var(--pm-muted)]">
-            Enter your email and we will send you a reset link.
+            Enter the email you signed up with — we'll send a reset link that's valid for one
+            hour.
           </p>
         </div>
 
@@ -94,6 +95,7 @@ export function ForgotPasswordForm() {
               id="email"
               type="email"
               label="Email"
+              placeholder="you@company.com"
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -114,7 +116,7 @@ export function ForgotPasswordForm() {
               href={`/login?returnUrl=${encodeURIComponent(returnUrl)}`}
               className="rounded font-medium text-[var(--pm-link)] hover:underline focus-visible:outline-none focus-visible:shadow-[var(--pm-focus)]"
             >
-              Back to sign in
+              ← Back to sign in
             </Link>
           </div>
         )}

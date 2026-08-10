@@ -101,6 +101,13 @@ const ICON_BUTTON =
 const PAGER_BUTTON =
   'rounded-[var(--pm-radius-md)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-3 py-1.5 text-xs font-medium text-[var(--pm-ink-2)] transition-colors disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:bg-[var(--pm-paper-2)] focus-visible:outline-none focus-visible:shadow-[var(--pm-focus)]';
 
+/**
+ * Outline chip for in-row actions (View / Revoke links and buttons) per the
+ * moderation-admin reference table pattern — replaces filled secondary buttons.
+ */
+export const TABLE_ACTION_CHIP =
+  'inline-flex h-7 items-center justify-center whitespace-nowrap rounded-[var(--pm-radius-pill)] border border-[var(--pm-line)] bg-transparent px-3 text-xs font-medium text-[var(--pm-ink-2)] transition-colors hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:shadow-[var(--pm-focus)]';
+
 // ── Skeleton row ───────────────────────────────────────────────────────────────
 
 function SkeletonRow({ cols }: { cols: number }) {

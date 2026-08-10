@@ -181,7 +181,7 @@ export function MessageThread({
             size="sm"
             onClick={onBack}
             aria-label="Back to messages"
-            className="md:hidden"
+            className="min-[800px]:hidden"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>

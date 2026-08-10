@@ -21,9 +21,10 @@
 // array-param encoding). Circle names come from wave 1, so no follow-up
 // group lookups are needed.
 //
-// Section items are shaped {id, title, authorName, circleName, stat} where
-// `stat` is posts.comment_count for every section — the engagement number the
-// feed cards already display (see packages/api/src/contracts/digest.ts).
+// Section items are shaped {id, title, authorName, circleName, stat, upvotes,
+// solved, createdAt} — `stat` is posts.comment_count, `upvotes` the ▲ number
+// the /digest page shows for top posts/builds (see
+// packages/api/src/contracts/digest.ts).
 // PostHog remains the product-analytics surface; this aggregation is from our
 // own DB so the digest still works when PostHog is unreachable.
 
@@ -55,6 +56,9 @@ interface SectionRow {
   username: string | null;
   groupId: string;
   stat: number;
+  upvotes: number;
+  acceptedCommentId: string | null;
+  createdAt: Date;
 }
 
 function emptyDigest(): WeeklyDigest {
@@ -134,6 +138,9 @@ export async function getWeeklyDigest(
     username: schema.users.username,
     groupId: schema.posts.groupId,
     stat: schema.posts.commentCount,
+    upvotes: schema.posts.upvotes,
+    acceptedCommentId: schema.posts.acceptedCommentId,
+    createdAt: schema.posts.createdAt,
   };
   const toItem = (row: SectionRow): DigestSectionItem => ({
     id: row.id,
@@ -141,6 +148,9 @@ export async function getWeeklyDigest(
     authorName: row.fullName || row.username || '',
     circleName: circleById.get(row.groupId)?.name ?? '',
     stat: Number(row.stat),
+    upvotes: Number(row.upvotes),
+    solved: row.acceptedCommentId !== null,
+    createdAt: row.createdAt.toISOString(),
   });
 
   // Wave 2 (3 concurrent): (a) the stats trio as ONE statement, (b) top

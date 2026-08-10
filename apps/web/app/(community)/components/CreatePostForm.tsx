@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, ImageIcon, X } from 'lucide-react';
 import { type Editor } from '@pm-operator/ui/editor/RichTextEditor';
 import { Button } from '@pm-operator/ui/components/Button';
+import { Chip } from '@pm-operator/ui/components/Chip';
 import { Input } from '@pm-operator/ui/components/Input';
 import { Badge } from '@pm-operator/ui/components/Badge';
 import { RichTextEditor } from '@pm-operator/ui/editor/RichTextEditor';
@@ -18,6 +19,19 @@ interface CreatePostFormProps {
   defaultType?: PostType;
   backHref?: string;
 }
+
+// Reference composer chips. The shared Chip's active state is the ink fill.
+const TYPE_CHIPS: { value: PostType; label: string }[] = [
+  { value: 'question', label: '? Question' },
+  { value: 'build', label: '🚀 Build' },
+  { value: 'discussion', label: '💬 Discussion' },
+];
+
+const TITLE_PLACEHOLDER: Partial<Record<PostType, string>> = {
+  question: 'What are you stuck on?',
+  build: 'What did you ship?',
+  discussion: 'What do you want to discuss?',
+};
 
 export function CreatePostForm({
   groups,
@@ -216,7 +230,7 @@ export function CreatePostForm({
       <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-4">
         <Input
           label="Title"
-          placeholder="What are you building or asking?"
+          placeholder={TITLE_PLACEHOLDER[type] ?? TITLE_PLACEHOLDER.question}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           error={error && title.trim().length < 10 ? error : undefined}
@@ -243,23 +257,14 @@ export function CreatePostForm({
         <fieldset className="flex flex-col gap-2">
           <legend className="text-sm font-medium text-[var(--pm-ink)]">Type</legend>
           <div className="flex flex-wrap gap-2">
-            {(['question', 'build', 'discussion'] as PostType[]).map((t) => (
-              <label
-                key={t}
-                className={`flex cursor-pointer items-center gap-1 rounded-full border px-3 py-1 text-sm ${
-                  type === t ? 'border-[var(--pm-coral)] bg-[var(--pm-coral-tint-10)]' : 'border-[var(--pm-line)]'
-                }`}
+            {TYPE_CHIPS.map((chip) => (
+              <Chip
+                key={chip.value}
+                active={type === chip.value}
+                onClick={() => setType(chip.value)}
               >
-                <input
-                  type="radio"
-                  name="post-type"
-                  value={t}
-                  checked={type === t}
-                  onChange={() => setType(t)}
-                  className="sr-only"
-                />
-                {t === 'question' ? 'Question' : t === 'build' ? 'Show your build' : 'Discussion'}
-              </label>
+                {chip.label}
+              </Chip>
             ))}
           </div>
         </fieldset>
@@ -379,13 +384,18 @@ export function CreatePostForm({
           </p>
         ) : null}
 
-        <div className="sticky bottom-0 -mx-4 mt-auto flex justify-end gap-2 border-t border-[var(--pm-line)] bg-[var(--pm-paper)] px-4 py-3">
-          <Button type="button" variant="secondary" disabled={submitting} onClick={handleCancel}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={submitting || !groupSlug || uploadingImage}>
-            {submitting ? 'Posting...' : 'Post'}
-          </Button>
+        <div className="sticky bottom-0 -mx-4 mt-auto flex items-center justify-between gap-2 border-t border-[var(--pm-line)] bg-[var(--pm-paper)] px-4 py-3">
+          <span className="text-xs text-[var(--pm-muted)]">
+            Posting earns <b className="font-semibold text-[var(--pm-teal-dark)]">+10 pts</b>
+          </span>
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" disabled={submitting} onClick={handleCancel}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting || !groupSlug || uploadingImage}>
+              {submitting ? 'Posting...' : 'Post'}
+            </Button>
+          </div>
         </div>
       </form>
     </div>

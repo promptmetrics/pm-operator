@@ -74,12 +74,10 @@ test('podium renders the top three in 2 · 1 · 3 order and crowns the weekly wi
   await expect(tiles.nth(0)).not.toContainText('Operator of the week');
   await expect(tiles.nth(2)).not.toContainText('Operator of the week');
 
-  // Trimmed table: rank · member · score, nothing else.
-  const headers = page.getByTestId('leaderboard-table').getByRole('columnheader');
-  await expect(headers).toHaveCount(3);
-  await expect(headers.nth(0)).toContainText('Rank');
-  await expect(headers.nth(1)).toContainText('Member');
-  await expect(headers.nth(2)).toContainText('Score');
+  // Trimmed table: rank · member · score rows, and no uppercase header row
+  // (reference has none).
+  await expect(page.getByTestId('leaderboard-table').getByRole('columnheader')).toHaveCount(0);
+  await expect(page.getByTestId('leaderboard-row')).toHaveCount(3);
 });
 
 test('board chips switch boards and re-label the score column', async ({ page }) => {

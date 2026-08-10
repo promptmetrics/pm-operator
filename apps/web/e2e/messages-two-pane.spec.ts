@@ -10,7 +10,7 @@ test.afterEach(async () => {
   usersToClean.length = 0;
 });
 
-// The pane split is a CSS-only `md` breakpoint (768px), so these viewports sit
+// The pane split is a CSS-only 800px breakpoint, so these viewports sit
 // clearly on either side of it.
 const DESKTOP = { width: 1280, height: 900 };
 const NARROW = { width: 480, height: 900 };

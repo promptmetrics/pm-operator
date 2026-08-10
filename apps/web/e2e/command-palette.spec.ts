@@ -91,8 +91,14 @@ test('⌘K opens the palette and ArrowDown steps the highlight across group boun
   const input = palette.getByRole('combobox');
   await expect(input).toBeFocused();
 
-  // Idle prompt before the 2-character minimum is met.
-  await expect(palette).toContainText('Type at least 2 characters');
+  // Default suggestions load on open: the viewer's own circles (this user
+  // created the seeded circle, so it leads the membership query) appear
+  // before any query is typed.
+  await expect(
+    palette.getByRole('group', { name: 'Circles' }).getByRole('option', {
+      name: new RegExp(token),
+    })
+  ).toBeVisible();
 
   await input.fill(token);
 

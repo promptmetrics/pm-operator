@@ -4,31 +4,46 @@ import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search } from 'lucide-react';
 import { Button } from '@pm-operator/ui/components/Button';
+import { Chip } from '@pm-operator/ui/components/Chip';
 import { Input } from '@pm-operator/ui/components/Input';
 import { useToast } from '@pm-operator/ui/components/Toast';
-import { FeedCard } from './FeedCard';
+import { PostRow } from './PostRow';
 import { trackEvent } from '@/lib/analytics';
 import type { SearchResult, SearchSort } from '@pm-operator/api';
+
+export type SearchScope = 'all' | 'questions' | 'builds' | 'solved';
+
+// Type-filter chips (utility-screens reference), mapped onto the
+// /api/v1/search params: type=question|build and solved=true.
+const SCOPE_CHIPS: { value: SearchScope; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'questions', label: 'Questions' },
+  { value: 'builds', label: 'Builds' },
+  { value: 'solved', label: 'Solved only' },
+];
 
 interface SearchPageProps {
   initialQuery: string;
   initialSort: SearchSort;
+  initialScope: SearchScope;
   initialResults: SearchResult[];
   initialCursor?: string;
+  /** Kept for the route's prop contract; compact rows don't need it. */
   currentUserId?: string;
 }
 
 export function SearchPage({
   initialQuery,
   initialSort,
+  initialScope,
   initialResults,
   initialCursor,
-  currentUserId,
 }: SearchPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [query, setQuery] = React.useState(initialQuery);
   const [sort, setSort] = React.useState<SearchSort>(initialSort);
+  const [scope, setScope] = React.useState<SearchScope>(initialScope);
   const [results, setResults] = React.useState<SearchResult[]>(initialResults);
   const [cursor, setCursor] = React.useState<string | undefined>(initialCursor);
   const [page, setPage] = React.useState<number>(() => {
@@ -41,10 +56,11 @@ export function SearchPage({
   React.useEffect(() => {
     setQuery(initialQuery);
     setSort(initialSort);
+    setScope(initialScope);
     setResults(initialResults);
     setCursor(initialCursor);
     setPage(1);
-  }, [initialQuery, initialSort, initialResults, initialCursor]);
+  }, [initialQuery, initialSort, initialScope, initialResults, initialCursor]);
 
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +81,19 @@ export function SearchPage({
     setPage(1);
     const params = new URLSearchParams(searchParams.toString());
     params.set('sort', value);
+    params.delete('page');
+    router.push(`/search?${params.toString()}`, { scroll: false });
+  };
+
+  const changeScope = (value: SearchScope) => {
+    setScope(value);
+    setPage(1);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('type');
+    params.delete('solved');
+    if (value === 'questions') params.set('type', 'question');
+    if (value === 'builds') params.set('type', 'build');
+    if (value === 'solved') params.set('solved', 'true');
     params.delete('page');
     router.push(`/search?${params.toString()}`, { scroll: false });
   };
@@ -94,15 +123,18 @@ export function SearchPage({
 
   return (
     <div className="mx-auto max-w-4xl">
-      <h1 className="mb-4 text-2xl font-semibold">Search</h1>
+      <h1 className="font-serif text-[26px] font-semibold text-[var(--pm-ink)]">Search</h1>
+      <p className="mb-4 mt-1 text-[13.5px] text-[var(--pm-muted)]">
+        Posts, solutions, and builds across every circle you can see.
+      </p>
 
-      <form onSubmit={submitSearch} className="mb-4 flex gap-2">
+      <form onSubmit={submitSearch} className="mb-3 flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--pm-muted)]" aria-hidden="true" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search posts, questions, builds..."
+            placeholder="Try “rate limits” or “evals”…"
             className="pl-9"
             aria-label="Search query"
           />
@@ -110,26 +142,43 @@ export function SearchPage({
         <Button type="submit" disabled={loading || !query.trim()}>Search</Button>
       </form>
 
+      <div className="mb-2 flex flex-wrap gap-2">
+        {SCOPE_CHIPS.map((chip) => (
+          <Chip
+            key={chip.value}
+            active={scope === chip.value}
+            onClick={() => changeScope(chip.value)}
+          >
+            {chip.label}
+          </Chip>
+        ))}
+      </div>
+
       <div className="mb-4 flex gap-2">
         {(['relevance', 'new', 'top'] as SearchSort[]).map((value) => (
-          <Button
+          <Chip
             key={value}
-            variant={sort === value ? 'primary' : 'secondary'}
-            size="sm"
+            active={sort === value}
             onClick={() => changeSort(value)}
           >
             {value[0].toUpperCase() + value.slice(1)}
-          </Button>
+          </Chip>
         ))}
       </div>
+
+      {results.length > 0 || query ? (
+        <p className="mb-3 text-xs text-[var(--pm-muted-soft)]">
+          {results.length} {results.length === 1 ? 'result' : 'results'}
+          {query ? ` for “${query}”` : ''}
+        </p>
+      ) : null}
 
       {results.length > 0 ? (
         <div className="flex flex-col gap-4">
           {results.map((post, index) => (
-            <FeedCard
+            <PostRow
               key={post.id}
               post={post}
-              currentUserId={currentUserId}
               onClickResult={() => trackEvent('search_click', { query, position: index + 1 })}
             />
           ))}

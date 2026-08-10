@@ -88,15 +88,21 @@ export default async function DevCardRoute({ params }: { params: Promise<{ slug:
   const shareUrl = `${siteUrl()}/u/${user.userslug}/devcard`;
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div className="mx-auto max-w-xl">
+      <div className="mb-4">
         <Link
           href={`/u/${user.userslug}`}
           className="text-sm text-[var(--pm-muted)] transition-colors hover:text-[var(--pm-ink)]"
         >
           ← Back to profile
         </Link>
-        <DevCardActions shareUrl={shareUrl} pngPath={pngPath} userslug={user.userslug} />
+      </div>
+
+      <div className="mb-4 text-center">
+        <h1 className="font-serif text-2xl font-semibold text-[var(--pm-ink)]">Your DevCard</h1>
+        <p className="mt-1 text-[13px] text-[var(--pm-muted)]">
+          A shareable snapshot of your operator reputation.
+        </p>
       </div>
 
       <article className="overflow-hidden rounded-[var(--pm-radius-xl)] border border-[var(--pm-line)] bg-[var(--pm-paper-2)] shadow-[var(--pm-shadow)]">
@@ -108,37 +114,39 @@ export default async function DevCardRoute({ params }: { params: Promise<{ slug:
         </div>
 
         <div className="px-6 pb-6">
-          <div className="-mt-10 flex items-end gap-4">
+          {/* Avatar overlaps the band; the level rides as an ink corner badge
+              (reference pattern) so nothing covers the name. The offset lives
+              on a wrapper because Avatar applies className to its inner root,
+              inside its own badge wrapper span. */}
+          <div className="-mt-10">
             <Avatar
               src={user.pictureUrl ?? undefined}
               alt={user.username}
               fallback={user.fullName || user.username}
               size="xl"
               className="h-20 w-20 border-4 border-[var(--pm-paper-2)] text-xl"
+              badge={
+                <LevelBadge
+                  level={user.levelInfo.level}
+                  size="md"
+                  className="border-[var(--pm-paper-2)]"
+                />
+              }
             />
-            <div className="min-w-0 pb-1">
-              <div className="flex items-center gap-2">
-                <h1 className="truncate font-serif text-2xl font-semibold text-[var(--pm-ink)]">
-                  {user.fullName || user.username}
-                </h1>
-                <LevelBadge level={user.levelInfo.level} size="md" />
-              </div>
-              <p className="truncate text-sm text-[var(--pm-muted)]">
-                @{user.userslug} · Joined {formatJoined(user.joinedAt)}
-              </p>
-            </div>
           </div>
+          <h2 className="mt-3 truncate font-serif text-xl font-semibold text-[var(--pm-ink)]">
+            {user.fullName || user.username}
+          </h2>
+          <p className="mt-1 truncate text-sm text-[var(--pm-muted)]">
+            @{user.userslug} · Joined {formatJoined(user.joinedAt)}
+          </p>
 
-          {/* Stat trio. Level lives on the badge above, so the tiles carry the
-              three numbers an operator actually compares. */}
+          {/* Stat trio per the reference: Points / Solutions / Best streak.
+              Level lives on the avatar badge above. */}
           <div className="mt-6 grid grid-cols-3 gap-3">
-            <Stat label="Posts" value={user.postsCount.toLocaleString()} />
+            <Stat label="Points" value={user.reputationScore.toLocaleString()} />
             <Stat label="Solutions" value={user.acceptedSolutions.toLocaleString()} />
-            <Stat
-              label="Streak"
-              value={streak ? `${streak.current}d` : '—'}
-              hint={streak ? `best ${streak.best}d` : undefined}
-            />
+            <Stat label="Best streak" value={streak ? `${streak.best}d` : '—'} />
           </div>
 
           {streak ? (
@@ -213,7 +221,24 @@ export default async function DevCardRoute({ params }: { params: Promise<{ slug:
             </section>
           ) : null}
         </div>
+
+        {/* Reference footer strip: brand mark left, membership date right. */}
+        <div className="flex items-center justify-between border-t border-[var(--pm-line)] bg-[var(--pm-paper)] px-6 py-3">
+          <span className="flex items-baseline gap-1">
+            <span className="font-serif text-[13px] font-semibold text-[var(--pm-ink)]">
+              operator
+            </span>
+            <span className="text-[10px] font-semibold text-[var(--pm-coral)]">.promptmetrics</span>
+          </span>
+          <span className="font-mono text-[10.5px] text-[var(--pm-muted-soft)]">
+            Since {formatJoined(user.joinedAt)}
+          </span>
+        </div>
       </article>
+
+      {/* Below-card actions per the reference: Copy link outline, Download PNG
+          raspberry filled. */}
+      <DevCardActions shareUrl={shareUrl} pngPath={pngPath} userslug={user.userslug} />
 
       {isOwner ? (
         <p className="mt-4 flex items-start gap-2 rounded-[var(--pm-radius-lg)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-4 py-3 text-[13px] text-[var(--pm-muted)]">
@@ -235,7 +260,7 @@ export default async function DevCardRoute({ params }: { params: Promise<{ slug:
   );
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[var(--pm-radius-lg)] border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-3 text-center">
       <div className="font-serif text-2xl font-semibold leading-tight text-[var(--pm-ink)]">
@@ -244,7 +269,6 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
       <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--pm-muted)]">
         {label}
       </div>
-      {hint ? <div className="text-[10px] text-[var(--pm-muted)]">{hint}</div> : null}
     </div>
   );
 }

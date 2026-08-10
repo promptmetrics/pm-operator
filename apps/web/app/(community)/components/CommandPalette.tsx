@@ -45,6 +45,15 @@ const KIND_ICON: Record<RowKind, typeof Hash> = {
   person: User,
 };
 
+// Reference kind chips: Circle entries get a teal chip, Post entries a
+// raspberry one, people stay neutral.
+const KIND_CHIP_CLASS: Record<RowKind, string> = {
+  circle:
+    'bg-[color-mix(in_srgb,var(--pm-teal)_14%,transparent)] text-[var(--pm-teal-dark)]',
+  post: 'bg-[var(--pm-coral-tint)] text-[var(--pm-coral-dark)]',
+  person: 'border border-[var(--pm-line)] bg-[var(--pm-paper)] text-[var(--pm-muted)]',
+};
+
 function buildRows(results: PaletteResponse): Row[] {
   const rows: Omit<Row, 'index'>[] = [
     ...results.circles.map((circle) => ({
@@ -64,7 +73,7 @@ function buildRows(results: PaletteResponse): Row[] {
       // the slug up and permanentRedirects to /g/{circleSlug}/{postSlug}.
       href: `/p/${post.id}`,
       title: post.title,
-      meta: post.circleName,
+      meta: `▲ ${post.upvotes.toLocaleString()}`,
       avatarUrl: null,
     })),
     ...results.people.map((person) => ({
@@ -87,6 +96,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 
   const [query, setQuery] = React.useState('');
   const [results, setResults] = React.useState<PaletteResponse | null>(null);
+  const [defaults, setDefaults] = React.useState<PaletteResponse | null>(null);
+  const [defaultsFailed, setDefaultsFailed] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [failed, setFailed] = React.useState(false);
   const [active, setActive] = React.useState(0);
@@ -96,7 +107,11 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
   const optionId = (index: number) => `${listId}-option-${index}`;
 
   const trimmed = query.trim();
-  const rows = React.useMemo(() => (results ? buildRows(results) : []), [results]);
+  // Below the search threshold the palette shows default suggestions (the
+  // viewer's circles + top posts) instead of an empty prompt.
+  const searching = trimmed.length >= MIN_QUERY;
+  const source = searching ? results : defaults;
+  const rows = React.useMemo(() => (source ? buildRows(source) : []), [source]);
 
   const groups = React.useMemo(
     () =>
@@ -128,6 +143,25 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       document.body.style.overflow = previousOverflow;
       restoreFocusRef.current?.focus();
     };
+  }, []);
+
+  // Fetch the default suggestions once, on open. The response shape is the
+  // same as a search response; the server fills it from the viewer's circles
+  // and the top posts they can see when q is empty.
+  React.useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch('/api/v1/palette', { signal: controller.signal });
+        if (!res.ok) throw new Error('Palette suggestions failed');
+        const json = (await res.json()) as { data?: PaletteResponse };
+        if (controller.signal.aborted) return;
+        setDefaults(json.data ?? EMPTY_RESULTS);
+      } catch {
+        if (!controller.signal.aborted) setDefaultsFailed(true);
+      }
+    })();
+    return () => controller.abort();
   }, []);
 
   // Debounced, abortable search. The cleanup aborts the in-flight request
@@ -225,13 +259,19 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 
   const status = failed
     ? 'Search is unavailable right now. Try again.'
-    : trimmed.length < MIN_QUERY
-      ? 'Type at least 2 characters to search circles, posts and people.'
-      : loading && rows.length === 0
+    : searching
+      ? loading && rows.length === 0
         ? 'Searching…'
         : rows.length === 0
           ? `No results for “${trimmed}”`
-          : null;
+          : null
+      : defaultsFailed
+        ? 'Suggestions are unavailable right now. Start typing to search.'
+        : defaults === null
+          ? 'Loading suggestions…'
+          : rows.length === 0
+            ? 'Start typing to search circles, posts and people.'
+            : null;
 
   return (
     <div
@@ -397,7 +437,9 @@ function PaletteRow({
         <span className="hidden shrink-0 text-[var(--pm-text-xs)] text-[var(--pm-muted)] sm:inline">{row.meta}</span>
       ) : null}
 
-      <span className="shrink-0 rounded-[var(--pm-radius-pill)] border border-[var(--pm-line)] bg-[var(--pm-paper)] px-2 py-0.5 text-[var(--pm-text-xs)] text-[var(--pm-muted)]">
+      <span
+        className={`shrink-0 rounded-[var(--pm-radius-pill)] px-2 py-0.5 text-[var(--pm-text-xs)] ${KIND_CHIP_CLASS[row.kind]}`}
+      >
         {KIND_LABEL[row.kind]}
       </span>
     </a>

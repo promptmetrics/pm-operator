@@ -11,9 +11,10 @@ import { z } from 'zod';
  */
 
 /**
- * One row in a digest section list. `stat` is the per-item number the UI
- * shows; for every section it is the post's comment count
- * (posts.comment_count) — the engagement signal feed cards already display.
+ * One row in a digest section list. `stat` is the post's comment count
+ * (posts.comment_count); `upvotes`, `solved`, and `createdAt` ride along so
+ * the /digest page can render the reference row shape (▲ votes, ✓ Solved,
+ * age) without a second lookup.
  */
 export const digestSectionItemSchema = z.object({
   id: z.string().uuid(),
@@ -21,6 +22,9 @@ export const digestSectionItemSchema = z.object({
   authorName: z.string(),
   circleName: z.string(),
   stat: z.number().int().nonnegative(),
+  upvotes: z.number().int().nonnegative(),
+  solved: z.boolean(),
+  createdAt: z.string(),
 });
 
 export type DigestSectionItem = z.infer<typeof digestSectionItemSchema>;

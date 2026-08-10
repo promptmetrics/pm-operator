@@ -8,7 +8,7 @@ import { Card } from '@pm-operator/ui/components/Card';
 import { Input } from '@pm-operator/ui/components/Input';
 import type { Group, GroupVisibility } from '@pm-operator/api';
 import { Search, LayoutGrid } from 'lucide-react';
-import DataTable, { type Column } from '@/components/admin/DataTable';
+import DataTable, { TABLE_ACTION_CHIP, type Column } from '@/components/admin/DataTable';
 
 const VISIBILITIES: GroupVisibility[] = ['public', 'invite_only', 'paid'];
 
@@ -164,9 +164,9 @@ export default function AdminGroupsPage() {
         <Link
           href={`/admin/groups/${group.id}`}
           onClick={stopRowClick}
-          className="whitespace-nowrap text-sm text-[var(--pm-coral)] hover:text-[var(--pm-coral-dark)]"
+          className={TABLE_ACTION_CHIP}
         >
-          View &rarr;
+          View
         </Link>
       ),
     },

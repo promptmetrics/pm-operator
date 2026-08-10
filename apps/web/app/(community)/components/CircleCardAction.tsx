@@ -36,7 +36,7 @@ export function CircleCardAction({
     return (
       <span
         data-testid={`circle-joined-${slug}`}
-        className="inline-flex h-8 items-center justify-center gap-1 self-start rounded-lg border border-[var(--pm-line)] bg-[var(--pm-paper)] px-3 text-sm font-medium text-[var(--pm-green)]"
+        className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-[var(--pm-radius-pill)] border border-[var(--pm-line-2)] bg-[var(--pm-paper)] text-[13px] font-semibold text-[var(--pm-ink-2)]"
       >
         <Check className="h-3.5 w-3.5" aria-hidden="true" />
         Joined
@@ -48,9 +48,8 @@ export function CircleCardAction({
     return (
       <Button
         variant="secondary"
-        size="sm"
         asChild
-        className="self-start"
+        className="w-full"
         data-testid={`circle-request-invite-${slug}`}
       >
         <Link href={`/g/${slug}`}>Request invite</Link>
@@ -85,11 +84,10 @@ export function CircleCardAction({
     <Button
       onClick={join}
       disabled={loading}
-      size="sm"
-      className="self-start"
+      className="w-full"
       data-testid={`circle-join-${slug}`}
     >
-      {loading ? 'Joining…' : 'Join'}
+      {loading ? 'Joining…' : 'Join circle'}
     </Button>
   );
 }

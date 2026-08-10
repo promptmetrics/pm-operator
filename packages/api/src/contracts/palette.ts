@@ -2,10 +2,11 @@ import { z } from 'zod';
 
 // ⌘K command-palette search (redesign plan §4.2). Deliberately separate from
 // the /search contract: palette results are small fixed-size buckets with no
-// pagination or sort semantics.
+// pagination or sort semantics. An empty/missing q returns default suggestions
+// (the viewer's circles + top posts) instead of search results.
 
 export const paletteQuerySchema = z.object({
-  q: z.string().trim().min(2).max(64),
+  q: z.string().trim().max(64).optional().default(''),
 });
 
 export type PaletteQuery = z.infer<typeof paletteQuerySchema>;
@@ -24,6 +25,7 @@ export const palettePostSchema = z.object({
   title: z.string(),
   circleSlug: z.string(),
   circleName: z.string(),
+  upvotes: z.number().int(),
 });
 
 export type PalettePost = z.infer<typeof palettePostSchema>;

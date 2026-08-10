@@ -10,6 +10,7 @@ import { Select } from '@pm-operator/ui/components/Select';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { useToast } from '@pm-operator/ui/components/Toast';
 import { FeedCard } from './FeedCard';
+import { PostRow } from './PostRow';
 import { useRealtimeGroup } from './RealtimeProvider';
 import type {
   FeedFilter,
@@ -54,14 +55,19 @@ interface FeedPageProps {
   digestBanner?: React.ReactNode;
   /** Post-onboarding welcome toast (T8.10); rendered only on /feed?welcome=1. */
   welcomeBanner?: React.ReactNode;
+  /**
+   * 'rich' renders full FeedCards; 'compact' renders link-only PostRows
+   * (reference: circle page lists the compact rows).
+   */
+  variant?: 'rich' | 'compact';
 }
 
-const FILTERS: { label: string; value: FeedFilter; swatch?: string }[] = [
+const FILTERS: { label: string; value: FeedFilter }[] = [
   { label: 'All', value: 'all' },
   { label: 'My circles', value: 'my-circles' },
   { label: 'Questions', value: 'questions' },
-  { label: 'Builds', value: 'builds', swatch: 'var(--pm-cat-sales)' },
-  { label: 'Solutions', value: 'solutions', swatch: 'var(--pm-green)' },
+  { label: 'Builds', value: 'builds' },
+  { label: 'Solutions', value: 'solutions' },
   { label: 'Unanswered', value: 'unanswered' },
 ];
 
@@ -89,6 +95,7 @@ export function FeedPage({
   showComposerStrip,
   digestBanner,
   welcomeBanner,
+  variant = 'rich',
 }: FeedPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -281,7 +288,6 @@ export function FeedPage({
             <Chip
               key={f.value}
               active={filter === f.value}
-              swatch={f.swatch}
               onClick={() => changeFilter(f.value)}
             >
               {f.label}
@@ -309,28 +315,40 @@ export function FeedPage({
               className="overflow-hidden rounded-xl"
               style={{ borderLeft: '3px solid var(--pm-cat-sales)' }}
             >
-              <FeedCard
-                post={featuredPost}
-                currentUserId={currentUserId}
-                featuredLabel={featuredPost.featuredLabel ?? 'Featured'}
-              />
+              {variant === 'compact' ? (
+                <PostRow post={featuredPost} />
+              ) : (
+                <FeedCard
+                  post={featuredPost}
+                  currentUserId={currentUserId}
+                  featuredLabel={featuredPost.featuredLabel ?? 'Featured'}
+                />
+              )}
             </div>
           ) : null}
           {showHighlights
             ? (pinnedPosts ?? [])
                 .filter((post) => post.id !== featuredPost?.id)
-                .map((post) => (
-                  <FeedCard
-                    key={`pinned-${post.id}`}
-                    post={post}
-                    currentUserId={currentUserId}
-                    pinned
-                  />
-                ))
+                .map((post) =>
+                  variant === 'compact' ? (
+                    <PostRow key={`pinned-${post.id}`} post={post} />
+                  ) : (
+                    <FeedCard
+                      key={`pinned-${post.id}`}
+                      post={post}
+                      currentUserId={currentUserId}
+                      pinned
+                    />
+                  )
+                )
             : null}
-          {visiblePosts.map((post) => (
-            <FeedCard key={post.id} post={post} currentUserId={currentUserId} />
-          ))}
+          {visiblePosts.map((post) =>
+            variant === 'compact' ? (
+              <PostRow key={post.id} post={post} />
+            ) : (
+              <FeedCard key={post.id} post={post} currentUserId={currentUserId} />
+            )
+          )}
         </div>
 
         {visiblePosts.length === 0 && !showHighlights ? (
@@ -350,8 +368,12 @@ export function FeedPage({
       </div>
 
       <aside className="flex flex-col gap-4">
-        {railTopSlot}
-        {railSlot ?? (
+        {railSlot ? (
+          <>
+            {railTopSlot}
+            {railSlot}
+          </>
+        ) : (
         <>
         <Card>
           <CardContent className="space-y-3">
@@ -378,6 +400,10 @@ export function FeedPage({
             )}
           </CardContent>
         </Card>
+
+        {/* Reference rail order: "Top operators" first, then "Help someone
+            today" (railTopSlot), then the level-up explainer. */}
+        {railTopSlot}
 
         <Card>
           <CardContent className="space-y-3">

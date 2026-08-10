@@ -283,7 +283,7 @@ function SingleComment({
                 </span>
               ) : null}
               <span className="text-[var(--pm-muted)]">
-                {comment.author.reputationScore} pts · {timeAgo(comment.createdAt)}
+                Lv {comment.author.level} · {timeAgo(comment.createdAt)}
               </span>
               {isAccepted ? (
                 <Badge variant="green" className="gap-1">
@@ -555,7 +555,7 @@ export function AcceptedSolutionCard({
           {comment.author.username}
         </Link>
         <span className="text-[var(--pm-muted)]">
-          {comment.author.reputationScore} pts · {timeAgo(comment.createdAt)}
+          Lv {comment.author.level} · {timeAgo(comment.createdAt)}
         </span>
       </div>
 

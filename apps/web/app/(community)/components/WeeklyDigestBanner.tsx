@@ -48,12 +48,12 @@ export function WeeklyDigestBanner({ digest }: { digest: WeeklyDigestData }) {
   };
 
   return (
-    <div className="mb-4 flex items-center gap-3 rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-4 py-3 shadow-[var(--pm-shadow)]">
+    <div className="relative mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] px-4 py-3 shadow-[var(--pm-shadow)]">
       <Sparkles
         className="h-4 w-4 shrink-0 text-[var(--pm-coral)]"
         aria-hidden="true"
       />
-      <p className="min-w-0 flex-1 text-sm text-[var(--pm-ink-2)]">
+      <p className="min-w-0 flex-1 basis-56 text-sm text-[var(--pm-ink-2)]">
         <span className="font-medium text-[var(--pm-ink)]">This week:</span>{' '}
         {posts} {posts === 1 ? 'post' : 'posts'} · {solutionsAccepted}{' '}
         {solutionsAccepted === 1 ? 'solution' : 'solutions'} accepted
@@ -69,9 +69,11 @@ export function WeeklyDigestBanner({ digest }: { digest: WeeklyDigestData }) {
           </>
         ) : null}
       </p>
+      {/* At 375px the CTA wraps to its own full-width row instead of cramping
+          the summary text into a narrow column. */}
       <Link
         href="/digest"
-        className="shrink-0 rounded-lg px-2 py-1 text-sm font-medium text-[var(--pm-ink)] hover:bg-[var(--pm-paper-2)]"
+        className="shrink-0 rounded-lg px-2 py-1 text-sm font-medium text-[var(--pm-ink)] hover:bg-[var(--pm-paper-2)] max-sm:w-full max-sm:text-center"
       >
         View weekly digest →
       </Link>
@@ -79,7 +81,7 @@ export function WeeklyDigestBanner({ digest }: { digest: WeeklyDigestData }) {
         type="button"
         onClick={dismiss}
         aria-label="Dismiss weekly digest banner"
-        className="shrink-0 rounded-lg p-1 text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]"
+        className="shrink-0 rounded-lg p-1 text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)] max-sm:absolute max-sm:right-3 max-sm:top-3"
       >
         <X className="h-4 w-4" aria-hidden="true" />
       </button>

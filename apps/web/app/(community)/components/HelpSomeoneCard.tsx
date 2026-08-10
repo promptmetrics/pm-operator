@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { unstable_cache } from 'next/cache';
 import { HeartHandshake } from 'lucide-react';
 import { Card, CardContent, CardTitle } from '@pm-operator/ui/components/Card';
-import { FeedFilter, FeedSort } from '@pm-operator/api';
+import { FeedFilter, FeedSort, POINT_WEIGHTS } from '@pm-operator/api';
 import { createServiceDb } from '@/lib/db';
 import { listFeed } from '@/lib/services/posts';
 import { timeAgo } from '@/lib/format';
@@ -52,13 +52,22 @@ export function HelpSomeoneCard({ items }: { items: HelpQueueItem[] }) {
   return (
     <Card data-testid="help-someone-card">
       <CardContent className="space-y-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <HeartHandshake className="h-4 w-4 text-[var(--pm-coral)]" aria-hidden="true" />
-          Help someone today
-        </CardTitle>
-        <ul className="space-y-3">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <HeartHandshake className="h-4 w-4 text-[var(--pm-coral)]" aria-hidden="true" />
+            Help someone today
+          </CardTitle>
+          <p className="mt-1 text-xs text-[var(--pm-muted)]">
+            Answer an open question — accepted solutions earn{' '}
+            <strong className="font-semibold text-[var(--pm-teal-dark)]">
+              +{POINT_WEIGHTS.solution_accepted} pts
+            </strong>
+            .
+          </p>
+        </div>
+        <ul className="divide-y divide-[var(--pm-line)] border-t border-[var(--pm-line)]">
           {items.map((item) => (
-            <li key={item.id} className="text-sm">
+            <li key={item.id} className="py-2.5 text-sm">
               <Link
                 href={item.href}
                 className="font-medium text-[var(--pm-ink)] hover:text-[var(--pm-coral)]"

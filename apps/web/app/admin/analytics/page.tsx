@@ -164,7 +164,7 @@ export default function AnalyticsOverviewPage() {
           <div className="flex items-end justify-center">
             <SparklineChart
               data={memberGrowth.map((p) => p.count)}
-              color="var(--pm-coral)"
+              color="var(--pm-teal)"
               height={80}
               width={300}
             />
@@ -182,7 +182,7 @@ export default function AnalyticsOverviewPage() {
           <div className="flex items-end justify-center">
             <SparklineChart
               data={postGrowth.map((p) => p.count)}
-              color="var(--pm-coral)"
+              color="var(--pm-teal)"
               height={80}
               width={300}
             />

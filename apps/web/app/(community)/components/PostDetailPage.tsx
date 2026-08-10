@@ -68,11 +68,13 @@ const typeLabel: Record<string, string> = {
   lesson: 'Lesson',
 };
 
-const typeChipColor: Record<string, string> = {
-  question: 'text-[var(--pm-blue,#2f5675)]',
-  build: 'text-[var(--pm-coral-dark)]',
-  discussion: 'text-[var(--pm-ink-2)]',
-  lesson: 'text-[var(--pm-ink-2)]',
+// Reference chip: title-case tinted pill (mono 11px), not an uppercase solid
+// chip. Question = blue tint, Build = raspberry tint, the rest neutral.
+const typeChipClass: Record<string, string> = {
+  question: 'bg-[var(--pm-blue-bg)] text-[var(--pm-blue)]',
+  build: 'bg-[var(--pm-coral-tint)] text-[var(--pm-coral-dark)]',
+  discussion: 'bg-[var(--pm-paper-2)] text-[var(--pm-muted)]',
+  lesson: 'bg-[var(--pm-paper-2)] text-[var(--pm-muted)]',
 };
 
 export function PostDetailPage({
@@ -351,12 +353,12 @@ export function PostDetailPage({
         <article className="rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-6 shadow-[var(--pm-shadow)]">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <span
-              className={`rounded-[var(--pm-radius-pill)] bg-[var(--pm-paper-2)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] ${typeChipColor[post.type] ?? 'text-[var(--pm-ink-2)]'}`}
+              className={`rounded-[var(--pm-radius-pill)] px-2.5 py-0.5 font-mono text-[11px] font-medium ${typeChipClass[post.type] ?? 'bg-[var(--pm-paper-2)] text-[var(--pm-muted)]'}`}
             >
               {typeLabel[post.type] ?? post.type}
             </span>
             {acceptedId ? (
-              <span className="rounded-[var(--pm-radius-pill)] bg-[var(--pm-green-bg)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[var(--pm-green)]">
+              <span className="rounded-[var(--pm-radius-pill)] bg-[color-mix(in_srgb,var(--pm-teal)_14%,transparent)] px-2.5 py-0.5 font-mono text-[11px] font-medium text-[var(--pm-teal-dark)]">
                 ✓ Solved
               </span>
             ) : null}
@@ -403,7 +405,7 @@ export function PostDetailPage({
               {post.author.username}
             </Link>
             <span>
-              {post.author.reputationScore} pts · {post.author.acceptedSolutions} solutions ·{' '}
+              Lv {post.author.level} · {post.author.acceptedSolutions} solutions ·{' '}
               {timeAgo(post.createdAt)}
             </span>
           </div>
@@ -625,50 +627,53 @@ export function PostDetailPage({
 
       <aside className="flex flex-col gap-4 lg:sticky lg:top-24" aria-label="About this circle">
         <div className={railCardClass}>
-          <div className="mb-2 flex items-center gap-2.5">
+          <div className="mb-2.5 flex items-center gap-2.5">
+            {/* Reference: colored tile icon (posts/mo isn't in the post
+                payload's group shape, so the meta line is members only). */}
             <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              className="h-[34px] w-[34px] shrink-0 rounded-[10px]"
               style={{ backgroundColor: post.group.color ?? 'var(--pm-coral)' }}
               aria-hidden="true"
             />
-            <Link
-              href={`/g/${post.group.slug}`}
-              className="font-serif text-base font-semibold hover:text-[var(--pm-coral-dark)]"
-            >
-              {post.group.name}
-            </Link>
+            <div className="min-w-0">
+              <Link
+                href={`/g/${post.group.slug}`}
+                className="block truncate text-sm font-semibold text-[var(--pm-ink)] hover:text-[var(--pm-coral-dark)]"
+              >
+                {post.group.name}
+              </Link>
+              <p className="text-[11.5px] text-[var(--pm-muted-soft)]">
+                {post.group.memberCount} members
+              </p>
+            </div>
           </div>
           {post.group.description ? (
             <p className="mb-3 text-[13px] leading-relaxed text-[var(--pm-muted)]">
               {post.group.description}
             </p>
           ) : null}
-          <p className="mb-3 text-xs text-[var(--pm-muted)]">
-            <strong className="font-semibold text-[var(--pm-ink-2)]">
-              {post.group.memberCount}
-            </strong>{' '}
-            members
-          </p>
           <GroupMembershipButton
             slug={post.group.slug}
             initialIsMember={viewerIsMember}
             isLoggedIn={Boolean(currentUserId)}
+            joinedLabel="✓ Joined"
+            className="w-full"
           />
         </div>
 
         {morePosts.length > 0 ? (
           <div className={railCardClass}>
-            <h2 className="mb-3 font-serif text-base font-semibold">More from this circle</h2>
-            <div className="flex flex-col gap-3">
+            <h2 className="mb-1 font-serif text-base font-semibold">More from this circle</h2>
+            <div className="flex flex-col divide-y divide-[var(--pm-line)]">
               {morePosts.map((p) => (
                 <Link
                   key={p.id}
                   href={`/g/${p.group.slug}/${p.slug}`}
-                  className="block text-[var(--pm-ink)] hover:text-[var(--pm-coral-dark)]"
+                  className="block py-2.5 text-[var(--pm-ink)] hover:text-[var(--pm-coral-dark)]"
                 >
                   <span className="block text-[13px] font-semibold leading-snug">{p.title}</span>
-                  <span className="block text-xs text-[var(--pm-muted)]">
-                    ▲ {p.upvotes} · {p.commentCount} comments
+                  <span className="mt-0.5 block text-xs text-[var(--pm-muted-soft)]">
+                    ▲ {p.upvotes} · {timeAgo(p.createdAt)}
                   </span>
                 </Link>
               ))}

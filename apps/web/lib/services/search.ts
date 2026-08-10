@@ -28,7 +28,8 @@ export async function searchPosts(
   db: DrizzleClient,
   query: SearchQuery,
   currentUserId?: string,
-  postType?: PostType
+  postType?: PostType,
+  solvedOnly?: boolean
 ): Promise<SearchResponse> {
   const { q, groupSlug, tags, sort, page, limit } = query;
   const tsQuery = q
@@ -59,6 +60,9 @@ export async function searchPosts(
   }
   if (postType) {
     conditions.push(eq(schema.posts.type, postType));
+  }
+  if (solvedOnly) {
+    conditions.push(sql`${schema.posts.acceptedCommentId} is not null`);
   }
   if (tags && tags.length > 0) {
     conditions.push(
@@ -173,6 +177,13 @@ export async function getPaletteResults(
   q: string,
   viewerId?: string
 ): Promise<PaletteResponse> {
+  // Default suggestions: before the first keystroke (or below the 2-char
+  // search threshold) the palette shows the viewer's circles and the top
+  // posts they can see, mirroring the redesign reference.
+  if (q.length < 2) {
+    return getPaletteDefaults(db, viewerId);
+  }
+
   const likeTerm = escapeLikePattern(q);
 
   // (1) Circles: name contains-match, scoped to groups the viewer can see.
@@ -234,7 +245,75 @@ export async function getPaletteResults(
       title: r.title,
       circleSlug: r.group.slug,
       circleName: r.group.name,
+      upvotes: r.upvotes,
     })),
     people,
+  };
+}
+
+// Default palette suggestions (q empty or below the search threshold): the
+// viewer's own circles plus the top posts they can see. Same pool discipline
+// as getPaletteResults — sequential awaits, one connection at a time.
+async function getPaletteDefaults(
+  db: DrizzleClient,
+  viewerId?: string
+): Promise<PaletteResponse> {
+  const circleSelect = {
+    id: schema.groups.id,
+    slug: schema.groups.slug,
+    name: schema.groups.name,
+    memberCount: schema.groups.memberCount,
+  };
+
+  // (1) The viewer's circles first; a member with no memberships yet gets the
+  // largest circles they can see rather than an empty group.
+  let circleRows = viewerId
+    ? await db
+        .select(circleSelect)
+        .from(schema.groupMemberships)
+        .innerJoin(schema.groups, eq(schema.groups.id, schema.groupMemberships.groupId))
+        .where(eq(schema.groupMemberships.userId, viewerId))
+        .orderBy(desc(schema.groups.memberCount))
+        .limit(3)
+    : [];
+  if (circleRows.length === 0) {
+    circleRows = await db
+      .select(circleSelect)
+      .from(schema.groups)
+      .where(groupVisibilityFilter(viewerId))
+      .orderBy(desc(schema.groups.memberCount))
+      .limit(3);
+  }
+
+  // (2) Top posts the viewer can see.
+  const postRows = await db
+    .select({
+      id: schema.posts.id,
+      title: schema.posts.title,
+      upvotes: schema.posts.upvotes,
+      groupSlug: schema.groups.slug,
+      groupName: schema.groups.name,
+    })
+    .from(schema.posts)
+    .innerJoin(schema.groups, eq(schema.posts.groupId, schema.groups.id))
+    .where(postVisibilityFilter(viewerId))
+    .orderBy(desc(schema.posts.upvotes), desc(schema.posts.createdAt))
+    .limit(5);
+
+  return {
+    circles: circleRows.map((g) => ({
+      id: g.id,
+      slug: g.slug,
+      name: g.name,
+      memberCount: toNumber(g.memberCount),
+    })),
+    posts: postRows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      circleSlug: r.groupSlug,
+      circleName: r.groupName,
+      upvotes: r.upvotes,
+    })),
+    people: [],
   };
 }

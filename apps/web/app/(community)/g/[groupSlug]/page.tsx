@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { eq, and } from 'drizzle-orm';
-import { Check, Lock, Settings } from 'lucide-react';
+import { Lock, Settings } from 'lucide-react';
 import * as schema from '@pm-operator/db';
 import { Button } from '@pm-operator/ui/components/Button';
 import { createServiceDb } from '@/lib/db';
@@ -29,13 +29,15 @@ function formatPercent(rate: number): string {
   return `${Math.round(rate * 100)}%`;
 }
 
-function BannerStat({ value, label }: { value: string; label: string }) {
+function BannerStat({ value, label, teal = false }: { value: string; label: string; teal?: boolean }) {
   return (
-    <div className="text-center">
-      <div className="font-serif text-[22px] font-semibold text-[var(--pm-ink)]">{value}</div>
-      <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--pm-muted)]">
-        {label}
+    <div>
+      <div
+        className={`font-mono text-lg font-semibold ${teal ? 'text-[var(--pm-teal-dark)]' : 'text-[var(--pm-ink)]'}`}
+      >
+        {value}
       </div>
+      <div className="mt-0.5 text-[11.5px] text-[var(--pm-muted)]">{label}</div>
     </div>
   );
 }
@@ -142,81 +144,80 @@ export default async function GroupRoute({
 
   return (
     <div>
-      <div className="mx-auto mb-6 max-w-6xl rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-2)] p-6 shadow-[var(--pm-shadow)]">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
-          <div className="flex min-w-0 flex-1 items-center gap-4">
-            <span
-              className="flex h-[62px] w-[62px] shrink-0 items-center justify-center rounded-xl font-serif text-[26px] font-semibold text-[var(--pm-on-ink)]"
-              style={{ backgroundColor: group.color ?? 'var(--pm-coral)' }}
-              aria-hidden="true"
-            >
-              {group.name.charAt(0).toUpperCase()}
-            </span>
-            <div className="min-w-0">
-              <div className="mb-0.5 text-xs text-[var(--pm-muted)]">
-                <Link href="/feed" className="hover:text-[var(--pm-ink)]">
-                  Feed
-                </Link>
-                {' / circle'}
-              </div>
-              <div className="mb-1 flex flex-wrap items-center gap-2">
-                <h1 className="truncate font-serif text-[28px] font-semibold leading-tight text-[var(--pm-ink)]">
-                  {group.name}
-                </h1>
-                {/* Same markers as the directory card: 🔒 for invite-only,
-                    ✓ Joined for members. */}
-                <span className="inline-flex items-center gap-1 rounded-full border border-[var(--pm-line)] bg-[var(--pm-paper)] px-2 py-0.5 text-xs capitalize text-[var(--pm-muted)]">
-                  {group.visibility === 'invite_only' ? (
-                    <Lock className="h-3 w-3" aria-hidden="true" />
-                  ) : null}
-                  {group.visibility.replace('_', ' ')}
-                </span>
-                {membership ? (
-                  <span
-                    data-testid="circle-header-joined"
-                    className="inline-flex items-center gap-1 rounded-full border border-[var(--pm-line)] bg-[var(--pm-paper)] px-2 py-0.5 text-xs font-medium text-[var(--pm-green)]"
-                  >
-                    <Check className="h-3 w-3" aria-hidden="true" />
-                    Joined
-                  </span>
+      <div className="mx-auto mb-6 max-w-6xl rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-6 shadow-[var(--pm-shadow)]">
+        <p className="mb-3 text-xs text-[var(--pm-muted)]">
+          <Link href="/feed" className="hover:text-[var(--pm-ink)]">
+            Feed
+          </Link>
+          <span aria-hidden="true"> / </span>
+          Circles
+        </p>
+        <div className="flex flex-wrap items-start gap-4">
+          <span
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] font-serif text-2xl font-semibold text-[var(--pm-on-ink)]"
+            style={{ backgroundColor: group.color ?? 'var(--pm-coral)' }}
+            aria-hidden="true"
+          >
+            {group.name.charAt(0).toUpperCase()}
+          </span>
+          <div className="min-w-[220px] flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-serif text-2xl font-semibold leading-tight text-[var(--pm-ink)]">
+                {group.name}
+              </h1>
+              {/* Live extra: visibility marker, same as the directory card. */}
+              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--pm-line)] bg-[var(--pm-paper)] px-2 py-0.5 text-xs capitalize text-[var(--pm-muted)]">
+                {group.visibility === 'invite_only' ? (
+                  <Lock className="h-3 w-3" aria-hidden="true" />
                 ) : null}
-              </div>
-              {group.description ? (
-                <p className="text-sm text-[var(--pm-muted)]">{group.description}</p>
-              ) : null}
+                {group.visibility.replace('_', ' ')}
+              </span>
             </div>
+            {group.description ? (
+              <p className="mt-1 max-w-[56ch] text-sm text-[var(--pm-muted)]">{group.description}</p>
+            ) : null}
           </div>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            {/* Stat trio matches the directory card: members · posts this
-                month · solved rate, with — when there are no questions yet. */}
-            <div
-              data-testid="circle-header-stats"
-              className="flex items-center gap-x-6"
-            >
-              <BannerStat value={group.memberCount.toLocaleString()} label="Members" />
-              <BannerStat value={stats.postsThisMonth.toLocaleString()} label="Posts / mo" />
-              <BannerStat
-                value={stats.solvedRate !== null ? formatPercent(stats.solvedRate) : '—'}
-                label="Solved rate"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              {canInvite ? <GroupInviteButton slug={slug} /> : null}
-              {canManage ? (
-                <Button variant="secondary" asChild className="gap-1">
-                  <Link href="/admin/groups">
-                    <Settings className="h-4 w-4" aria-hidden="true" />
-                    Manage
-                  </Link>
-                </Button>
-              ) : null}
+          <div className="flex items-center gap-2">
+            {canInvite ? <GroupInviteButton slug={slug} /> : null}
+            {canManage ? (
+              <Button variant="secondary" asChild className="gap-1">
+                <Link href="/admin/groups">
+                  <Settings className="h-4 w-4" aria-hidden="true" />
+                  Manage
+                </Link>
+              </Button>
+            ) : null}
+            {membership ? (
+              <span data-testid="circle-header-joined" className="contents">
+                <GroupMembershipButton
+                  slug={slug}
+                  initialIsMember
+                  isLoggedIn={Boolean(currentUserId)}
+                  joinedLabel="✓ Joined"
+                />
+              </span>
+            ) : (
               <GroupMembershipButton
                 slug={slug}
-                initialIsMember={Boolean(membership)}
+                initialIsMember={false}
                 isLoggedIn={Boolean(currentUserId)}
               />
-            </div>
+            )}
           </div>
+        </div>
+        {/* Stat trio below the divider, per reference: members · posts this
+            month · solved rate, with — when there are no questions yet. */}
+        <div
+          data-testid="circle-header-stats"
+          className="mt-4 flex items-center gap-7 border-t border-[var(--pm-line)] pt-4"
+        >
+          <BannerStat value={group.memberCount.toLocaleString()} label="Members" />
+          <BannerStat value={stats.postsThisMonth.toLocaleString()} label="Posts / mo" />
+          <BannerStat
+            teal
+            value={stats.solvedRate !== null ? formatPercent(stats.solvedRate) : '—'}
+            label="Solved rate"
+          />
         </div>
       </div>
 
@@ -258,6 +259,7 @@ export default async function GroupRoute({
         groupSlug={slug}
         viewerUsername={currentUser?.username}
         showComposerStrip={Boolean(membership) || canInvite}
+        variant="compact"
         railSlot={
           <>
             <UpcomingEventsRail events={upcomingEvents} />

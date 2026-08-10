@@ -10,9 +10,22 @@ interface GroupMembershipButtonProps {
   slug: string;
   initialIsMember: boolean;
   isLoggedIn: boolean;
+  /**
+   * Label shown while a member (default "Leave circle"). The accessible name
+   * stays "Leave circle" so the click target is unambiguous — the redesign's
+   * "✓ Joined" state is visual only.
+   */
+  joinedLabel?: string;
+  className?: string;
 }
 
-export function GroupMembershipButton({ slug, initialIsMember, isLoggedIn }: GroupMembershipButtonProps) {
+export function GroupMembershipButton({
+  slug,
+  initialIsMember,
+  isLoggedIn,
+  joinedLabel = 'Leave circle',
+  className,
+}: GroupMembershipButtonProps) {
   const router = useRouter();
   const [isMember, setIsMember] = React.useState(initialIsMember);
   const [loading, setLoading] = React.useState(false);
@@ -47,8 +60,14 @@ export function GroupMembershipButton({ slug, initialIsMember, isLoggedIn }: Gro
   };
 
   return (
-    <Button onClick={toggle} disabled={loading} variant={isMember ? 'secondary' : 'primary'}>
-      {loading ? 'Saving...' : isMember ? 'Leave circle' : 'Join circle'}
+    <Button
+      onClick={toggle}
+      disabled={loading}
+      variant={isMember ? 'secondary' : 'primary'}
+      aria-label={isMember ? 'Leave circle' : undefined}
+      className={className}
+    >
+      {loading ? 'Saving...' : isMember ? joinedLabel : 'Join circle'}
     </Button>
   );
 }

@@ -121,7 +121,7 @@ test('the profile shows four stat tiles and a level progress bar', async ({ page
   await expect(tiles).toHaveCount(4);
 
   // Every tile carries its own label, so each one is addressable on its own.
-  for (const label of ['Points', 'Solutions', 'Posts', 'Day streak']) {
+  for (const label of ['Points', 'Posts', 'Solutions', 'Streak']) {
     await expect(tiles.filter({ hasText: label })).toHaveCount(1);
   }
 
@@ -134,14 +134,14 @@ test('the profile shows four stat tiles and a level progress bar', async ({ page
 
   expect(await tileValue('Posts')).toBe(1);
   expect(await tileValue('Solutions')).toBe(0);
-  expect(await tileValue('Day streak')).toBe(1);
+  expect(await tileValue('Streak')).toBe(1);
   // The post is worth 10, and the first activity of the day also lands a
   // streak bonus, so pin the floor rather than an exact total.
   expect(await tileValue('Points')).toBeGreaterThanOrEqual(10);
 
   const progressSection = page.getByTestId('level-progress');
   await expect(progressSection).toBeVisible();
-  await expect(progressSection).toContainText('Level 1');
+  await expect(progressSection).toContainText('Level progress');
 
   const bar = progressSection.getByRole('progressbar');
   await expect(bar).toBeVisible();

@@ -7,7 +7,7 @@ import { Button } from '@pm-operator/ui/components/Button';
 import { Input } from '@pm-operator/ui/components/Input';
 import { useToast } from '@pm-operator/ui/components/Toast';
 import { Ticket } from 'lucide-react';
-import DataTable, { type Column } from '@/components/admin/DataTable';
+import DataTable, { TABLE_ACTION_CHIP, type Column } from '@/components/admin/DataTable';
 
 const ROLES = ['member', 'moderator', 'admin'] as const;
 
@@ -180,14 +180,14 @@ export default function AdminInvitesPage() {
       label: 'Actions',
       align: 'right',
       render: (invite) => (
-        <Button
-          variant="secondary"
-          size="sm"
+        <button
+          type="button"
+          className={TABLE_ACTION_CHIP}
           onClick={() => revokeInvite(invite.id)}
           disabled={isExpired(invite.expiresAt)}
         >
           Revoke
-        </Button>
+        </button>
       ),
     },
   ];

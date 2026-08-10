@@ -19,7 +19,7 @@ import {
 // warmed that entry legitimately reads 0 until it revalidates. Exact aggregate
 // correctness is covered by e2e/groups-list-stats.vitest.ts; this spec asserts
 // the trio RENDERS and that the action states are right.
-const STAT_TRIO = /\d[\d,]* members · \d[\d,]* posts\/mo · (\d+% solved|—)/;
+const STAT_TRIO = /\d[\d,]* members · \d[\d,]*\/mo · (\d+% solved|—)/;
 const RAIL_COUNT = /^\d[\d,]* posts this month$/;
 
 const db = serviceDb();
