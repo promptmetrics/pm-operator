@@ -1,8 +1,8 @@
 export {
   createCommunityMcpServer,
   createMcpHandler,
+  getOAuthProtectedResourceMetadataUrl,
   type CommunityMcpServerOptions,
-  type McpHandlerConfig,
   type McpLogger,
 } from './server';
 

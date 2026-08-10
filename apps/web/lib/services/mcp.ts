@@ -221,8 +221,12 @@ export function createMcpServices(db: DrizzleClient, logger: Logger): McpService
   }
 }
 
-function toServicePeriod(period: string): 'all_time' | 'weekly' {
+// Matches LeaderboardWindow — weekly and monthly are materialized by the
+// points trigger (migration 0010); quarterly is not, so it falls back to
+// all_time (and the MCP enum no longer offers it).
+function toServicePeriod(period: string): 'all_time' | 'weekly' | 'monthly' {
   if (period === 'weekly') return 'weekly';
+  if (period === 'monthly') return 'monthly';
   return 'all_time';
 }
 
