@@ -98,10 +98,17 @@ export default async function DevCardRoute({ params }: { params: Promise<{ slug:
         </Link>
       </div>
 
+      {/* Page label, not the page heading — this route is public, so the h1
+          belongs to the operator name on the card below, and the copy has to
+          read for a stranger arriving from a shared link, not just the owner. */}
       <div className="mb-4 text-center">
-        <h1 className="font-serif text-2xl font-semibold text-[var(--pm-ink)]">Your DevCard</h1>
+        <p className="font-serif text-2xl font-semibold text-[var(--pm-ink)]">
+          {isOwner ? 'Your DevCard' : `${user.fullName || user.username}’s DevCard`}
+        </p>
         <p className="mt-1 text-[13px] text-[var(--pm-muted)]">
-          A shareable snapshot of your operator reputation.
+          {isOwner
+            ? 'A shareable snapshot of your operator reputation.'
+            : 'A shareable snapshot of this operator’s reputation.'}
         </p>
       </div>
 
@@ -134,9 +141,9 @@ export default async function DevCardRoute({ params }: { params: Promise<{ slug:
               }
             />
           </div>
-          <h2 className="mt-3 truncate font-serif text-xl font-semibold text-[var(--pm-ink)]">
+          <h1 className="mt-3 truncate font-serif text-xl font-semibold text-[var(--pm-ink)]">
             {user.fullName || user.username}
-          </h2>
+          </h1>
           <p className="mt-1 truncate text-sm text-[var(--pm-muted)]">
             @{user.userslug} · Joined {formatJoined(user.joinedAt)}
           </p>
