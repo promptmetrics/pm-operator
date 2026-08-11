@@ -31,6 +31,10 @@ export const postTypeEnum = pgEnum('post_type', [
 export const postStatusEnum = pgEnum('post_status', ['published', 'draft', 'flagged', 'hidden', 'deleted']);
 export const commentStatusEnum = pgEnum('comment_status', ['published', 'hidden', 'deleted']);
 export const reactionTypeEnum = pgEnum('reaction_type', ['like', 'celebrate']);
+// Flags and the moderation queue only ever target content. Audit logs need a
+// wider vocabulary (settings, groups, users…), so they use auditTargetTypeEnum
+// below rather than widening this one — flags.targetType is narrowed to the API's
+// FlagTargetType on read, so extra members here break that mapping.
 export const targetTypeEnum = pgEnum('target_type', ['post', 'comment', 'message']);
 export const pointEventTypeEnum = pgEnum('point_event_type', [
   'topic_created',
@@ -653,6 +657,11 @@ export const messages = pgTable(
 ).enableRLS();
 
 // Audit log for admin/moderator actions (Sprint 3: Moderation & Content).
+// The first seven are moderation actions. The rest are admin actions, added
+// 2026-08-11: the routes had always passed them, but they were missing here, so
+// Postgres rejected every insert AFTER the mutation had already committed — the
+// change landed and the request 500'd. Adding an action here is now mandatory,
+// since adminCreateAuditLog derives its parameter type from this enum.
 export const auditLogActionEnum = pgEnum('audit_log_action', [
   'flag_resolved',
   'flag_dismissed',
@@ -661,6 +670,28 @@ export const auditLogActionEnum = pgEnum('audit_log_action', [
   'user_warned',
   'user_banned',
   'content_hidden',
+  'settings_update',
+  'mcp_client_revoke',
+  'update_group',
+  'delete_group',
+  'update_user_role',
+  'delete_user',
+  'create_invite',
+  'revoke_invite',
+]);
+
+// Audit-log targets. Deliberately separate from targetTypeEnum: that one belongs
+// to flags/moderation, which only ever point at content, and widening it changes
+// the inferred select type there too.
+export const auditTargetTypeEnum = pgEnum('audit_target_type', [
+  'post',
+  'comment',
+  'message',
+  'settings',
+  'group',
+  'mcp_client',
+  'user',
+  'invite',
 ]);
 
 export const auditLogs = pgTable(
@@ -671,7 +702,7 @@ export const auditLogs = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'set null' }),
     action: auditLogActionEnum('action').notNull(),
-    targetType: targetTypeEnum('target_type'),
+    targetType: auditTargetTypeEnum('target_type'),
     targetId: uuid('target_id'),
     targetUserId: uuid('target_user_id').references(() => users.id, { onDelete: 'set null' }),
     circleId: uuid('circle_id').references(() => groups.id, { onDelete: 'set null' }),

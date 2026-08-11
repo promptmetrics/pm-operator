@@ -495,12 +495,21 @@ export async function adminListAgentActions(
 }
 
 // Audit log
+//
+// action and targetType are typed off the table's own insert type rather than
+// `string`. They used to be `string` with `as any` at the insert, which compiled
+// fine and then failed in Postgres against the audit_log_action / target_type
+// enums — every caller passing an unlisted action wrote its row and THEN threw,
+// so the mutation landed and the request still 500'd. Keep these derived: adding
+// an action now means adding the enum value too, or it does not build.
+type AuditLogInsert = typeof schema.auditLogs.$inferInsert;
+
 export async function adminCreateAuditLog(
   db: DrizzleClient,
   input: {
     actorId: string;
-    action: string;
-    targetType?: string | null;
+    action: AuditLogInsert['action'];
+    targetType?: AuditLogInsert['targetType'] | null;
     targetId?: string | null;
     targetUserId?: string | null;
     circleId?: string | null;
@@ -509,12 +518,12 @@ export async function adminCreateAuditLog(
 ): Promise<void> {
   await db.insert(schema.auditLogs).values({
     actorId: input.actorId,
-    action: input.action as any,
-    targetType: input.targetType as any ?? null,
+    action: input.action,
+    targetType: input.targetType ?? null,
     targetId: input.targetId ?? null,
     targetUserId: input.targetUserId ?? null,
     circleId: input.circleId ?? null,
-    details: (input.details ?? {}) as any,
+    details: input.details ?? {},
   });
 }
 export async function adminGetGroup(
@@ -996,13 +1005,12 @@ function generateInviteCode(): string {
   }
   return code;
 }
+// No `branding` section: the logo and favicon are shipped assets
+// (packages/ui/src/components/Logo.tsx, app/icon.svg), not settings. The old
+// branding.logoUrl/coverUrl/faviconUrl were written by two admin screens and read
+// by nothing, and this install is single-tenant, so there is no case for making
+// them configurable. Removed 2026-08-11.
 export interface CommunitySettings {
-  branding: {
-    name: string;
-    logoUrl: string | null;
-    coverUrl: string | null;
-    faviconUrl: string | null;
-  };
   privacy: {
     defaultVisibility: string;
     publicRegistration: boolean;
@@ -1029,12 +1037,6 @@ export interface CommunitySettings {
 }
 
 const DEFAULT_SETTINGS: CommunitySettings = {
-  branding: {
-    name: 'PromptMetrics',
-    logoUrl: null,
-    coverUrl: null,
-    faviconUrl: null,
-  },
   privacy: {
     defaultVisibility: 'public',
     publicRegistration: true,
@@ -1078,7 +1080,6 @@ export async function adminGetSettings(
   }
 
   return {
-    branding: { ...DEFAULT_SETTINGS.branding, ...(stored.branding as Partial<typeof DEFAULT_SETTINGS.branding> ?? {}) },
     privacy: { ...DEFAULT_SETTINGS.privacy, ...(stored.privacy as Partial<typeof DEFAULT_SETTINGS.privacy> ?? {}) },
     onboarding: { ...DEFAULT_SETTINGS.onboarding, ...(stored.onboarding as Partial<typeof DEFAULT_SETTINGS.onboarding> ?? {}) },
     notifications: { ...DEFAULT_SETTINGS.notifications, ...(stored.notifications as Partial<typeof DEFAULT_SETTINGS.notifications> ?? {}) },

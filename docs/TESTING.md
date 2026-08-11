@@ -43,6 +43,18 @@ pnpm --filter @pm-operator/web test:e2e
 
 Playwright config is in `apps/web/playwright.config.mjs`. It runs serially (`workers: 1`) because tests share a single test database and clean up users in `afterEach`.
 
+CI does not need the two-shell dance: it sets `PLAYWRIGHT_WEB_SERVER=1`, which makes Playwright start `pnpm start` itself (`playwright.config.mjs:29-37`). That variable is unset locally, so a local run expects a server you started.
+
+### Local gotchas
+
+Three things that produce confusing failures rather than clear ones:
+
+- **`playwright` on your PATH is probably the wrong binary.** On a Mac with Homebrew, `/opt/homebrew/bin/playwright` is the **Python** Playwright CLI. Always go through the package script — `pnpm --filter @pm-operator/web test:e2e` — never a bare `playwright test`.
+- **`pnpm exec playwright` is not reliable either.** Two packages ship a `playwright` bin (`playwright` and `@playwright/test`), and `pnpm exec` may pick the standalone one while the specs import `@playwright/test`. Stick to the script, with extra args after `--`: `pnpm --filter @pm-operator/web test:e2e -- access-matrix -g "the app icon"`.
+- **`.claude/worktrees/` holds ~29 full checkouts**, each with its own `node_modules` and `.pnpm`. A shell whose cwd wanders into one behaves nothing like the repo. They are untracked and safe to prune when idle.
+
+**Symptom to recognise:** every spec fails to *load* with `Playwright Test did not expect test.afterEach() to be called here` — including specs you never touched — followed by `No tests found`. That is two `@playwright/test` module instances in one process, not a broken spec. Check which binary ran, and `pnpm install` to reconcile `node_modules` with the lockfile.
+
 ## Test helpers
 
 Shared helpers live in `apps/web/e2e/helpers.ts`:

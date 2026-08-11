@@ -6,7 +6,6 @@ import { Button } from '@pm-operator/ui/components/Button';
 import { Card } from '@pm-operator/ui/components/Card';
 import { Input } from '@pm-operator/ui/components/Input';
 import {
-  Palette,
   Shield,
   UserPlus,
   Bell,
@@ -20,7 +19,6 @@ import {
 } from 'lucide-react';
 
 interface SettingsData {
-  branding: { name: string; logoUrl: string | null; coverUrl: string | null; faviconUrl: string | null };
   privacy: { defaultVisibility: string; publicRegistration: boolean; emailConfirmation: boolean };
   onboarding: { welcomeMessage: string; defaultCircles: string[] };
   notifications: { defaultPreferences: Record<string, boolean> };
@@ -132,70 +130,6 @@ export default function AdminSettingsPage() {
           {message}
         </p>
       ) : null}
-
-      {/* Branding */}
-      <CollapsibleSection title="Branding" icon={Palette}>
-        <div className="space-y-4">
-          <Input
-            label="Community name"
-            value={settings.branding.name}
-            onChange={(e) =>
-              setSettings((s) => s ? { ...s, branding: { ...s.branding, name: e.target.value } } : s)
-            }
-          />
-          <div className="flex items-center gap-3">
-            {settings.branding.logoUrl ? (
-              <img src={settings.branding.logoUrl} alt="Logo" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
-            ) : null}
-            <Input
-              label="Logo URL"
-              value={settings.branding.logoUrl ?? ''}
-              onChange={(e) =>
-                setSettings((s) => s ? { ...s, branding: { ...s.branding, logoUrl: e.target.value || null } } : s)
-              }
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            {settings.branding.coverUrl ? (
-              <img src={settings.branding.coverUrl} alt="Cover" className="h-16 w-32 shrink-0 rounded-lg object-cover" />
-            ) : null}
-            <Input
-              label="Cover image URL"
-              value={settings.branding.coverUrl ?? ''}
-              onChange={(e) =>
-                setSettings((s) => s ? { ...s, branding: { ...s.branding, coverUrl: e.target.value || null } } : s)
-              }
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            {settings.branding.faviconUrl ? (
-              <img src={settings.branding.faviconUrl} alt="Favicon" className="h-8 w-8 shrink-0 rounded" />
-            ) : null}
-            <Input
-              label="Favicon URL"
-              value={settings.branding.faviconUrl ?? ''}
-              onChange={(e) =>
-                setSettings((s) => s ? { ...s, branding: { ...s.branding, faviconUrl: e.target.value || null } } : s)
-              }
-            />
-          </div>
-          <div className="flex justify-end">
-            <Button
-              onClick={() =>
-                saveSection('branding', {
-                  name: settings.branding.name,
-                  logoUrl: settings.branding.logoUrl,
-                  coverUrl: settings.branding.coverUrl,
-                  faviconUrl: settings.branding.faviconUrl,
-                })
-              }
-              disabled={saving === 'branding'}
-            >
-              {saving === 'branding' ? 'Saving...' : 'Save branding'}
-            </Button>
-          </div>
-        </div>
-      </CollapsibleSection>
 
       {/* Privacy */}
       <CollapsibleSection title="Privacy" icon={Shield}>

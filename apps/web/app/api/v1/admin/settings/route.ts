@@ -18,7 +18,6 @@ import {
 } from '@/lib/services/admin';
 
 const sectionSchema = z.enum([
-  'branding',
   'privacy',
   'onboarding',
   'notifications',

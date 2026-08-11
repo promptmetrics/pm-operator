@@ -169,6 +169,13 @@
       "when": 1786200765542,
       "tag": "0024_link_preview",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786442658699,
+      "tag": "0024_aspiring_adam_warlock",
+      "breakpoints": true
     }
   ]
 }

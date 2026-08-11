@@ -1,6 +1,6 @@
 {
-  "id": "7133563e-b386-4c05-a73c-fee282236186",
-  "prevId": "78c98c0f-6057-40d0-958e-0ab2b565c0c0",
+  "id": "8be4e46a-c182-421d-9f21-2debfcf66dfb",
+  "prevId": "7133563e-b386-4c05-a73c-fee282236186",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -252,7 +252,7 @@
         },
         "target_type": {
           "name": "target_type",
-          "type": "target_type",
+          "type": "audit_target_type",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": false
@@ -3551,7 +3551,29 @@
         "post_declined",
         "user_warned",
         "user_banned",
-        "content_hidden"
+        "content_hidden",
+        "settings_update",
+        "mcp_client_revoke",
+        "update_group",
+        "delete_group",
+        "update_user_role",
+        "delete_user",
+        "create_invite",
+        "revoke_invite"
+      ]
+    },
+    "public.audit_target_type": {
+      "name": "audit_target_type",
+      "schema": "public",
+      "values": [
+        "post",
+        "comment",
+        "message",
+        "settings",
+        "group",
+        "mcp_client",
+        "user",
+        "invite"
       ]
     },
     "public.comment_status": {
