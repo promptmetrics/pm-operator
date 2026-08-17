@@ -678,6 +678,15 @@ export const auditLogActionEnum = pgEnum('audit_log_action', [
   'delete_user',
   'create_invite',
   'revoke_invite',
+  // 2026-08-14: added for MCP admin tools (community:admin scope). Each is
+  // emitted by an MCP admin tool's audit-log write; without them the insert
+  // would 500 after the mutation committed — same class of bug 0024 fixed.
+  'create_group',
+  'award_points',
+  'create_badge',
+  'award_badge',
+  'watched_phrase_create',
+  'watched_phrase_delete',
 ]);
 
 // Audit-log targets. Deliberately separate from targetTypeEnum: that one belongs

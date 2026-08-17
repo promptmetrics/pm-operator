@@ -30,6 +30,8 @@ import {
 export const TOKEN_ISSUER = 'operator.promptmetrics.dev';
 export const TOKEN_AUDIENCE = 'operator.promptmetrics.dev/mcp';
 export const REQUIRED_READ_SCOPE = 'community:read';
+export const REQUIRED_WRITE_SCOPE = 'community:write';
+export const REQUIRED_ADMIN_SCOPE = 'community:admin';
 
 export interface VerifiedMcpToken {
   clientId: string;

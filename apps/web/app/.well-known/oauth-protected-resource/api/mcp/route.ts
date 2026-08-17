@@ -33,7 +33,7 @@ export async function GET() {
     resource,
     authorization_servers: [],
     bearer_methods_supported: ['POST'],
-    scopes_supported: ['community:read'],
+    scopes_supported: ['community:read', 'community:write', 'community:admin'],
   };
 
   return NextResponse.json(body, { headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } });

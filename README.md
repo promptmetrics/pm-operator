@@ -98,3 +98,5 @@ Both test suites need the env vars in `apps/web/.env.local`.
 ## Status
 
 Phase 0 implementation is complete. The workspace typechecks and builds end-to-end. Remaining pre-launch work is environment provisioning, MCP OAuth wiring, and running the E2E suite against a live Supabase project.
+
+

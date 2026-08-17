@@ -1201,14 +1201,14 @@ export async function adminListAuditLogs(
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const offset = (page - 1) * limit;
 
+  // No `with:` — there is no auditLogs relation defined in schema.ts, so a
+  // relational `with: { actorId: true }` would crash (referencedTable undefined).
+  // actorId is a plain FK column and is returned by findMany by default.
   const rows = await db.query.auditLogs.findMany({
     where,
     orderBy: [desc(schema.auditLogs.createdAt)],
     limit: limit + 1,
     offset,
-    with: {
-      actorId: true,
-    },
   });
 
   const hasMore = rows.length > limit;

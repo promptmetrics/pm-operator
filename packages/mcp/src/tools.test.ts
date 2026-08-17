@@ -97,11 +97,22 @@ function makeHandler(services: McpToolServices & McpResourceServices) {
   return createMcpHandler(() => createCommunityMcpServer({ services, logger: noop }));
 }
 
+// authInfo injected via handler.fetch. toContext (tools.ts) reads scopes and
+// extra.userId off this, so varying it drives the scope/user-binding tests.
+type TestAuth = {
+  token: string;
+  clientId: string;
+  scopes: string[];
+  extra?: { userId?: string };
+};
+const READ_AUTH: TestAuth = { token: 't', clientId: 'c', scopes: ['community:read'] };
+
 async function rpc(
   handler: ReturnType<typeof makeHandler>,
   method: string,
   params: Record<string, unknown>,
-  headers: Record<string, string> = {}
+  headers: Record<string, string> = {},
+  auth: TestAuth = READ_AUTH
 ) {
   const body = { jsonrpc: '2.0', id: 1, method, params: { ...params, _meta: ENV } };
   const req = new Request('http://localhost/api/mcp', {
@@ -114,14 +125,17 @@ async function rpc(
     },
     body: JSON.stringify(body),
   });
-  const res = await handler.fetch(req, {
-    authInfo: { token: 't', clientId: 'c', scopes: ['community:read'] },
-  });
+  const res = await handler.fetch(req, { authInfo: auth });
   return { status: res.status, json: await res.json() };
 }
 
-async function callTool(handler: ReturnType<typeof makeHandler>, name: string, args: Record<string, unknown>) {
-  return rpc(handler, 'tools/call', { name, arguments: args }, { 'mcp-name': name });
+async function callTool(
+  handler: ReturnType<typeof makeHandler>,
+  name: string,
+  args: Record<string, unknown>,
+  auth?: TestAuth
+) {
+  return rpc(handler, 'tools/call', { name, arguments: args }, { 'mcp-name': name }, auth);
 }
 
 describe('tool schemas', () => {
@@ -255,19 +269,67 @@ describe('tool schemas', () => {
 
 // --- Tool execution (2026-07-28 structuredContent + outputSchema) --------
 describe('tool execution', () => {
-  it('tools/list advertises all four tools with an outputSchema', async () => {
+  it('tools/list advertises all 38 tools; read tools carry an outputSchema, write/admin do not', async () => {
     const handler = makeHandler(makeServices());
     const { status, json } = await rpc(handler, 'tools/list', {});
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(tools.map((t: any) => t.name).sort()).toEqual([
+      'accept_solution',
+      'admin_award_badge',
+      'admin_award_points',
+      'admin_create_badge',
+      'admin_create_group',
+      'admin_create_watched_phrase',
+      'admin_delete_flag',
+      'admin_delete_group',
+      'admin_delete_user',
+      'admin_delete_watched_phrase',
+      'admin_get_user',
+      'admin_list_audit_logs',
+      'admin_list_badges',
+      'admin_list_groups',
+      'admin_list_mcp_clients',
+      'admin_list_users',
+      'admin_list_watched_phrases',
+      'admin_resolve_flag',
+      'admin_revoke_mcp_client',
+      'admin_set_user_role',
+      'admin_update_group',
+      'admin_update_settings',
+      'create_comment',
+      'create_post',
+      'delete_comment',
+      'delete_post',
+      'follow_user',
       'get_user_profile',
+      'join_circle',
+      'leave_circle',
       'list_leaderboards',
       'search_posts',
       'summarize_thread',
+      'toggle_bookmark',
+      'toggle_reaction',
+      'unfollow_user',
+      'update_comment',
+      'update_post',
     ]);
+    // Read tools validate a structured outputSchema; write/admin tools return
+    // JSON as text only (heterogeneous shapes), so they carry none.
+    const READ = new Set(['search_posts', 'get_user_profile', 'list_leaderboards', 'summarize_thread']);
     for (const tool of tools) {
-      expect(tool.outputSchema).toBeDefined();
+      if (READ.has(tool.name)) {
+        expect(tool.outputSchema).toBeDefined();
+      } else {
+        expect(tool.outputSchema).toBeUndefined();
+      }
+    }
+    // Hard-delete tools announce destructiveHint.
+    const DESTRUCTIVE = new Set(['delete_post', 'delete_comment', 'admin_delete_user', 'admin_delete_group']);
+    for (const tool of tools) {
+      if (DESTRUCTIVE.has(tool.name)) {
+        expect(tool.annotations?.destructiveHint).toBe(true);
+      }
     }
   });
 
@@ -339,5 +401,157 @@ describe('tool execution', () => {
     expect(json.result.isError).toBe(true);
     expect(json.result.content[0].text).toContain('Output validation error');
     expect(json.result.structuredContent).toBeUndefined();
+  });
+});
+
+// --- write/admin scope + user-binding enforcement ------------------------
+// The scope gate (requireScope) and the user-bound gate (requireUserId) live
+// in tools.ts and are exercised here. The db-backed requireGlobalAdmin check
+// lives in the web service wrapper (wrapAdminTool), not in this package, so
+// these tests cover the package-level gate only.
+describe('write/admin scope + user-binding enforcement', () => {
+  const WRITE_AUTH: TestAuth = {
+    token: 't',
+    clientId: 'c',
+    scopes: ['community:read', 'community:write'],
+    extra: { userId: 'user-1' },
+  };
+  const ADMIN_AUTH: TestAuth = {
+    token: 't',
+    clientId: 'c',
+    scopes: ['community:read', 'community:write', 'community:admin'],
+    extra: { userId: 'user-1' },
+  };
+  const WRITE_NO_USER: TestAuth = {
+    token: 't',
+    clientId: 'c',
+    scopes: ['community:read', 'community:write'],
+  };
+
+  it('denies a write tool when the token lacks community:write (service never called)', async () => {
+    let called = false;
+    const handler = makeHandler(
+      makeServices({ createPost: async () => { called = true; return {}; } } as any)
+    );
+    const { status, json } = await callTool(handler, 'create_post', {
+      group_slug: 'ops',
+      title: 'T',
+      content: 'c',
+    });
+    expect(status).toBe(200);
+    expect(json.result.isError).toBe(true);
+    expect(json.result.content[0].text).toContain('Missing required scope: community:write');
+    expect(called).toBe(false);
+  });
+
+  it('denies a write tool when scoped but no user is bound (service never called)', async () => {
+    let called = false;
+    const handler = makeHandler(
+      makeServices({ createPost: async () => { called = true; return {}; } } as any)
+    );
+    const { status, json } = await callTool(
+      handler,
+      'create_post',
+      { group_slug: 'ops', title: 'T', content: 'c' },
+      WRITE_NO_USER
+    );
+    expect(status).toBe(200);
+    expect(json.result.isError).toBe(true);
+    expect(json.result.content[0].text).toContain('user-bound token');
+    expect(called).toBe(false);
+  });
+
+  it('allows a write tool with community:write + bound user and calls the service as that user', async () => {
+    let calledAs: string | undefined;
+    const handler = makeHandler(
+      makeServices({
+        createPost: async (_input: any, ctx: any) => {
+          calledAs = ctx.userId;
+          return { id: 'post-1', slug: 't' };
+        },
+      } as any)
+    );
+    const { status, json } = await callTool(
+      handler,
+      'create_post',
+      { group_slug: 'ops', title: 'T', content: 'c' },
+      WRITE_AUTH
+    );
+    expect(status).toBe(200);
+    expect(json.result.isError).toBeFalsy();
+    expect(calledAs).toBe('user-1');
+    expect(json.result.content[0].text).toContain('post-1');
+  });
+
+  it('denies an admin tool when the token lacks community:admin (service never called)', async () => {
+    let called = false;
+    const handler = makeHandler(
+      makeServices({ adminSetUserRole: async () => { called = true; return {}; } } as any)
+    );
+    const { status, json } = await callTool(
+      handler,
+      'admin_set_user_role',
+      { user_slug: 'u', role: 'moderator' },
+      WRITE_AUTH
+    );
+    expect(status).toBe(200);
+    expect(json.result.isError).toBe(true);
+    expect(json.result.content[0].text).toContain('Missing required scope: community:admin');
+    expect(called).toBe(false);
+  });
+
+  it('denies an admin tool when scoped but no user is bound', async () => {
+    let called = false;
+    const handler = makeHandler(
+      makeServices({ adminSetUserRole: async () => { called = true; return {}; } } as any)
+    );
+    const { status, json } = await callTool(
+      handler,
+      'admin_set_user_role',
+      { user_slug: 'u', role: 'moderator' },
+      { token: 't', clientId: 'c', scopes: ['community:read', 'community:admin'] }
+    );
+    expect(status).toBe(200);
+    expect(json.result.isError).toBe(true);
+    expect(json.result.content[0].text).toContain('user-bound token');
+    expect(called).toBe(false);
+  });
+
+  it('allows an admin tool with community:admin + bound user (scope gate only; DB admin check is in the service wrapper)', async () => {
+    let calledAs: string | undefined;
+    const handler = makeHandler(
+      makeServices({
+        adminSetUserRole: async (_input: any, ctx: any) => {
+          calledAs = ctx.userId;
+          return { ok: true };
+        },
+      } as any)
+    );
+    const { status, json } = await callTool(
+      handler,
+      'admin_set_user_role',
+      { user_slug: 'u', role: 'moderator' },
+      ADMIN_AUTH
+    );
+    expect(status).toBe(200);
+    expect(json.result.isError).toBeFalsy();
+    expect(calledAs).toBe('user-1');
+  });
+
+  it('allows a no-input admin tool (admin_list_groups) with community:admin + bound user', async () => {
+    let calledAs: string | undefined;
+    const handler = makeHandler(
+      makeServices({
+        adminListGroups: async (ctx: any) => {
+          calledAs = ctx.userId;
+          return [{ slug: 'ops', name: 'Ops' }];
+        },
+      } as any)
+    );
+    const { status, json } = await callTool(handler, 'admin_list_groups', {}, ADMIN_AUTH);
+    expect(status).toBe(200);
+    expect(json.result.isError).toBeFalsy();
+    expect(calledAs).toBe('user-1');
+    expect(json.result.content[0].text).toContain('ops');
   });
 });
