@@ -183,6 +183,13 @@
       "when": 1786721823336,
       "tag": "0025_mixed_moon_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1786965444963,
+      "tag": "0026_cool_king_bedlam",
+      "breakpoints": true
     }
   ]
 }

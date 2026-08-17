@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import {
   bearerAuthChallengeResponse,
   OAuthError,
@@ -53,6 +53,19 @@ export interface McpAuthOptions {
   lookupClient?: LookupMcpClient;
   /** RFC 9728 metadata URL advertised on 401/403 challenges. */
   resourceMetadataUrl?: string;
+}
+
+export interface SignMcpTokenOptions {
+  clientId: string;
+  scopes: string[];
+  /** Bound user id (public.users.id). Omit for read-only tokens. */
+  userId?: string;
+  /** Access-token lifetime in seconds. */
+  ttlSeconds: number;
+  /** Defaults to process.env.MCP_TOKEN_SECRET. */
+  secret?: string;
+  /** Issued-at in seconds; defaults to now. */
+  iat?: number;
 }
 
 export async function verifyMcpOAuthToken(
@@ -180,4 +193,57 @@ function verifyJwt(token: string, secret: string): Record<string, unknown> {
   }
 
   return JSON.parse(base64UrlDecode(payloadB64 ?? '')) as Record<string, unknown>;
+}
+
+function base64UrlEncode(value: string): string {
+  return Buffer.from(value).toString('base64url');
+}
+
+/**
+ * Mint an HS256 access token in the exact claim shape `verifyMcpOAuthToken`
+ * accepts. This is the sign counterpart to `verifyJwt` — the Authorization
+ * Server's `/token` endpoint uses it to issue tokens the existing MCP route
+ * verifies unchanged.
+ *
+ * The signer is deliberately dumb: it does NOT enforce write/admin
+ * user-binding or role checks. The `/token` route narrows scopes by the bound
+ * user's role before calling this; double-gating here would duplicate that.
+ *
+ * Claims (must match scripts/manage-mcp-clients.mjs byte-for-byte):
+ *   - iss: TOKEN_ISSUER, aud: TOKEN_AUDIENCE, sub: clientId
+ *   - scope: scopes.join(' ') (parseScopes splits on /\s+/)
+ *   - iat, exp (seconds), jti (random; enables a future denylist)
+ *   - user_id: only when a non-empty userId is passed
+ */
+export function signMcpToken(options: SignMcpTokenOptions): string {
+  const { clientId, scopes, userId, ttlSeconds } = options;
+  const secret = options.secret ?? process.env.MCP_TOKEN_SECRET;
+  if (!secret) {
+    throw new Error('signMcpToken: MCP_TOKEN_SECRET is not configured');
+  }
+  if (scopes.length === 0) {
+    throw new Error('signMcpToken: at least one scope is required');
+  }
+  if (!scopes.includes(REQUIRED_READ_SCOPE)) {
+    throw new Error(`signMcpToken: every token must include ${REQUIRED_READ_SCOPE}`);
+  }
+
+  const iat = options.iat ?? Math.floor(Date.now() / 1000);
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const payload: Record<string, unknown> = {
+    iss: TOKEN_ISSUER,
+    aud: TOKEN_AUDIENCE,
+    sub: clientId,
+    scope: scopes.join(' '),
+    iat,
+    exp: iat + ttlSeconds,
+    jti: randomUUID(),
+  };
+  if (typeof userId === 'string' && userId.length > 0) {
+    payload.user_id = userId;
+  }
+
+  const data = `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(JSON.stringify(payload))}`;
+  const sig = createHmac('sha256', secret).update(data).digest('base64url');
+  return `${data}.${sig}`;
 }

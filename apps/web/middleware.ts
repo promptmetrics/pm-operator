@@ -65,6 +65,19 @@ function needsProtection(request: NextRequest) {
     return false;
   }
 
+  // OAuth Authorization Server endpoints are public by design: /oauth/authorize
+  // redirects to /login itself when there's no session, and the /api/oauth/*
+  // machine endpoints authenticate via PKCE + client_id (not a Supabase
+  // session). The .well-known metadata is discovery-only. These already fall
+  // through to `return false` below; this carve-out makes the intent explicit.
+  if (
+    pathname.startsWith('/oauth/') ||
+    pathname.startsWith('/api/oauth/') ||
+    pathname.startsWith('/.well-known/oauth-authorization-server')
+  ) {
+    return false;
+  }
+
   // Checked BEFORE the community gate so the two DevCard paths win, and after
   // the static-asset bail-outs so it stays a narrow, explicit exception.
   if (PUBLIC_DEVCARD_REGEX.test(pathname)) return false;

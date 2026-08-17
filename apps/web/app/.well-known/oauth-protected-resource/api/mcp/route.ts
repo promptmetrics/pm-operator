@@ -28,10 +28,15 @@ export async function GET() {
     return new NextResponse('Server misconfigured: NEXT_PUBLIC_SITE_URL not set', { status: 500 });
   }
 
-  const resource = `${siteUrl.replace(/\/$/, '')}/api/mcp`;
+  const issuer = siteUrl.replace(/\/$/, '');
+  const resource = `${issuer}/api/mcp`;
   const body = {
     resource,
-    authorization_servers: [],
+    // Points clients at the RFC 8414 Authorization Server metadata
+    // (/.well-known/oauth-authorization-server), which advertises the
+    // authorize/token/register/revoke endpoints. Gated by the same MCP_ENABLED
+    // flag as this route, so the AS is live whenever it's advertised here.
+    authorization_servers: [issuer],
     bearer_methods_supported: ['POST'],
     scopes_supported: ['community:read', 'community:write', 'community:admin'],
   };

@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createHmac } from 'crypto';
 import {
   verifyMcpOAuthToken,
+  signMcpToken,
   REQUIRED_READ_SCOPE,
+  REQUIRED_WRITE_SCOPE,
   TOKEN_ISSUER,
   TOKEN_AUDIENCE,
 } from './auth';
@@ -231,5 +233,95 @@ describe('verifyMcpOAuthToken', () => {
       expect(challenge).toContain('Bearer');
       expect(challenge).toContain(`resource_metadata="${RESOURCE_METADATA_URL}"`);
     }
+  });
+});
+
+describe('signMcpToken', () => {
+  beforeEach(() => {
+    process.env.MCP_TOKEN_SECRET = TEST_SECRET;
+  });
+  afterEach(() => {
+    delete process.env.MCP_TOKEN_SECRET;
+  });
+
+  // The whole Authorization Server hinges on this: a token signed by
+  // signMcpToken must verify with the EXISTING, unchanged verifyMcpOAuthToken.
+  it('mints a token the verifier accepts with the bound user and scopes', async () => {
+    const token = signMcpToken({
+      clientId: 'client-123',
+      scopes: [REQUIRED_READ_SCOPE, REQUIRED_WRITE_SCOPE],
+      userId: 'user-abc-123',
+      ttlSeconds: 3600,
+      secret: TEST_SECRET,
+    });
+    const result = await verifyMcpOAuthToken(makeRequest(token), {
+      lookupClient: async () => ({
+        clientId: 'client-123',
+        scopes: [REQUIRED_READ_SCOPE, REQUIRED_WRITE_SCOPE],
+        isActive: true,
+      }),
+    });
+    expect(result).not.toBeInstanceOf(Response);
+    if (!(result instanceof Response)) {
+      expect(result.clientId).toBe('client-123');
+      expect(result.scopes).toEqual([REQUIRED_READ_SCOPE, REQUIRED_WRITE_SCOPE]);
+      expect(result.userId).toBe('user-abc-123');
+      expect(result.expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000));
+    }
+  });
+
+  it('omits user_id for a read-only token', async () => {
+    const token = signMcpToken({
+      clientId: 'client-123',
+      scopes: [REQUIRED_READ_SCOPE],
+      ttlSeconds: 3600,
+      secret: TEST_SECRET,
+    });
+    const result = await verifyMcpOAuthToken(makeRequest(token));
+    expect(result).not.toBeInstanceOf(Response);
+    if (!(result instanceof Response)) {
+      expect(result.userId).toBeUndefined();
+    }
+  });
+
+  it('emits a jti claim (for a future denylist) the verifier ignores', () => {
+    const token = signMcpToken({
+      clientId: 'client-123',
+      scopes: [REQUIRED_READ_SCOPE],
+      ttlSeconds: 3600,
+      secret: TEST_SECRET,
+    });
+    const payloadB64 = token.split('.')[1]!;
+    const payload = JSON.parse(
+      Buffer.from(payloadB64, 'base64url').toString('utf8')
+    ) as Record<string, unknown>;
+    expect(typeof payload.jti).toBe('string');
+    expect(payload.iss).toBe(TOKEN_ISSUER);
+    expect(payload.aud).toBe(TOKEN_AUDIENCE);
+    expect(payload.scope).toBe(REQUIRED_READ_SCOPE);
+  });
+
+  it('throws if the secret is missing', () => {
+    delete process.env.MCP_TOKEN_SECRET;
+    expect(() =>
+      signMcpToken({ clientId: 'c', scopes: [REQUIRED_READ_SCOPE], ttlSeconds: 60 })
+    ).toThrow(/MCP_TOKEN_SECRET/);
+  });
+
+  it('throws if community:read is absent', () => {
+    expect(() =>
+      signMcpToken({
+        clientId: 'c',
+        scopes: ['some:other'],
+        ttlSeconds: 60,
+        secret: TEST_SECRET,
+      })
+    ).toThrow(REQUIRED_READ_SCOPE);
+  });
+
+  it('throws on empty scopes', () => {
+    expect(() =>
+      signMcpToken({ clientId: 'c', scopes: [], ttlSeconds: 60, secret: TEST_SECRET })
+    ).toThrow();
   });
 });

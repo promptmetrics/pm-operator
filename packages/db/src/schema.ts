@@ -14,6 +14,7 @@ import {
   pgEnum,
   foreignKey,
   primaryKey,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -530,7 +531,74 @@ export const mcpClients = pgTable(
     scopes: text('scopes').array().notNull(), // e.g. ['community:read']
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    // OAuth Authorization Server (RFC 7591 DCR) fields. All nullable so the
+    // hand-registered clients (manage-mcp-clients.mjs `add`) keep working —
+    // they have no redirect_uris/secret because they mint tokens out of band.
+    // DCR clients populate these; created_via distinguishes the two.
+    clientSecret: text('client_secret'), // null for public (token_endpoint_auth_method='none') clients
+    redirectUris: text('redirect_uris').array(),
+    grantTypes: text('grant_types').array(),
+    tokenEndpointAuthMethod: text('token_endpoint_auth_method'), // 'none' | 'client_secret_post'
+    logoUri: text('logo_uri'),
+    createdVia: text('created_via').default('manual').notNull(), // 'manual' | 'dcr'
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   }
+).enableRLS();
+
+// OAuth Authorization Server state. Codes and refresh tokens are stored by
+// their SHA-256 hash — the raw value is only ever held in memory long enough
+// to return it to the client, so a DB leak never yields usable credentials.
+// FKs point at mcp_clients(id) (the row PK, not the text client_id) so a
+// revoked/deleted client cascades its outstanding codes/tokens away.
+export const oauthAuthorizationCodes = pgTable(
+  'oauth_authorization_codes',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    codeHash: text('code_hash').notNull().unique(),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => mcpClients.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    scope: text('scope').array().notNull(),
+    redirectUri: text('redirect_uri').notNull(),
+    codeChallenge: text('code_challenge').notNull(),
+    codeChallengeMethod: text('code_challenge_method').default('S256').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    used: boolean('used').default(false).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    expiresIdx: index('oauth_auth_codes_expires_idx').on(table.expiresAt),
+  })
+).enableRLS();
+
+export const oauthRefreshTokens = pgTable(
+  'oauth_refresh_tokens',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    tokenHash: text('token_hash').notNull().unique(),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => mcpClients.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    scope: text('scope').array().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    used: boolean('used').default(false).notNull(),
+    // Rotation chain: when a refresh is exchanged, the old row is marked
+    // used=true and rotatedTo points at the new row. A second presentation of
+    // a used token means the chain was compromised → revoke the whole chain.
+    rotatedTo: uuid('rotated_to').references((): AnyPgColumn => oauthRefreshTokens.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    clientUserIdx: index('oauth_refresh_tokens_client_user_idx').on(table.clientId, table.userId),
+  })
 ).enableRLS();
 
 // T8.5: community events. Optionally scoped to a circle (groupId null = global
@@ -687,6 +755,11 @@ export const auditLogActionEnum = pgEnum('audit_log_action', [
   'award_badge',
   'watched_phrase_create',
   'watched_phrase_delete',
+  // 2026-08-17: emitted by the OAuth Authorization Server's /token endpoint
+  // when it issues an access token (auth-code or refresh grant). actorId = the
+  // bound user; targetType = mcp_client. Same mandatory-before-use rule as
+  // above: adminCreateAuditLog's action param is typed off this enum.
+  'mcp_token_issue',
 ]);
 
 // Audit-log targets. Deliberately separate from targetTypeEnum: that one belongs

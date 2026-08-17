@@ -91,6 +91,7 @@ export {
 
 export {
   verifyMcpOAuthToken,
+  signMcpToken,
   REQUIRED_READ_SCOPE,
   REQUIRED_WRITE_SCOPE,
   REQUIRED_ADMIN_SCOPE,
@@ -100,4 +101,5 @@ export {
   type McpClientInfo,
   type LookupMcpClient,
   type McpAuthOptions,
+  type SignMcpTokenOptions,
 } from './auth';

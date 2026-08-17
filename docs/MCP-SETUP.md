@@ -44,7 +44,50 @@ Required env vars (see `docs/ENV-CHECKLIST.md`):
 > `MCP_TOKEN_SECRET` must be **identical** between where you mint the token (your local
 > `.env.local`) and where the server verifies it (Vercel env). A mismatch → every token 401s.
 
-## A. Local development
+## End-user install (OAuth — recommended)
+
+The server runs a real **OAuth 2.1 Authorization Server** (RFC 9728 protected-resource
+metadata + RFC 8414 authorization-server metadata + RFC 7591 dynamic client registration +
+RFC 7009 revocation), so an end user never pastes a token. They run one command and sign in
+with their browser:
+
+```bash
+claude mcp add --transport https://operator.promptmetrics.dev/api/mcp
+```
+
+What happens under the hood: Claude Code fetches `/.well-known/oauth-protected-resource/api/mcp`,
+follows `authorization_servers` to `/.well-known/oauth-authorization-server`, dynamically
+registers a client at `/api/oauth/register`, opens a browser to `/oauth/authorize`, the user
+signs in with Google (Supabase Auth), reviews a **consent screen** (client name + requested
+scopes), and is redirected back to a loopback callback. Claude Code exchanges the
+authorization code at `/api/oauth/token` (PKCE, `S256`) and stores the resulting bearer token.
+
+**Token model.** Access tokens are the same HS256 JWTs the verifier already accepts — 1h TTL,
+carrying `sub` (client_id), `scope`, and `user_id` (the signed-in user). A **30-day rotatable
+refresh token** is issued alongside; Claude Code refreshes silently, so Google re-auth is at
+most monthly. Refresh-token **rotation + reuse detection** is on: presenting a used refresh
+token revokes that user's whole chain for the client (OAuth 2.1 automatic-rotation).
+
+**Scopes.** The client requests `community:read community:write` by default; granted scopes are
+the intersection of requested ∩ the client's registered scopes, with `community:read` always
+forced and `community:admin` dropped unless the signed-in user's `role === 'admin'` (re-checked
+at both authorize and token time). So a non-admin who requests `community:admin` simply gets a
+token without it — no error, the admin tools just refuse with `InsufficientScope`.
+
+**Server requirements.** The AS is gated by the same `MCP_ENABLED` flag as `/api/mcp` and uses
+`NEXT_PUBLIC_SITE_URL` for its metadata `issuer` (distinct from the JWT `iss` claim, which stays
+the bare host `operator.promptmetrics.dev`). Both are already required for the MCP route — no new
+env vars or secrets.
+
+The OAuth flow also works for local dev if you've configured Supabase Google OAuth to accept
+`http://localhost:3000` and set `NEXT_PUBLIC_SITE_URL=http://localhost:3000`. If you haven't, use
+the manual bootstrap flow below instead.
+
+## A. Local development (manual bootstrap)
+
+> The manual `manage-mcp-clients.mjs token` flow is the **admin / bootstrap** path — for local
+> dev without browser OAuth, or minting a long-lived service token by hand. End users should use
+> the [OAuth flow above](#end-user-install-oauth--recommended) instead.
 
 1. **Generate a signing secret** (one-time):
    ```bash
@@ -103,7 +146,11 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 ```
 Without the `Authorization` header you should get `401` with a `WWW-Authenticate` challenge.
 
-## B. Vercel production
+## B. Vercel production (manual bootstrap)
+
+> Same as above — this is the admin/bootstrap path for minting a long-lived prod token by hand.
+> End users install via the [OAuth flow](#end-user-install-oauth--recommended); no manual token
+> needed.
 
 1. **Generate a signing secret** (same command as local). Keep it — you'll mint tokens with it
    locally, so it must match what you put in Vercel.
@@ -202,12 +249,15 @@ DB than the server checks). User-resolution and admin-role checks still run.
   2026-07-28 stateless transport. `claude mcp list` will show a connection error if your version is
   too old; upgrade Claude Code in that case.
 
-## Out of scope
+## Out of scope / fast-follow
 
-- A real OAuth Authorization Server (token endpoint, dynamic client registration, JWKS). The
-  `token` subcommand is the "manually for launch" issuer; it is not a production AS.
-- A `--rotate` for `MCP_TOKEN_SECRET` — rotating the secret invalidates every outstanding token;
-  mint new tokens for each client afterward.
+- **Access-token denylist.** Access tokens are stateless HS256 JWTs (1h TTL), so revoking one is
+  a no-op that relies on the TTL. The `jti` claim is already emitted; a denylist table + revoke
+  check is the follow-up. Refresh tokens *are* stateful and fully revocable today (RFC 7009).
+- **Confidential clients.** Dynamic client registration accepts `token_endpoint_auth_method='none'`
+  (public PKCE clients) only. `client_secret_basic` / JWT client auth is a follow-up.
+- **A `--rotate` for `MCP_TOKEN_SECRET`** — rotating the secret invalidates every outstanding
+  token; mint new tokens for each client afterward.
 
 ## Tool catalog
 
