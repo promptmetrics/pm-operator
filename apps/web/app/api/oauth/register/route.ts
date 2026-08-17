@@ -37,20 +37,6 @@ export async function POST(req: Request) {
   const contentType = (req.headers.get('content-type') ?? '').toLowerCase();
   const body = parseRegistrationBody(bodyText, contentType);
 
-  // TEMPORARY diagnostic for the Claude Code DCR investigation (ofid_7c9a…).
-  // DCR bodies carry no secrets (public PKCE clients, token_endpoint_auth_method
-  // 'none'); client_secret is redacted defensively. Remove once the flow is
-  // confirmed working end-to-end.
-  console.error('[oauth-register] request', JSON.stringify({
-    contentType,
-    bodyBytes: bodyText.length,
-    fields: Object.keys(body),
-    redirect_uris: body.redirect_uris,
-    grant_types: body.grant_types,
-    token_endpoint_auth_method: body.token_endpoint_auth_method,
-    scope: body.scope,
-  }));
-
   const clientName = nonEmptyString(body.client_name) ?? 'MCP Client';
 
   const redirectUrisRaw = body.redirect_uris;

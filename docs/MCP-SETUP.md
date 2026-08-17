@@ -52,8 +52,12 @@ RFC 7009 revocation), so an end user never pastes a token. They run one command 
 with their browser:
 
 ```bash
-claude mcp add --transport https://operator.promptmetrics.dev/api/mcp
+claude mcp add --transport http -s user pm-operator https://operator.promptmetrics.dev/api/mcp
 ```
+
+`--transport http` is the Streamable HTTP transport type (this is what triggers OAuth
+discovery); the URL's `https` scheme is a separate positional. `-s user` keeps the server
+config out of the repo. `pm-operator` is the required server name.
 
 What happens under the hood: Claude Code fetches `/.well-known/oauth-protected-resource/api/mcp`,
 follows `authorization_servers` to `/.well-known/oauth-authorization-server`, dynamically

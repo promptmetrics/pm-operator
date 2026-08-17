@@ -41,21 +41,6 @@ export async function GET(req: Request) {
   const responseType = p.get('response_type') ?? '';
   const requestedScope = p.get('scope') ?? '';
 
-  // TEMPORARY diagnostic for the Claude Code OAuth investigation (ofid_7c9a…).
-  // Reveals whether Claude Code uses DCR (a dcr_… client_id) or sends its CIMD
-  // URL (https://claude.ai/oauth/…) straight to authorize. code_challenge is a
-  // public S256 hash, state is opaque — neither is a secret. Remove once the
-  // flow is confirmed working end-to-end.
-  console.error('[oauth-authorize] request', JSON.stringify({
-    client_id: clientId,
-    redirect_uri: redirectUri,
-    response_type: responseType,
-    code_challenge_method: codeChallengeMethod,
-    code_challenge_len: codeChallenge.length,
-    scope: requestedScope,
-    has_state: Boolean(state),
-  }));
-
   // PKCE is mandatory (S256 only). A request without a valid challenge is
   // rejected before any client lookup.
   if (responseType !== 'code') {
@@ -66,12 +51,6 @@ export async function GET(req: Request) {
   }
 
   const client = await lookupClientByClientId(db, clientId);
-  // TEMPORARY: log the lookup outcome (found + active) for the same investigation.
-  console.error('[oauth-authorize] client lookup', JSON.stringify({
-    client_id: clientId,
-    found: Boolean(client),
-    active: client?.isActive ?? false,
-  }));
   if (!client || !client.isActive) {
     return errorPage('Unknown client', `No active client is registered for client_id "${escapeHtml(clientId)}".`);
   }
