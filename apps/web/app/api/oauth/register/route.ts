@@ -27,12 +27,29 @@ export async function POST(req: Request) {
   const disabled = requireMcpEnabled();
   if (disabled) return disabled;
 
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return oauthError(400, 'invalid_client_metadata', 'Request body must be JSON');
-  }
+  // RFC 7591 §2 permits DCR bodies as either application/json or
+  // application/x-www-form-urlencoded. Many CLI/mobile OAuth clients (notably
+  // Claude Code's MCP OAuth client) POST form-urlencoded bodies, which
+  // req.json() rejects. Read the body once as text, then parse by content-type
+  // with a form-urlencoded fallback so a missing/mis-set Content-Type still
+  // works. Repeated form keys (redirect_uris, grant_types) become arrays.
+  const bodyText = await req.text();
+  const contentType = (req.headers.get('content-type') ?? '').toLowerCase();
+  const body = parseRegistrationBody(bodyText, contentType);
+
+  // TEMPORARY diagnostic for the Claude Code DCR investigation (ofid_7c9a…).
+  // DCR bodies carry no secrets (public PKCE clients, token_endpoint_auth_method
+  // 'none'); client_secret is redacted defensively. Remove once the flow is
+  // confirmed working end-to-end.
+  console.error('[oauth-register] request', JSON.stringify({
+    contentType,
+    bodyBytes: bodyText.length,
+    fields: Object.keys(body),
+    redirect_uris: body.redirect_uris,
+    grant_types: body.grant_types,
+    token_endpoint_auth_method: body.token_endpoint_auth_method,
+    scope: body.scope,
+  }));
 
   const clientName = nonEmptyString(body.client_name) ?? 'MCP Client';
 
@@ -125,6 +142,36 @@ export async function OPTIONS() {
 
 function nonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+// Parse a DCR body per RFC 7591 §2, accepting either application/json or
+// application/x-www-form-urlencoded. Form bodies use repeated keys for array
+// fields (redirect_uris, grant_types); scalars take the first value. JSON is
+// the default when the content-type is absent or ambiguous, with a form
+// fallback so a mis-set Content-Type still parses.
+const FORM_ARRAY_FIELDS = new Set(['redirect_uris', 'grant_types']);
+
+function parseRegistrationBody(
+  text: string,
+  contentType: string,
+): Record<string, unknown> {
+  if (contentType.includes('application/x-www-form-urlencoded') || contentType.includes('urlencoded')) {
+    return parseFormRegistration(text);
+  }
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return parseFormRegistration(text);
+  }
+}
+
+function parseFormRegistration(text: string): Record<string, unknown> {
+  const params = new URLSearchParams(text);
+  const out: Record<string, unknown> = {};
+  for (const key of new Set(params.keys())) {
+    out[key] = FORM_ARRAY_FIELDS.has(key) ? params.getAll(key) : params.get(key);
+  }
+  return out;
 }
 
 function oauthError(status: number, error: string, description: string): NextResponse {
