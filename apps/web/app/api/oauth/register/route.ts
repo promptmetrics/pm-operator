@@ -130,6 +130,11 @@ export async function POST(req: Request) {
       token_endpoint_auth_method: tokenAuthMethod,
       scope: scopes.join(' '),
       client_id_issued_at: Math.floor(issuedAt.getTime() / 1000),
+      // RFC 7591 §3.2.1: client_secret_expires_at is a REQUIRED response field.
+      // 0 means the secret never expires; for public PKCE clients we issue no
+      // secret at all, so 0 is the correct sentinel. Strict clients (Claude
+      // Code's MCP OAuth client) reject a DCR response that omits this field.
+      client_secret_expires_at: 0,
       ...(logoUri ? { logo_uri: logoUri } : {}),
     },
     { status: 201, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } },
