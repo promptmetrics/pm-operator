@@ -8,6 +8,7 @@ import {
   requireMcpEnabled,
 } from '@/lib/oauth/constants';
 import { isValidRegistrationRedirectUri } from '@/lib/oauth/redirect-uri';
+import { randomSecret, sha256Hex } from '@/lib/oauth/codes';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,12 +18,13 @@ const db = createServiceDb();
 const ALLOWED_GRANT_TYPES = new Set(['authorization_code', 'refresh_token']);
 const DEFAULT_GRANT_TYPES = ['authorization_code', 'refresh_token'];
 
-// RFC 7591 Dynamic Client Registration. Public PKCE clients only —
-// token_endpoint_auth_method must be 'none' (no client_secret is issued);
-// confidential methods are rejected. redirect_uris is required; each must be
-// https or http loopback (RFC 8252). Requested scopes are intersected with the
-// known set and community:read is forced. DCR is pre-auth/public, so it is not
-// audited — created_via='dcr' on the row is the registration record.
+// RFC 7591 Dynamic Client Registration. Supports public PKCE clients
+// (token_endpoint_auth_method='none', no client_secret) and confidential
+// clients (token_endpoint_auth_method='client_secret_post'), for which a
+// client_secret is generated, hash-stored, and returned once. redirect_uris is
+// required; each must be https or http loopback (RFC 8252). Requested scopes
+// are intersected with the known set and community:read is forced. DCR is
+// pre-auth/public, so it is not audited — created_via='dcr' is the record.
 export async function POST(req: Request) {
   const disabled = requireMcpEnabled();
   if (disabled) return disabled;
@@ -54,11 +56,11 @@ export async function POST(req: Request) {
   }
 
   const tokenAuthMethod = nonEmptyString(body.token_endpoint_auth_method) ?? 'none';
-  if (tokenAuthMethod !== 'none') {
+  if (tokenAuthMethod !== 'none' && tokenAuthMethod !== 'client_secret_post') {
     return oauthError(
       400,
       'invalid_client_metadata',
-      'token_endpoint_auth_method must be "none" (public PKCE clients only)',
+      'token_endpoint_auth_method must be "none" or "client_secret_post"',
     );
   }
 
@@ -90,6 +92,13 @@ export async function POST(req: Request) {
   const clientId = `dcr_${randomUUID()}`;
   const issuedAt = new Date();
 
+  // Confidential clients get a client_secret: generated raw, stored as a
+  // sha256 hash, returned to the registrant exactly once (RFC 7591 §3.2.1).
+  // Public 'none' clients get no secret.
+  const isConfidential = tokenAuthMethod === 'client_secret_post';
+  const clientSecretRaw = isConfidential ? randomSecret(48) : null;
+  const clientSecretHash = clientSecretRaw ? sha256Hex(clientSecretRaw) : null;
+
   try {
     await db.insert(schema.mcpClients).values({
       clientId,
@@ -99,6 +108,7 @@ export async function POST(req: Request) {
       redirectUris,
       grantTypes,
       tokenEndpointAuthMethod: tokenAuthMethod,
+      clientSecret: clientSecretHash,
       logoUri: logoUri ?? null,
       createdVia: 'dcr',
     });
@@ -117,10 +127,11 @@ export async function POST(req: Request) {
       scope: scopes.join(' '),
       client_id_issued_at: Math.floor(issuedAt.getTime() / 1000),
       // RFC 7591 §3.2.1: client_secret_expires_at is a REQUIRED response field.
-      // 0 means the secret never expires; for public PKCE clients we issue no
-      // secret at all, so 0 is the correct sentinel. Strict clients (Claude
-      // Code's MCP OAuth client) reject a DCR response that omits this field.
+      // 0 means the secret never expires. Public 'none' clients issue no
+      // secret; confidential clients issue one (client_secret below) that is
+      // returned here exactly once and never retrievable again.
       client_secret_expires_at: 0,
+      ...(isConfidential && clientSecretRaw ? { client_secret: clientSecretRaw } : {}),
       ...(logoUri ? { logo_uri: logoUri } : {}),
     },
     { status: 201, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } },

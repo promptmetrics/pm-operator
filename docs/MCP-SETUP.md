@@ -258,8 +258,13 @@ DB than the server checks). User-resolution and admin-role checks still run.
 - **Access-token denylist.** Access tokens are stateless HS256 JWTs (1h TTL), so revoking one is
   a no-op that relies on the TTL. The `jti` claim is already emitted; a denylist table + revoke
   check is the follow-up. Refresh tokens *are* stateful and fully revocable today (RFC 7009).
-- **Confidential clients.** Dynamic client registration accepts `token_endpoint_auth_method='none'`
-  (public PKCE clients) only. `client_secret_basic` / JWT client auth is a follow-up.
+- **Confidential clients.** Dynamic client registration and the token/revocation endpoints
+  support `token_endpoint_auth_method='client_secret_post'` (the claude.ai web/cowork connector
+  uses this): the DCR issues a `client_secret`, stores only its SHA-256 hash, and returns the raw
+  secret once (RFC 7591 §3.2.1); the token endpoint authenticates it timing-safe (401
+  `invalid_client` on failure), and revocation requires it. PKCE (S256) remains mandatory for all
+  clients. The CLI public-PKCE flow above is still the recommended default for end users.
+  `client_secret_basic` / JWT client auth is the remaining follow-up.
 - **A `--rotate` for `MCP_TOKEN_SECRET`** — rotating the secret invalidates every outstanding
   token; mint new tokens for each client afterward.
 

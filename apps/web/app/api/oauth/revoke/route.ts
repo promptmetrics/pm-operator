@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import * as schema from '@pm-operator/db';
 import { createServiceDb } from '@/lib/db';
 import { requireMcpEnabled, CORS_HEADERS } from '@/lib/oauth/constants';
-import { sha256Hex } from '@/lib/oauth/codes';
+import { sha256Hex, verifyClientSecret } from '@/lib/oauth/codes';
 import { lookupClientByClientId } from '@/lib/oauth/client';
 
 export const runtime = 'nodejs';
@@ -15,8 +15,9 @@ const db = createServiceDb();
 // access tokens are stateless HS256 JWTs, so revoking one is a no-op that relies
 // on the 1h TTL (the jti claim is already emitted for a future denylist).
 // A public PKCE client proves ownership by sending a client_id that matches the
-// token's client. Per RFC 7009 the response is always 200 (never leak whether a
-// token existed), even on unknown/mismatched tokens.
+// token's client; a confidential (client_secret_post) client authenticates with
+// its client_secret. Per RFC 7009 the response is always 200 (never leak whether
+// a token existed), even on unknown/mismatched/failed-auth tokens.
 export async function POST(req: Request) {
   const disabled = requireMcpEnabled();
   if (disabled) return disabled;
@@ -40,9 +41,26 @@ export async function POST(req: Request) {
     return new NextResponse(null, { status: 200, headers: { ...CORS_HEADERS } });
   }
 
-  // Verify the caller owns the token: for a public client, the posted client_id
-  // must resolve to the token's client. A mismatch is still 200 (no leak).
-  if (clientIdText) {
+  // Load the token's owning client by its row FK (mcp_clients.id, a UUID — not
+  // the text client_id), so we can branch on its auth method.
+  const ownerRows = await db
+    .select()
+    .from(schema.mcpClients)
+    .where(eq(schema.mcpClients.id, row.clientId))
+    .limit(1);
+  const ownerClient = ownerRows[0] ?? null;
+
+  if (ownerClient?.tokenEndpointAuthMethod === 'client_secret_post') {
+    // Confidential client: authenticate via client_secret before revoking. A
+    // missing/wrong secret is 200 WITHOUT revoking (RFC 7009 §2.2: never leak).
+    const presented = String(form.get('client_secret') ?? '');
+    if (!verifyClientSecret(presented, ownerClient.clientSecret)) {
+      return new NextResponse(null, { status: 200, headers: { ...CORS_HEADERS } });
+    }
+  } else if (clientIdText) {
+    // Public client: the posted client_id must resolve to the token's client.
+    // A mismatch is still 200 (no leak). Omitting client_id still revokes (the
+    // token is bearer-bound; there is no secret to check).
     const client = await lookupClientByClientId(db, clientIdText);
     if (!client || client.id !== row.clientId) {
       return new NextResponse(null, { status: 200, headers: { ...CORS_HEADERS } });

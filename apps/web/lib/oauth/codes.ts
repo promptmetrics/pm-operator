@@ -12,7 +12,7 @@ export interface SecretValue {
   hash: string;
 }
 
-function randomSecret(bytes: number): string {
+export function randomSecret(bytes: number): string {
   return randomBytes(bytes).toString('base64url');
 }
 
@@ -28,6 +28,20 @@ export function createAuthorizationCode(): SecretValue {
 export function createRefreshToken(): SecretValue {
   const raw = randomSecret(48);
   return { raw, hash: sha256Hex(raw) };
+}
+
+// Confidential-client (client_secret_post) authentication. The DCR endpoint
+// stores only sha256Hex(client_secret) — the raw secret is returned to the
+// registrant exactly once (RFC 7591 §3.2.1) and never persisted. The token and
+// revoke endpoints re-hash the presented secret and compare it timing-safe.
+// Returns false for a null/empty stored hash (public 'none' clients have no
+// secret); callers gate on tokenEndpointAuthMethod before calling this.
+export function verifyClientSecret(received: string, storedHash: string | null): boolean {
+  if (!received || !storedHash) return false;
+  const a = Buffer.from(sha256Hex(received));
+  const b = Buffer.from(storedHash);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 // Consent CSRF nonce. Binds the /oauth/approve POST to the /oauth/authorize

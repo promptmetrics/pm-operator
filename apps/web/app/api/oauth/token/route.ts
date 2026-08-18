@@ -11,8 +11,8 @@ import {
   requireMcpEnabled,
 } from '@/lib/oauth/constants';
 import { verifyCodeVerifier } from '@/lib/oauth/pkce';
-import { sha256Hex, createRefreshToken } from '@/lib/oauth/codes';
-import { lookupClientByClientId } from '@/lib/oauth/client';
+import { sha256Hex, createRefreshToken, verifyClientSecret } from '@/lib/oauth/codes';
+import { lookupClientByClientId, type McpClientRow } from '@/lib/oauth/client';
 import { narrowGrantedScopes, parseScope } from '@/lib/oauth/scopes';
 
 export const runtime = 'nodejs';
@@ -76,7 +76,12 @@ async function authorizationCodeGrant(params: Record<string, string>, secret: st
   }
 
   const client = await lookupClientByClientId(db, clientIdText);
-  if (!client || !client.isActive || client.id !== codeRow.clientId) {
+  if (!client || !client.isActive) {
+    return oauthError(400, 'invalid_grant', 'Client does not match the authorization code.');
+  }
+  const authFailure = authenticateClient(client, params);
+  if (authFailure) return authFailure;
+  if (client.id !== codeRow.clientId) {
     return oauthError(400, 'invalid_grant', 'Client does not match the authorization code.');
   }
   if (redirectUri !== codeRow.redirectUri) {
@@ -165,7 +170,12 @@ async function refreshTokenGrant(params: Record<string, string>, secret: string)
   }
 
   const client = await lookupClientByClientId(db, clientIdText);
-  if (!client || !client.isActive || client.id !== tokenRow.clientId) {
+  if (!client || !client.isActive) {
+    return oauthError(400, 'invalid_grant', 'Client does not match the refresh token.');
+  }
+  const authFailure = authenticateClient(client, params);
+  if (authFailure) return authFailure;
+  if (client.id !== tokenRow.clientId) {
     return oauthError(400, 'invalid_grant', 'Client does not match the refresh token.');
   }
 
@@ -306,6 +316,24 @@ function oauthError(status: number, error: string, description: string): NextRes
     { error, error_description: description },
     { status, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } },
   );
+}
+
+// Confidential-client authentication at the token endpoint. Public 'none'
+// clients (tokenEndpointAuthMethod null or 'none') authenticate via PKCE alone;
+// a spurious client_secret from them is ignored. Confidential
+// 'client_secret_post' clients must present client_secret, verified timing-safe
+// against the stored sha256 hash. Failure is 401 invalid_client (RFC 6749 §5.2);
+// no WWW-Authenticate header — client_secret_post has no registered HTTP auth
+// scheme, so a challenge header would mislead toward Basic.
+function authenticateClient(client: McpClientRow, params: Record<string, string>): NextResponse | null {
+  if (client.tokenEndpointAuthMethod !== 'client_secret_post') {
+    return null;
+  }
+  const presented = params.client_secret ?? '';
+  if (!verifyClientSecret(presented, client.clientSecret)) {
+    return oauthError(401, 'invalid_client', 'Client authentication failed.');
+  }
+  return null;
 }
 
 class CodeReplayError extends Error {
