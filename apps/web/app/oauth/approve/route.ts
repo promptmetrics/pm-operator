@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { eq } from 'drizzle-orm';
 import * as schema from '@pm-operator/db';
 import { getUser } from '@/lib/auth/server';
@@ -14,15 +13,19 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const db = createServiceDb();
-const NONCE_COOKIE = 'oauth_authorize_nonce';
 const NONCE_TTL_MS = 300_000;
 
-// Consent approval. The authorize page set an HMAC nonce in both a hidden form
-// field and an HttpOnly SameSite=Lax cookie; a cross-site POST lacks the cookie
-// and is rejected. The nonce HMAC binds the OAuth params, so swapping the
-// client/redirect/scope invalidates it. On success a single-use auth code is
-// stored by hash and the user is 303-redirected to the validated redirect_uri
-// with ?code=&state=.
+// Consent approval. The authorize page placed an HMAC nonce (signed over the
+// OAuth params + an issued timestamp, using MCP_TOKEN_SECRET) in a hidden form
+// field. We re-derive the canonical payload and verify the nonce's HMAC +
+// freshness, which proves the server issued it and the params are untampered —
+// no cookie round-trip required, so the flow works in popup/embedded-webview
+// contexts (e.g. the claude.ai cowork connector) where a SameSite cookie would
+// not survive the POST. CSRF is still gated by getUser() below: a cross-site
+// POST can't attach the user's httpOnly session cookie, so a captured nonce
+// POSTed from elsewhere just bounces to login with no code issued. On success a
+// single-use auth code is stored by hash and the user is 303-redirected to the
+// validated redirect_uri with ?code=&state=.
 export async function POST(req: Request) {
   const disabled = requireMcpEnabled();
   if (disabled) return disabled;
@@ -36,14 +39,8 @@ export async function POST(req: Request) {
   const formScope = String(form.get('scope') ?? '');
   const formNonce = String(form.get('nonce') ?? '');
 
-  const cookieStore = await cookies();
-  const cookieNonce = cookieStore.get(NONCE_COOKIE)?.value ?? '';
-
-  // Clear the nonce regardless of outcome (single-use).
-  cookieStore.delete(NONCE_COOKIE);
-
-  if (!formNonce || !cookieNonce || formNonce !== cookieNonce) {
-    return errorPage('Consent verification failed', 'Your session may have expired. Please restart the authorization from your app.');
+  if (!formNonce) {
+    return errorPage('Consent verification failed', 'The authorization request is missing its verification token. Please restart the authorization from your app.');
   }
 
   const secret = process.env.MCP_TOKEN_SECRET;

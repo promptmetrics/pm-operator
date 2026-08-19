@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { eq } from 'drizzle-orm';
 import * as schema from '@pm-operator/db';
 import { getUser } from '@/lib/auth/server';
@@ -14,17 +13,15 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const db = createServiceDb();
-const NONCE_COOKIE = 'oauth_authorize_nonce';
-const NONCE_TTL_S = 300;
 
 // OAuth 2.1 authorization endpoint. Validates the request, redirects to /login
 // (carrying returnUrl) when there is no Supabase session, otherwise renders a
-// consent screen and sets an HMAC nonce bound to the OAuth params in both a
-// hidden form field and an HttpOnly cookie. The "Allow" form POSTs to
-// /oauth/approve, which verifies the nonce pair and issues a single-use code.
-//
-// Implemented as a Route Handler (not page.tsx) so it can Set-Cookie on the
-// initial GET — Server Components cannot write cookies. On invalid client_id or
+// consent screen with an HMAC nonce (signed over the OAuth params + an issued
+// timestamp, using MCP_TOKEN_SECRET) placed in a hidden form field — no cookie
+// round-trip, so the flow works in popup/embedded-webview contexts (e.g. the
+// claude.ai cowork connector) where a SameSite cookie would not survive the
+// POST. The "Allow" form POSTs to /oauth/approve, which verifies the nonce's
+// HMAC + freshness and issues a single-use code. On invalid client_id or
 // redirect_uri it renders an inline error page and never redirects to an
 // unvalidated redirect_uri (no open redirect).
 export async function GET(req: Request) {
@@ -97,7 +94,7 @@ export async function GET(req: Request) {
   const issuedMs = Date.now();
   const nonce = createConsentNonce(payload, secret, issuedMs);
 
-  const response = new NextResponse(
+  return new NextResponse(
     renderConsent({
       clientName: client.name,
       redirectUri,
@@ -111,14 +108,6 @@ export async function GET(req: Request) {
     }),
     { headers: { 'Content-Type': 'text/html; charset=utf-8' } },
   );
-  response.cookies.set(NONCE_COOKIE, nonce, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: true,
-    path: '/',
-    maxAge: NONCE_TTL_S,
-  });
-  return response;
 }
 
 function renderConsent(args: {
