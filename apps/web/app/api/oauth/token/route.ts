@@ -37,19 +37,6 @@ export async function POST(req: Request) {
   const params = await parseTokenRequest(req);
   const grantType = params.grant_type ?? '';
 
-  // TEMP DIAGNOSTIC — remove once the confidential-client token-exchange
-  // failure is resolved. Records the request shape with NO secret values.
-  console.error('[oauth/token] request', {
-    grant_type: grantType,
-    has_code: !!params.code,
-    has_redirect_uri: !!params.redirect_uri,
-    has_client_id: !!params.client_id,
-    has_client_secret: !!params.client_secret,
-    has_code_verifier: !!params.code_verifier,
-    has_auth_header: !!req.headers.get('authorization'),
-    content_type: req.headers.get('content-type'),
-  });
-
   if (grantType === 'authorization_code') {
     return authorizationCodeGrant(params, secret);
   }
@@ -66,7 +53,6 @@ async function authorizationCodeGrant(params: Record<string, string>, secret: st
   const codeVerifier = params.code_verifier ?? '';
 
   if (!code || !redirectUri || !clientIdText || !codeVerifier) {
-    console.error('[oauth/token] invalid_request_missing_params', { has_code: !!code, has_redirect_uri: !!redirectUri, has_client_id: !!clientIdText, has_code_verifier: !!codeVerifier });
     return oauthError(400, 'invalid_request', 'code, redirect_uri, client_id, and code_verifier are required.');
   }
 
@@ -77,38 +63,31 @@ async function authorizationCodeGrant(params: Record<string, string>, secret: st
     .limit(1);
   const codeRow = codeRows[0];
   if (!codeRow) {
-    console.error('[oauth/token] invalid_grant_code_not_found');
     return oauthError(400, 'invalid_grant', 'Authorization code not found.');
   }
 
   // Replay of a used code → revoke the user's refresh chain for this client.
   if (codeRow.used) {
-    console.error('[oauth/token] invalid_grant_code_used');
     await revokeRefreshChain(codeRow.clientId, codeRow.userId);
     return oauthError(400, 'invalid_grant', 'Authorization code already used.');
   }
   if (codeRow.expiresAt.getTime() < Date.now()) {
-    console.error('[oauth/token] invalid_grant_code_expired');
     return oauthError(400, 'invalid_grant', 'Authorization code expired.');
   }
 
   const client = await lookupClientByClientId(db, clientIdText);
   if (!client || !client.isActive) {
-    console.error('[oauth/token] client_not_found_or_inactive', { client_id: clientIdText, found: !!client, active: client?.isActive });
     return oauthError(400, 'invalid_grant', 'Client does not match the authorization code.');
   }
   const authFailure = authenticateClient(client, params);
   if (authFailure) return authFailure;
   if (client.id !== codeRow.clientId) {
-    console.error('[oauth/token] client_mismatch', { sent_client_dbid: client.id, code_client_dbid: codeRow.clientId });
     return oauthError(400, 'invalid_grant', 'Client does not match the authorization code.');
   }
   if (redirectUri !== codeRow.redirectUri) {
-    console.error('[oauth/token] redirect_uri_mismatch', { sent: redirectUri, stored: codeRow.redirectUri });
     return oauthError(400, 'invalid_grant', 'redirect_uri does not match the authorization request.');
   }
   if (!verifyCodeVerifier(codeVerifier, codeRow.codeChallenge, codeRow.codeChallengeMethod)) {
-    console.error('[oauth/token] pkce_fail', { challenge_method: codeRow.codeChallengeMethod, verifier_len: codeVerifier.length, stored_challenge_len: (codeRow.codeChallenge ?? '').length });
     return oauthError(400, 'invalid_grant', 'PKCE verification failed.');
   }
 
@@ -147,7 +126,6 @@ async function authorizationCodeGrant(params: Record<string, string>, secret: st
       return oauthError(400, 'invalid_grant', 'Authorization code already used.');
     }
     const msg = err instanceof Error ? err.message : String(err);
-    console.error('[oauth/token] server_error', { msg });
     return oauthError(500, 'server_error', `Token issuance failed: ${msg}`);
   }
 
@@ -161,7 +139,6 @@ async function authorizationCodeGrant(params: Record<string, string>, secret: st
 
   auditIssue(codeRow.userId, client.id, grantedScopes, 'authorization_code');
 
-  console.error('[oauth/token] success', { grant_type: 'authorization_code', scopes: grantedScopes });
   return tokenResponse(accessToken, grantedScopes, refresh.raw);
 }
 
@@ -354,7 +331,6 @@ function authenticateClient(client: McpClientRow, params: Record<string, string>
   }
   const presented = params.client_secret ?? '';
   if (!verifyClientSecret(presented, client.clientSecret)) {
-    console.error('[oauth/token] invalid_client', { auth_method: client.tokenEndpointAuthMethod, presented_secret_len: presented.length, stored_secret_present: !!client.clientSecret });
     return oauthError(401, 'invalid_client', 'Client authentication failed.');
   }
   return null;
