@@ -15,9 +15,6 @@ const CORS_HEADERS = {
 // resource URL (https://…/api/mcp → /.well-known/oauth-protected-resource/api/mcp),
 // so a 2026-07-28 client that received a `WWW-Authenticate: Bearer
 // resource_metadata="…"` challenge can discover the resource here.
-//
-// `authorization_servers` is empty: we still issue hand-rolled HS256 JWTs and
-// have no Authorization Server / DCR endpoint. Standing one up is a follow-up.
 export async function GET() {
   if (process.env.MCP_ENABLED !== 'true') {
     return new NextResponse('Not Found', { status: 404 });
