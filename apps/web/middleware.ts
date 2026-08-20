@@ -145,6 +145,13 @@ function apiError(status: number, code: string, message: string) {
 //
 // Only ever applied when there is no session cookie, so an authenticated render
 // keeps Next's private defaults untouched.
+//
+// DEPLOYMENT CAVEAT (verified live 2026-08-20): on Vercel this header survives
+// `next start` but NOT production — Vercel's render layer replaces middleware-set
+// Cache-Control on dynamic document responses with Next's private/no-store
+// default. The production fix is the routing-layer rule in /vercel.json (same
+// paths, cookie-`missing` condition mirroring hasAuthCookie); this function
+// stays for self-hosted correctness. Keep the two in sync.
 function markPubliclyCacheable(response: NextResponse) {
   response.headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
   const vary = response.headers.get('Vary');

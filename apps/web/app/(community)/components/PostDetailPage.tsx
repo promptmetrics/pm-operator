@@ -425,9 +425,13 @@ export function PostDetailPage({
           {post.coverImageUrl ? (
             // aspect-[2/1] reserves the box before the bytes arrive (CLS);
             // fetchPriority="high" because this is the page's LCP element.
+            // width/height are layout hints matching the 2:1 box (intrinsic
+            // dimensions aren't stored) — CSS still governs rendered size.
             <img
               src={post.coverImageUrl}
               alt="Featured image"
+              width={1200}
+              height={600}
               fetchPriority="high"
               decoding="async"
               className="mb-4 aspect-[2/1] max-h-[420px] w-full rounded-lg border border-[var(--pm-line)] object-cover"

@@ -261,6 +261,8 @@ export function FeedCard({
               <img
                 src={post.coverImageUrl}
                 alt=""
+                width={1200}
+                height={600}
                 loading="lazy"
                 decoding="async"
                 className="mt-3 aspect-[2/1] max-h-[240px] w-full rounded-lg border border-[var(--pm-line)] object-cover"

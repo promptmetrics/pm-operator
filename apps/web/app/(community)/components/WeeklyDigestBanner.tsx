@@ -77,11 +77,14 @@ export function WeeklyDigestBanner({ digest }: { digest: WeeklyDigestData }) {
       >
         View weekly digest →
       </Link>
+      {/* Hit area from the control token (44px on coarse pointers); the 16px
+          icon stays and the padding is transparent, so desktop density is
+          unchanged. Audit item 12's one missed target. */}
       <button
         type="button"
         onClick={dismiss}
         aria-label="Dismiss weekly digest banner"
-        className="shrink-0 rounded-lg p-1 text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)] max-sm:absolute max-sm:right-3 max-sm:top-3"
+        className="flex min-h-[var(--pm-control-h)] min-w-[var(--pm-control-h)] shrink-0 items-center justify-center rounded-lg text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)] max-sm:absolute max-sm:right-1.5 max-sm:top-1.5"
       >
         <X className="h-4 w-4" aria-hidden="true" />
       </button>
