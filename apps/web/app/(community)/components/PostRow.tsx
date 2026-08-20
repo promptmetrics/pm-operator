@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { CheckCircle2, Wrench, Rocket } from 'lucide-react';
 import { Card } from '@pm-operator/ui/components/Card';
 import { Badge } from '@pm-operator/ui/components/Badge';
-import { timeAgo, formatNumber } from '@/lib/format';
+import { formatNumber } from '@/lib/format';
+import { TimeAgo } from '@/components/TimeAgo';
 import type { PostListItem, SearchResult } from '@pm-operator/api';
 
 type PostItem = PostListItem | SearchResult;
@@ -61,7 +62,7 @@ export function PostRow({ post, onClickResult }: PostRowProps) {
             <span className="whitespace-nowrap">{post.author.username}</span> ·{' '}
             <span className="whitespace-nowrap">Lv {post.author.level}</span> ·{' '}
             <span className="whitespace-nowrap">{post.author.acceptedSolutions} solutions</span> ·{' '}
-            <span className="whitespace-nowrap">{timeAgo(post.createdAt)}</span> ·{' '}
+            <TimeAgo iso={post.createdAt} className="whitespace-nowrap" /> ·{' '}
             <span className="whitespace-nowrap">▲ {formatNumber(post.upvotes)}</span> ·{' '}
             <span className="whitespace-nowrap">💬 {formatNumber(post.commentCount)}</span>
           </p>

@@ -1,6 +1,10 @@
+import { cache } from 'react';
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { createServiceDb } from '@/lib/db';
 import { getSession } from '@/lib/auth/server';
+import { getPublicSiteUrl } from '@/lib/site-url';
+import { metaDescription } from '@/lib/seo/meta-description';
 import {
   getUserProfile,
   listUserCircleContributions,
@@ -25,6 +29,45 @@ import type { PostListItem } from '@pm-operator/api';
 // own concurrent queries internally, so they only ever run alone.
 type ViewerState = { isFollowing: boolean; bookmarks?: PostListItem[] };
 
+// React cache() so generateMetadata and the page render share one profile
+// query per request instead of doubling the load on the small pool.
+const loadProfile = cache((slug: string) => getUserProfile(createServiceDb(), slug));
+
+// Author pages are the E-E-A-T surface: post JSON-LD author.url points here and
+// robots.ts allows /u/{slug}, so this page needs its own identity instead of
+// inheriting the root layout's generic title. Missing users fall through to
+// notFound() — a 404 needs no robots directive.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const user = await loadProfile(slug);
+  if (!user) return { title: 'Profile' };
+
+  const displayName = user.fullName?.trim() || user.username;
+  const title = `${displayName} (@${user.userslug}) — Operator Stack community`;
+  const description = metaDescription(
+    user.aboutMe?.trim() ||
+      `${displayName}'s posts, answers, and contributions in the Operator Stack community.`
+  );
+  const canonical = `${getPublicSiteUrl()}/u/${user.userslug}`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      type: 'profile',
+    },
+    twitter: { card: 'summary', title, description },
+  };
+}
+
 // At most ONE query, whichever branch is taken: the follow probe is
 // other-profile only and bookmarks are self-only, so these can never both run.
 // Packaging them lets the viewer probe share a wave instead of costing a step.
@@ -48,8 +91,9 @@ export default async function UserRoute({ params }: { params: Promise<{ slug: st
   const { session } = await getSession();
   const currentUserId = session?.user?.id;
 
-  // Internally bounded: the user row, then a 2-wide count wave.
-  const user = await getUserProfile(db, slug);
+  // Internally bounded: the user row, then a 2-wide count wave. loadProfile is
+  // the cache()-wrapped getUserProfile shared with generateMetadata above.
+  const user = await loadProfile(slug);
   if (!user) notFound();
 
   const isOwnProfile = currentUserId === user.id;

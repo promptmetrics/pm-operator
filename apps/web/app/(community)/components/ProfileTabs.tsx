@@ -12,7 +12,7 @@ import { LevelBadge } from '@pm-operator/ui/components/LevelBadge';
 import { StreakGrid } from '@pm-operator/ui/components/StreakGrid';
 import { Progress } from '@pm-operator/ui/components/Progress';
 import { PostRow } from './PostRow';
-import { timeAgo } from '@/lib/format';
+import { TimeAgo } from '@/components/TimeAgo';
 import type {
   UserProfileDetail,
   CircleContribution,
@@ -373,7 +373,7 @@ export function ProfileTabs({
                       />
                       <div className="mt-2 flex items-center gap-2 text-xs text-[var(--pm-muted)]">
                         <Badge variant="outline">{item.post.group.name}</Badge>
-                        <span>{timeAgo(item.createdAt)}</span>
+                        <TimeAgo iso={item.createdAt} />
                       </div>
                     </Card>
                   ))}
@@ -403,7 +403,7 @@ export function ProfileTabs({
                         dangerouslySetInnerHTML={{ __html: comment.content }}
                       />
                       <p className="mt-2 text-xs text-[var(--pm-muted)]">
-                        {timeAgo(comment.createdAt)}
+                        <TimeAgo iso={comment.createdAt} />
                       </p>
                     </Card>
                   ))}

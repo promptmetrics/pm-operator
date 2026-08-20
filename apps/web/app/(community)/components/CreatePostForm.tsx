@@ -8,7 +8,7 @@ import { Button } from '@pm-operator/ui/components/Button';
 import { Chip } from '@pm-operator/ui/components/Chip';
 import { Input } from '@pm-operator/ui/components/Input';
 import { Badge } from '@pm-operator/ui/components/Badge';
-import { RichTextEditor } from '@pm-operator/ui/editor/RichTextEditor';
+import { RichTextEditor } from './LazyRichTextEditor';
 import { trackEvent } from '@/lib/analytics';
 import { apiErrorMessage } from '@/lib/api/client-errors';
 import type { Group, PostType, CreatePostRequest, PostDetail } from '@pm-operator/api';

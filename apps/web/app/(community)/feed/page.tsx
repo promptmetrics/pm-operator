@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import type { Metadata } from 'next';
 import { eq } from 'drizzle-orm';
 import * as schema from '@pm-operator/db';
 import { createServiceDb } from '@/lib/db';
@@ -15,7 +16,33 @@ import { WeeklyDigestBanner } from '../components/WeeklyDigestBanner';
 import { WelcomeToast } from '../components/WelcomeToast';
 import { OnboardingChecklist } from '../components/OnboardingChecklist';
 import { HelpSomeoneCard, getHelpQueue } from '../components/HelpSomeoneCard';
+import { getPublicSiteUrl } from '@/lib/site-url';
+import { buildWebSiteJsonLd } from '@/lib/seo/site-jsonld';
+import { serializeJsonLd } from '@/lib/seo/post-jsonld';
 import { FeedFilter, FeedSort } from '@pm-operator/api';
+
+// /feed is the sitemap's priority-1.0 URL yet shipped with the root layout's
+// generic title and no canonical — GSC filed it as "Duplicate without
+// user-selected canonical". Static metadata is enough: the feed's identity
+// doesn't vary by filter/sort, and the canonical deliberately ignores query
+// params so every filtered view consolidates onto /feed.
+const FEED_CANONICAL = `${getPublicSiteUrl()}/feed`;
+const FEED_TITLE = 'Community feed — Operator Stack';
+const FEED_DESCRIPTION =
+  'Latest posts from the Operator Stack community — RevOps, CS, and marketing-ops operators sharing how they orchestrate their tools with coding agents.';
+
+export const metadata: Metadata = {
+  title: FEED_TITLE,
+  description: FEED_DESCRIPTION,
+  alternates: { canonical: FEED_CANONICAL },
+  openGraph: {
+    title: FEED_TITLE,
+    description: FEED_DESCRIPTION,
+    url: FEED_CANONICAL,
+    type: 'website',
+  },
+  twitter: { card: 'summary', title: FEED_TITLE, description: FEED_DESCRIPTION },
+};
 
 type PageSearchParams = Record<string, string | string[] | undefined>;
 
@@ -98,6 +125,16 @@ export default async function FeedRoute({ searchParams }: { searchParams: Promis
       : [];
 
   return (
+    <>
+      {/* WebSite node for the subdomain, publisher-linked to www's Organization
+          @id so the two graphs merge (see site-jsonld.ts). Emitted here because
+          /feed is the entry page — `/` 308s to it. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: serializeJsonLd(buildWebSiteJsonLd(getPublicSiteUrl())),
+        }}
+      />
     <FeedPage
       initialPosts={posts}
       initialFilter={filter}
@@ -123,5 +160,6 @@ export default async function FeedRoute({ searchParams }: { searchParams: Promis
       }
       railTopSlot={<HelpSomeoneCard items={helpQueue} />}
     />
+    </>
   );
 }

@@ -64,9 +64,16 @@ export type CommentsQuery = z.infer<typeof commentsQuerySchema>;
 // (`meta` carries page/limit/hasMore); the accepted solution — when the post
 // has one — is returned separately in `acceptedComment` (hoisted per
 // 07-ux-spec:301) and never appears in `comments`.
+//
+// `total` counts every comment THIS viewer may see on the post — roots, replies
+// and the accepted solution, across all pages. It is deliberately not
+// posts.comment_count: that column counts only `published` rows, while the list
+// also hands hidden tombstones to members and moderators. Render `total`, never
+// the column, or the heading disagrees with the thread under it.
 export const commentListResponseSchema = z.object({
   comments: z.array(commentDetailSchema),
   acceptedComment: commentDetailSchema.nullable().optional(),
+  total: z.number().int().nonnegative(),
 });
 
 export type CommentListResponse = z.infer<typeof commentListResponseSchema>;

@@ -5,7 +5,7 @@ import { Card, CardContent, CardTitle } from '@pm-operator/ui/components/Card';
 import { FeedFilter, FeedSort, POINT_WEIGHTS } from '@pm-operator/api';
 import { createServiceDb } from '@/lib/db';
 import { listFeed } from '@/lib/services/posts';
-import { timeAgo } from '@/lib/format';
+import { TimeAgo } from '@/components/TimeAgo';
 
 // "Help someone today" rail widget (plan §4.8): 1–2 questions that are still
 // unanswered after 4 hours, on the feed's right rail, nudging members toward
@@ -75,7 +75,7 @@ export function HelpSomeoneCard({ items }: { items: HelpQueueItem[] }) {
                 {item.title}
               </Link>
               <p className="mt-0.5 text-xs text-[var(--pm-muted)]">
-                {item.groupName} · {timeAgo(item.createdAt)}
+                {item.groupName} · <TimeAgo iso={item.createdAt} />
               </p>
             </li>
           ))}

@@ -51,6 +51,7 @@ This checklist documents every environment variable used by `operator.promptmetr
 | `ANTHROPIC_API_KEY` | Server | Anthropic API key alternative for AI-assisted features. |
 | `AVATAR_MAX_SIZE_MB` | Server | Maximum avatar upload size in megabytes. |
 | `AVATAR_SIGNED_URL_TTL_SECONDS` | Server | TTL for Supabase Storage signed avatar URLs. |
+| `INDEXNOW_KEY` | Server | IndexNow key (Bing/Yandex fast discovery). When set, `/{key}.txt` serves the ownership file and post publish/edit/hide pings api.indexnow.org; unset = logged no-op. Generate any 32-hex string. |
 | `LOG_LEVEL` | Server | Pino log level (`trace`, `debug`, `info`, `warn`, `error`, `fatal`). Defaults to `info`. |
 | `NODE_ENV` | Server / Build | Runtime environment (`development`, `production`, `test`). |
 

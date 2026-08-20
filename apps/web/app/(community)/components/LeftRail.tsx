@@ -57,7 +57,7 @@ export function LeftRail({ circles }: { circles: RailCircle[] }) {
                 <Link
                   href={item.href}
                   aria-current={active ? 'page' : undefined}
-                  className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium ${
+                  className={`flex min-h-[var(--pm-control-h)] items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium ${
                     active
                       ? 'bg-[var(--pm-paper-2)] text-[var(--pm-ink)]'
                       : 'text-[var(--pm-ink-2)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]'
@@ -85,7 +85,7 @@ export function LeftRail({ circles }: { circles: RailCircle[] }) {
                     <Link
                       href={`/g/${circle.slug}`}
                       aria-current={active ? 'page' : undefined}
-                      className={`flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm ${
+                      className={`flex min-h-[var(--pm-control-h)] items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm ${
                         active
                           ? 'bg-[var(--pm-paper-2)] text-[var(--pm-ink)]'
                           : 'text-[var(--pm-ink-2)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]'

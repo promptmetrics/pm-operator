@@ -11,8 +11,8 @@ import { Badge } from '@pm-operator/ui/components/Badge';
 import { ConfirmDialog } from '@pm-operator/ui/components/ConfirmDialog';
 import { LevelBadge } from '@pm-operator/ui/components/LevelBadge';
 import { useToast } from '@pm-operator/ui/components/Toast';
-import { RichTextEditor } from '@pm-operator/ui/editor/RichTextEditor';
-import { timeAgo } from '@/lib/format';
+import { RichTextEditor } from './LazyRichTextEditor';
+import { TimeAgo } from '@/components/TimeAgo';
 import { trackEvent } from '@/lib/analytics';
 import { apiErrorMessage } from '@/lib/api/client-errors';
 import { FlagDialog } from './FlagDialog';
@@ -283,7 +283,7 @@ function SingleComment({
                 </span>
               ) : null}
               <span className="text-[var(--pm-muted)]">
-                Lv {comment.author.level} · {timeAgo(comment.createdAt)}
+                Lv {comment.author.level} · <TimeAgo iso={comment.createdAt} />
               </span>
               {isAccepted ? (
                 <Badge variant="green" className="gap-1">
@@ -555,7 +555,7 @@ export function AcceptedSolutionCard({
           {comment.author.username}
         </Link>
         <span className="text-[var(--pm-muted)]">
-          Lv {comment.author.level} · {timeAgo(comment.createdAt)}
+          Lv {comment.author.level} · <TimeAgo iso={comment.createdAt} />
         </span>
       </div>
 

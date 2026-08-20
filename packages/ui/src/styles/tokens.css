@@ -84,6 +84,22 @@
 
 :root {
   color-scheme: light;
+
+  /* Interactive control heights (audit item 12). One token pair instead of
+   * per-component pixel literals so the touch-target fix is systemic: on
+   * coarse-pointer (touch) devices both resolve to 44px — the WCAG/Lighthouse
+   * tap-target floor — while desktop keeps its denser sizing. Consumers use
+   * the bracket form h-[var(--pm-control-h)] (tailwind-merge v2 cannot parse
+   * Tailwind 4's h-(--var) shorthand). */
+  --pm-control-h: 2rem; /* sm buttons, chips, pills, rail rows */
+  --pm-control-h-md: 2.5rem; /* md buttons, inputs */
+}
+
+@media (pointer: coarse) {
+  :root {
+    --pm-control-h: 2.75rem;
+    --pm-control-h-md: 2.75rem;
+  }
 }
 
 [data-theme='paper'] {

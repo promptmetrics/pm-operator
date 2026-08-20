@@ -29,9 +29,11 @@ export function buttonVariants(variant: ButtonVariant = "primary", size: ButtonS
       "bg-[var(--pm-danger)] text-[var(--pm-on-ink)] hover:bg-[var(--pm-danger)]/90 shadow-[var(--pm-shadow)]",
   };
 
+  // Heights come from the control tokens (tokens.css): 32/40px on desktop,
+  // both 44px on coarse-pointer devices for tap targets. lg is 48px everywhere.
   const sizes: Record<ButtonSize, string> = {
-    sm: "h-8 px-3 text-sm",
-    md: "h-10 px-4 text-base",
+    sm: "h-[var(--pm-control-h)] px-3 text-sm",
+    md: "h-[var(--pm-control-h-md)] px-4 text-base",
     lg: "h-12 px-6 text-lg",
   };
 

@@ -6,6 +6,7 @@ import { createServiceDb } from '@/lib/db';
 import { getSession } from '@/lib/auth/server';
 import { getUserProfile, listUserCircleContributions, getUserStreakWeek } from '@/lib/services/users';
 import { getUserBadges } from '@/lib/services/badges';
+import { getPublicSiteUrl } from '@/lib/site-url';
 import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { LevelBadge } from '@pm-operator/ui/components/LevelBadge';
 import { StreakGrid } from '@pm-operator/ui/components/StreakGrid';
@@ -21,9 +22,9 @@ import { DevCardActions } from './DevCardActions';
 // `/u/{slug}/devcard` and `/api/og/devcard/{slug}`, and nothing else under /u/.
 // Everything rendered here is already public-profile data.
 
-function siteUrl(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL || 'https://promptmetrics.dev').replace(/\/$/, '');
-}
+// Was a fourth private copy of the same origin expression, with the marketing
+// site as its fallback. One helper now, shared with robots/sitemap/canonicals.
+const siteUrl = getPublicSiteUrl;
 
 function formatJoined(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });

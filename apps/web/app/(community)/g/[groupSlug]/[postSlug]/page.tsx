@@ -4,8 +4,13 @@ import * as schema from '@pm-operator/db';
 import { createServiceDb } from '@/lib/db';
 import { getSession } from '@/lib/auth/server';
 import { getPostBySlug, listGroupPosts } from '@/lib/services/posts';
+import { listCommentsForPost } from '@/lib/services/comments';
 import { getAvatarReadUrl } from '@/lib/storage';
 import { resolvePostShareImage } from '@/lib/og-image';
+import { getPublicSiteUrl } from '@/lib/site-url';
+import { buildPostJsonLd, serializeJsonLd } from '@/lib/seo/post-jsonld';
+import { buildBreadcrumbJsonLd } from '@/lib/seo/site-jsonld';
+import { metaDescription } from '@/lib/seo/meta-description';
 import { PostDetailPage } from '../../../components/PostDetailPage';
 
 // generateMetadata reaches lib/og-image -> services/safe-fetch, which uses
@@ -19,16 +24,20 @@ export async function generateMetadata({
   params: Promise<{ groupSlug: string; postSlug: string }>;
 }): Promise<Metadata> {
   const { groupSlug, postSlug } = await params;
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptmetrics.dev';
+  const siteUrl = getPublicSiteUrl();
 
   const db = createServiceDb();
   const post = await getPostBySlug(db, groupSlug, postSlug, undefined);
 
   if (!post) {
-    return { title: 'Removed by moderator' };
+    // This branch still answers 200 with a placeholder body (access-matrix.spec.ts
+    // asserts the text is visible), so without noindex Google files it as a soft
+    // 404 — and soft 404s are charged against the whole host's crawl quality,
+    // which is the opposite of what we need on this subdomain.
+    return { title: 'Removed by moderator', robots: { index: false, follow: false } };
   }
 
-  const description = (post.contentPlain || post.title).slice(0, 160);
+  const description = metaDescription(post.contentPlain || post.title);
   const image = await resolvePostShareImage(post.coverImageUrl, post.content);
   const canonical = `${siteUrl}/g/${groupSlug}/${postSlug}`;
 
@@ -100,22 +109,65 @@ export default async function PostBySlugRoute({
 
   const viewerPictureUrl = await getAvatarReadUrl(viewer?.pictureUrl);
 
+  // Server-render page 1 of the thread. Sequential on purpose: the Promise.all
+  // above is already at the 3-query concurrency budget the pool allows, and a
+  // 4th parallel branch is how the pool got starved before.
+  //
+  // 'top' must match PostDetailPage's default sort, or the list reorders the
+  // moment it hydrates.
+  const initialComments = await listCommentsForPost(db, post.id, currentUserId, {
+    sort: 'top',
+    limit: 20,
+    offset: 0,
+  });
+
+  // Same expression as generateMetadata's canonical — one origin helper, so the
+  // canonical, the sitemap entry and this URL cannot drift apart.
+  const siteUrl = getPublicSiteUrl();
+  const canonical = `${siteUrl}/g/${groupSlug}/${postSlug}`;
+  const jsonLd = buildPostJsonLd(post, canonical);
+  const breadcrumbJsonLd = jsonLd
+    ? buildBreadcrumbJsonLd([
+        { name: 'Community', url: `${siteUrl}/feed` },
+        { name: post.group.name, url: `${siteUrl}/g/${groupSlug}` },
+        { name: post.title, url: canonical },
+      ])
+    : null;
+
   return (
-    <PostDetailPage
-      post={post}
-      currentUserId={currentUserId}
-      viewerRole={viewer?.role}
-      viewerIsMember={Boolean(membership)}
-      viewer={
-        viewer
-          ? {
-              username: viewer.username,
-              fullName: viewer.fullName,
-              pictureUrl: viewerPictureUrl,
-            }
-          : undefined
-      }
-      morePosts={morePosts.posts}
-    />
+    <>
+      {jsonLd ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
+        />
+      ) : null}
+      {breadcrumbJsonLd ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbJsonLd) }}
+        />
+      ) : null}
+      <PostDetailPage
+        post={post}
+        initialComments={initialComments.comments}
+        initialAcceptedComment={initialComments.acceptedComment}
+        initialHasMore={initialComments.hasMore}
+        initialTotal={initialComments.total}
+        currentUserId={currentUserId}
+        viewerRole={viewer?.role}
+        viewerIsMember={Boolean(membership)}
+        viewer={
+          viewer
+            ? {
+                username: viewer.username,
+                fullName: viewer.fullName,
+                pictureUrl: viewerPictureUrl,
+              }
+            : undefined
+        }
+        morePosts={morePosts.posts}
+      />
+    </>
   );
 }

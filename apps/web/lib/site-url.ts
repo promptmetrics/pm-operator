@@ -18,6 +18,31 @@ export function getSiteUrl(): string {
   return '';
 }
 
+/**
+ * Origin for anything a crawler will compare against something else we publish —
+ * canonicals, sitemap `<loc>`s, robots.txt `Host`/`Sitemap`, OG urls.
+ *
+ * Differs from getSiteUrl() in the two ways that matter server-side:
+ *   - it never returns '' (getSiteUrl does, when the env var is unset and there
+ *     is no window), which would emit a canonical of `/g/foo/bar`;
+ *   - its fallback is this host. Four call sites previously fell back to
+ *     `https://promptmetrics.dev` — the marketing site — so a missing env var
+ *     pointed every operator canonical at a different domain.
+ *
+ * The trailing-slash strip is what keeps a canonical byte-identical to the
+ * sitemap entry for the same page. sitemap.ts stripped it, the post page did
+ * not; one stray slash in NEXT_PUBLIC_SITE_URL and they disagree, which is how
+ * you earn "Duplicate without user-selected canonical".
+ *
+ * Not for OAuth: lib/oauth/constants.ts intentionally uses getSiteUrl(), whose
+ * issuer URL must stay exactly as configured.
+ */
+export function getPublicSiteUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (configured) return configured.replace(/\/+$/, '');
+  return 'https://operator.promptmetrics.dev';
+}
+
 export function getAuthCallbackUrl(returnUrl: string): string {
   const base = getSiteUrl();
   if (!base) {

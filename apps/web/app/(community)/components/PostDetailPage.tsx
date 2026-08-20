@@ -22,12 +22,12 @@ import {
   DropdownMenuSeparator,
 } from '@pm-operator/ui/components/DropdownMenu';
 import { useToast } from '@pm-operator/ui/components/Toast';
-import { RichTextEditor } from '@pm-operator/ui/editor/RichTextEditor';
+import { RichTextEditor } from './LazyRichTextEditor';
 import { CommentThread, AcceptedSolutionCard } from './CommentThread';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { GroupMembershipButton } from './GroupMembershipButton';
 import { useRealtimePost } from './RealtimeProvider';
-import { timeAgo } from '@/lib/format';
+import { TimeAgo } from '@/components/TimeAgo';
 import { trackEvent } from '@/lib/analytics';
 import { apiErrorMessage } from '@/lib/api/client-errors';
 import { POINT_WEIGHTS } from '@pm-operator/api';
@@ -36,7 +36,7 @@ import type { PostDetail, CommentDetail, CommentSort, PostListItem } from '@pm-o
 const PAGE_SIZE = 20;
 
 const pillClass =
-  'inline-flex items-center gap-1.5 rounded-[var(--pm-radius-pill)] border bg-[var(--pm-paper)] px-3.5 py-1.5 text-[13px] transition-colors focus:outline-none focus-visible:shadow-[var(--pm-focus)] disabled:pointer-events-none disabled:opacity-60';
+  'inline-flex h-[var(--pm-control-h)] items-center gap-1.5 rounded-[var(--pm-radius-pill)] border bg-[var(--pm-paper)] px-3.5 text-[13px] transition-colors focus:outline-none focus-visible:shadow-[var(--pm-focus)] disabled:pointer-events-none disabled:opacity-60';
 
 const pillIdle =
   'border-[var(--pm-line)] text-[var(--pm-muted)] hover:border-[var(--pm-coral)] hover:text-[var(--pm-coral-dark)]';
@@ -59,6 +59,21 @@ interface PostDetailPageProps {
   viewerIsMember?: boolean;
   viewer?: ViewerSummary;
   morePosts?: PostListItem[];
+  /**
+   * First page of comments, rendered on the server.
+   *
+   * Without these the thread exists only after hydration, and a crawler (or
+   * anything reading raw HTML) sees "N comments" above "No comments yet" — which
+   * is exactly what prod shipped. It also makes OP-1's DiscussionForumPosting
+   * `commentCount` a claim about content that is not on the page.
+   *
+   * Must be fetched with the same sort the client defaults to ('top') or the
+   * first paint reorders on hydration.
+   */
+  initialComments?: CommentDetail[];
+  initialAcceptedComment?: CommentDetail | null;
+  initialHasMore?: boolean;
+  initialTotal?: number;
 }
 
 const typeLabel: Record<string, string> = {
@@ -84,6 +99,10 @@ export function PostDetailPage({
   viewerIsMember = false,
   viewer,
   morePosts = [],
+  initialComments,
+  initialAcceptedComment = null,
+  initialHasMore = false,
+  initialTotal,
 }: PostDetailPageProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -100,11 +119,19 @@ export function PostDetailPage({
   const [savingAdmin, setSavingAdmin] = React.useState(false);
 
   // Comments state (T5.6: sorted + paged root comments; accepted hoisted).
-  const [comments, setComments] = React.useState<CommentDetail[]>([]);
-  const [acceptedComment, setAcceptedComment] = React.useState<CommentDetail | null>(null);
+  const [comments, setComments] = React.useState<CommentDetail[]>(initialComments ?? []);
+  const [acceptedComment, setAcceptedComment] = React.useState<CommentDetail | null>(
+    initialAcceptedComment
+  );
   const [sort, setSort] = React.useState<CommentSort>('top');
-  const [hasMore, setHasMore] = React.useState(false);
+  const [hasMore, setHasMore] = React.useState(initialHasMore);
   const [loadingMore, setLoadingMore] = React.useState(false);
+  // Seeded from the server-rendered column so the first paint has a number, then
+  // replaced by the API's viewer-accurate total on every fetch. Rendering
+  // post.commentCount directly is what produced "1 comments" over "No comments
+  // yet": the column counts only published rows and never re-renders after a
+  // client-side write.
+  const [commentTotal, setCommentTotal] = React.useState(initialTotal ?? post.commentCount);
 
   // Composer (T5.8: collapsed pill → TipTap editor).
   const [composerOpen, setComposerOpen] = React.useState(false);
@@ -132,13 +159,18 @@ export function PostDetailPage({
       );
       if (!res.ok) throw new Error('Failed to load comments');
       const json = (await res.json()) as {
-        data?: { comments?: CommentDetail[]; acceptedComment?: CommentDetail | null };
+        data?: {
+          comments?: CommentDetail[];
+          acceptedComment?: CommentDetail | null;
+          total?: number;
+        };
         meta?: { hasMore?: boolean };
       };
       return {
         comments: json.data?.comments ?? [],
         acceptedComment: json.data?.acceptedComment ?? null,
         hasMore: Boolean(json.meta?.hasMore),
+        total: json.data?.total,
       };
     },
     [post.id]
@@ -152,12 +184,20 @@ export function PostDetailPage({
       setComments(page.comments);
       setAcceptedComment(page.acceptedComment);
       setHasMore(page.hasMore);
+      if (page.total !== undefined) setCommentTotal(page.total);
     } catch {
       // leave existing comments
     }
   }, [fetchPage, sort]);
 
+  // When the server already rendered page 1, skip exactly the mount fetch — it
+  // would re-request identical data. Later runs (sort change) still fetch.
+  const skipMountLoadRef = React.useRef(initialComments !== undefined);
   React.useEffect(() => {
+    if (skipMountLoadRef.current) {
+      skipMountLoadRef.current = false;
+      return;
+    }
     loadComments();
   }, [loadComments]);
 
@@ -190,6 +230,7 @@ export function PostDetailPage({
       const page = await fetchPage(sort, PAGE_SIZE, commentsRef.current.length);
       setComments((prev) => [...prev, ...page.comments]);
       setHasMore(page.hasMore);
+      if (page.total !== undefined) setCommentTotal(page.total);
     } catch {
       toast({ title: 'Failed to load more comments', variant: 'error' });
     } finally {
@@ -200,7 +241,8 @@ export function PostDetailPage({
   const shownCount =
     comments.reduce((n, c) => n + 1 + (c.replies?.length ?? 0), 0) +
     (acceptedComment ? 1 + (acceptedComment.replies?.length ?? 0) : 0);
-  const moreCount = Math.min(PAGE_SIZE, Math.max(post.commentCount - shownCount, 1));
+  const moreCount = Math.min(PAGE_SIZE, Math.max(commentTotal - shownCount, 1));
+  const commentTotalLabel = `${commentTotal} ${commentTotal === 1 ? 'comment' : 'comments'}`;
 
   const patchPost = async (patch: {
     isPinned?: boolean;
@@ -381,10 +423,14 @@ export function PostDetailPage({
           </h1>
 
           {post.coverImageUrl ? (
+            // aspect-[2/1] reserves the box before the bytes arrive (CLS);
+            // fetchPriority="high" because this is the page's LCP element.
             <img
               src={post.coverImageUrl}
               alt="Featured image"
-              className="mb-4 max-h-[420px] w-full rounded-lg border border-[var(--pm-line)] object-cover"
+              fetchPriority="high"
+              decoding="async"
+              className="mb-4 aspect-[2/1] max-h-[420px] w-full rounded-lg border border-[var(--pm-line)] object-cover"
             />
           ) : null}
 
@@ -406,7 +452,7 @@ export function PostDetailPage({
             </Link>
             <span>
               Lv {post.author.level} · {post.author.acceptedSolutions} solutions ·{' '}
-              {timeAgo(post.createdAt)}
+              <TimeAgo iso={post.createdAt} />
             </span>
           </div>
 
@@ -515,7 +561,7 @@ export function PostDetailPage({
             ) : null}
 
             <span className="ml-auto text-[13px] text-[var(--pm-muted)]">
-              {post.commentCount} comments
+              {commentTotalLabel}
             </span>
           </div>
         </article>
@@ -537,7 +583,7 @@ export function PostDetailPage({
           className="rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-5 shadow-[var(--pm-shadow)]"
         >
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="font-serif text-lg font-semibold">{post.commentCount} comments</h2>
+            <h2 className="font-serif text-lg font-semibold">{commentTotalLabel}</h2>
             <Select
               aria-label="Sort comments"
               value={sort}
@@ -673,7 +719,7 @@ export function PostDetailPage({
                 >
                   <span className="block text-[13px] font-semibold leading-snug">{p.title}</span>
                   <span className="mt-0.5 block text-xs text-[var(--pm-muted-soft)]">
-                    ▲ {p.upvotes} · {timeAgo(p.createdAt)}
+                    ▲ {p.upvotes} · <TimeAgo iso={p.createdAt} />
                   </span>
                 </Link>
               ))}

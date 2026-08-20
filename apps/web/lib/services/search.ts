@@ -11,7 +11,7 @@ import type {
 import { levelForScore } from '@pm-operator/api';
 import { toISO, toNumber, toExcerpt } from './shared';
 import { postVisibilityFilter } from './posts';
-import { getPostImageReadUrl, getAvatarReadUrl } from '../storage';
+import { postImageProxyUrl, getAvatarReadUrl } from '../storage';
 
 function sanitizeTsQueryTerm(term: string): string | null {
   // Keep letters, numbers, and underscores; drop tsquery operators and punctuation.
@@ -134,7 +134,7 @@ export async function searchPosts(
       tags: r.post.tags,
       excerpt: toExcerpt(r.post.contentPlain),
       createdAt: toISO(r.post.createdAt),
-      coverImageUrl: await getPostImageReadUrl(r.post.coverImageUrl),
+      coverImageUrl: postImageProxyUrl(r.post.coverImageUrl),
       rank: Number(r.rank ?? 0),
     }))
   );

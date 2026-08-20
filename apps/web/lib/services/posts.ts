@@ -3,64 +3,75 @@ import type { AnyColumn, SQL } from 'drizzle-orm';
 import type { DrizzleClient } from '@pm-operator/db';
 import * as schema from '@pm-operator/db';
 import type { FeedQuery, FeedResponse, PostDetail, CreatePostRequest, PatchPostRequest, PostListItem } from '@pm-operator/api';
-import { getAvatarReadUrl, getPostImageReadUrl } from '../storage';
+import { getAvatarReadUrl, postImageProxyUrl } from '../storage';
 import { htmlToText } from '../html-to-text';
 import { sanitizeHtml } from '../sanitize-html';
 import { levelForScore } from '@pm-operator/api';
 import { toISO, toNumber, toExcerpt, isAdminOrModerator, redactForViewer } from './shared';
 import { autoFlagIfWatched } from './flags';
 import { buildLinkPreview } from './unfurl';
+import { pingIndexNow } from '../indexnow';
+import { getPublicSiteUrl } from '../site-url';
 
 const POST_IMAGE_PATH_PREFIX = '/post-images/';
 
 /**
- * Resolve stored post-image paths (`/post-images/<userId>/<uuid>`) to signed
- * Supabase read URLs. External URLs and other paths are left as-is.
+ * Rewrite stored post-image paths (`/post-images/<userId>/<uuid>`) to the
+ * stable same-origin proxy (`/api/img/...`). External URLs and other paths are
+ * left as-is. Pure string transform — no Supabase signing round trips, and the
+ * emitted URLs never expire (signed URLs died hourly, which broke crawlers,
+ * caches, and Google Images).
  */
-async function resolvePostImageUrls(html: string): Promise<string> {
+function resolvePostImageUrls(html: string): string {
   if (!html.includes(POST_IMAGE_PATH_PREFIX)) return html;
 
   const imgRe = /<img\b([^>]*?)src=["'](\/post-images\/[^"']+)["']([^>]*?)>/gi;
-  const paths: string[] = [];
-  html.replace(imgRe, (_full, _before, src) => {
-    paths.push(src);
-    return _full;
-  });
-  if (paths.length === 0) return html;
-
-  const signedUrls = await Promise.all(paths.map((src) => getPostImageReadUrl(src)));
-
-  let index = 0;
-  return html.replace(imgRe, (full, before, src, after) => {
-    const signed = signedUrls[index++];
-    const newSrc = signed || src;
-    return `<img${before}src="${newSrc}"${after}>`;
+  return html.replace(imgRe, (_full, before, src, after) => {
+    const proxied = postImageProxyUrl(src);
+    return `<img${before}src="${proxied ?? src}"${after}>`;
   });
 }
 
-async function resolveCoverImageUrl(path: string | null | undefined): Promise<string | null> {
-  if (!path) return null;
-  return getPostImageReadUrl(path);
+function resolveCoverImageUrl(path: string | null | undefined): string | null {
+  return postImageProxyUrl(path);
 }
 
-async function formatPostContent(
-  content: string | null,
-  isHidden: boolean
-): Promise<string> {
+function formatPostContent(content: string | null, isHidden: boolean): string {
   if (isHidden || !content) return '';
-  const sanitized = sanitizeHtml(content);
-  return resolvePostImageUrls(sanitized);
+  return resolvePostImageUrls(sanitizeHtml(content));
 }
 
 type FilterValue = FeedQuery['filter'];
 type SortValue = FeedQuery['sort'];
 
-function slugify(title: string): string {
-  return title
+/**
+ * Title → URL slug, capped at 60 characters on a word boundary.
+ *
+ * The cap used to be a bare `.slice(0, 60)` applied AFTER the trailing-dash
+ * trim, so it cut mid-word and left behind the dash it had just removed — which
+ * is why a live post sits at
+ * `.../agent-powered-hubspot-cleanup-with-a-human-approval-gate-on-`.
+ * Dropping the partial trailing word, then re-trimming, fixes both.
+ *
+ * Exported for tests. Existing slugs are deliberately NOT migrated: those URLs
+ * are already in Google's crawl queue and a redirect costs more than the
+ * cosmetic gain, so this only affects posts created from now on.
+ */
+export function slugify(title: string): string {
+  const base = title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60);
+    .replace(/^-+|-+$/g, '');
+
+  if (base.length <= 60) return base;
+
+  // A single word longer than 60 chars has no hyphen to cut at, so the first
+  // replace no-ops and the hard truncation stands rather than emptying the
+  // string. `|| 'post'` in uniquePostSlug covers the empty case regardless.
+  return base
+    .slice(0, 60)
+    .replace(/-[^-]*$/, '')
+    .replace(/-+$/, '');
 }
 
 async function uniquePostSlug(
@@ -258,7 +269,7 @@ export async function toPostListItem(
     viewerHasLiked: Boolean(row.viewerHasLiked),
     viewerHasBookmarked: Boolean(row.viewerHasBookmarked),
     featuredLabel: row.post.featuredLabel,
-    coverImageUrl: await resolveCoverImageUrl(row.post.coverImageUrl),
+    coverImageUrl: resolveCoverImageUrl(row.post.coverImageUrl),
     linkPreview: row.post.linkPreview ?? null,
   };
 }
@@ -470,9 +481,9 @@ export async function getPostById(
     groupId: post.groupId,
     authorId: post.authorId,
     title: post.title,
-    content: await formatPostContent(post.content, isHidden),
+    content: formatPostContent(post.content, isHidden),
     contentPlain: isHidden ? '' : post.contentPlain,
-    coverImageUrl: await resolveCoverImageUrl(post.coverImageUrl),
+    coverImageUrl: resolveCoverImageUrl(post.coverImageUrl),
     linkPreview: isHidden ? null : (post.linkPreview ?? null),
     type: post.type,
     status: post.status,
@@ -567,9 +578,9 @@ export async function getPostBySlug(
     groupId: post.groupId,
     authorId: post.authorId,
     title: post.title,
-    content: await formatPostContent(post.content, isHidden),
+    content: formatPostContent(post.content, isHidden),
     contentPlain: isHidden ? '' : post.contentPlain,
-    coverImageUrl: await resolveCoverImageUrl(post.coverImageUrl),
+    coverImageUrl: resolveCoverImageUrl(post.coverImageUrl),
     linkPreview: isHidden ? null : (post.linkPreview ?? null),
     type: post.type,
     status: post.status,
@@ -668,6 +679,13 @@ export async function createPost(
 
   const detail = await getPostById(db, post.id, authorId);
   if (!detail) throw new Error('Failed to load created post');
+
+  // Fire-and-forget (pingIndexNow never throws): only anonymously-visible
+  // posts get announced, mirroring the sitemap predicate.
+  if (detail.group.visibility === 'public' && detail.status === 'published') {
+    pingIndexNow([`${getPublicSiteUrl()}/g/${detail.group.slug}/${detail.slug}`]);
+  }
+
   return detail;
 }
 
@@ -727,6 +745,20 @@ export async function updatePost(
 
   const detail = await getPostById(db, updated.id, currentUserId);
   if (!detail) throw new Error('Failed to load updated post');
+
+  // Ping only for content-visible changes — pin/feature toggles don't alter
+  // what a crawler sees. Status changes ping too: on hide/delete IndexNow's
+  // deletion signal is the same ping, and the crawler then finds the 404.
+  // Public-group check mirrors the sitemap predicate.
+  const contentChanged =
+    input.title !== undefined ||
+    input.content !== undefined ||
+    input.status !== undefined ||
+    input.coverImageUrl !== undefined;
+  if (contentChanged && detail.group.visibility === 'public') {
+    pingIndexNow([`${getPublicSiteUrl()}/g/${detail.group.slug}/${detail.slug}`]);
+  }
+
   return detail;
 }
 

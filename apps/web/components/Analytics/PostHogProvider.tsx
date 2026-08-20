@@ -38,6 +38,9 @@ if (typeof window !== 'undefined' && POSTHOG_KEY && !(posthog as any).__pm_init)
     person_profiles: 'identified_only',
     capture_pageview: true,
     capture_pageleave: true,
+    // No surveys in use; without this flag posthog-js lazily pulls the
+    // surveys bundle from eu-assets on every pageview (~80% unused per PSI).
+    disable_surveys: true,
   });
   (posthog as any).__pm_init = true;
 }

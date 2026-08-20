@@ -31,10 +31,11 @@ export async function GET(
 
   const { id } = await params;
   // data = { comments: paged roots (accepted excluded), acceptedComment: hoisted
-  // solution or null }; meta = { page, limit, hasMore } over ROOT comments.
+  // solution or null, total: every comment THIS viewer may see across all pages };
+  // meta = { page, limit, hasMore } over ROOT comments.
   const page = await listCommentsForPost(getDb(), id, session?.user?.id, { sort, limit, offset });
   return ok(
-    { comments: page.comments, acceptedComment: page.acceptedComment },
+    { comments: page.comments, acceptedComment: page.acceptedComment, total: page.total },
     paginationMeta(Math.floor(offset / limit) + 1, limit, page.hasMore)
   );
 }

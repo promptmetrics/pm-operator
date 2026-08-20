@@ -24,7 +24,8 @@ import {
   DropdownMenuItem,
 } from '@pm-operator/ui/components/DropdownMenu';
 import { useToast } from '@pm-operator/ui/components/Toast';
-import { timeAgo, formatNumber } from '@/lib/format';
+import { formatNumber } from '@/lib/format';
+import { TimeAgo } from '@/components/TimeAgo';
 import { apiErrorMessage } from '@/lib/api/client-errors';
 import type { PostListItem, SearchResult } from '@pm-operator/api';
 
@@ -33,7 +34,7 @@ type PostItem = PostListItem | SearchResult;
 // Action-row pills (reference: "▲ 14" · "💬 3" · "◈") — same class recipe as
 // the post-detail pills.
 const pillClass =
-  'inline-flex items-center gap-1.5 rounded-[var(--pm-radius-pill)] border bg-[var(--pm-paper)] px-3 py-1.5 text-[13px] transition-colors focus:outline-none focus-visible:shadow-[var(--pm-focus)] disabled:pointer-events-none disabled:opacity-60';
+  'inline-flex h-[var(--pm-control-h)] items-center gap-1.5 rounded-[var(--pm-radius-pill)] border bg-[var(--pm-paper)] px-3 text-[13px] transition-colors focus:outline-none focus-visible:shadow-[var(--pm-focus)] disabled:pointer-events-none disabled:opacity-60';
 const pillIdle =
   'border-[var(--pm-line)] text-[var(--pm-muted)] hover:border-[var(--pm-coral)] hover:text-[var(--pm-coral-dark)]';
 const pillActive = 'border-[var(--pm-coral)] bg-[var(--pm-coral-tint)] text-[var(--pm-coral-dark)]';
@@ -260,7 +261,9 @@ export function FeedCard({
               <img
                 src={post.coverImageUrl}
                 alt=""
-                className="mt-3 max-h-[240px] w-full rounded-lg border border-[var(--pm-line)] object-cover"
+                loading="lazy"
+                decoding="async"
+                className="mt-3 aspect-[2/1] max-h-[240px] w-full rounded-lg border border-[var(--pm-line)] object-cover"
               />
             </Link>
           ) : null}
@@ -288,7 +291,7 @@ export function FeedCard({
                   <span className="whitespace-nowrap">
                     {post.author.acceptedSolutions} solutions
                   </span>{' '}
-                  · <span className="whitespace-nowrap">{timeAgo(post.createdAt)}</span>
+                  · <TimeAgo iso={post.createdAt} className="whitespace-nowrap" />
                 </span>
               </div>
             </div>

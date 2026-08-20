@@ -20,6 +20,21 @@ import { sendTransactional } from '../email';
 import { autoFlagIfWatched } from './flags';
 import { buildLinkPreview } from './unfurl';
 
+// Comment visibility, and the two numbers that must never disagree.
+//
+// posts.comment_count is maintained by the trg_comment_count trigger
+// (packages/db/migrations/0001) and counts exactly `status = 'published'`. No
+// application code writes it — do not start.
+//
+// This filter is deliberately wider than that: any circle member, the author, a
+// global admin or a circle moderator also gets `hidden` rows back, which
+// toCommentDetail then blanks into tombstones. So for those viewers the list is
+// LONGER than the column, which is how a post came to render "1 comments" above
+// "No comments yet".
+//
+// Rule: the column is for JSON-LD and the server-rendered seed (anonymous
+// semantics). Anything displayed next to the thread comes from
+// commentTotalForViewer, which counts through this same filter.
 function commentVisibilityFilter(currentUserId: string | undefined) {
   const notDeleted = sql`${comments.status} <> 'deleted'`;
   if (!currentUserId) {
@@ -121,6 +136,8 @@ export interface CommentListPage {
   /** The post's accepted solution (hoisted per 07-ux-spec:301), null when none or not visible. */
   acceptedComment: CommentDetail | null;
   hasMore: boolean;
+  /** Every comment this viewer may see on the post, all pages, roots + replies. */
+  total: number;
 }
 
 function commentSelect(db: DrizzleClient, currentUserId?: string) {
@@ -135,6 +152,27 @@ function commentSelect(db: DrizzleClient, currentUserId?: string) {
     .innerJoin(posts, eq(comments.postId, posts.id))
     .innerJoin(groups, eq(posts.groupId, groups.id))
     .innerJoin(users, eq(comments.authorId, users.id));
+}
+
+/**
+ * How many comments this viewer can actually see on a post — roots, replies and
+ * the accepted solution, ignoring pagination. Counts through
+ * commentVisibilityFilter, so it agrees with the rendered thread by
+ * construction. See the note above that filter for why posts.comment_count is
+ * not this number.
+ */
+export async function commentTotalForViewer(
+  db: DrizzleClient,
+  postId: string,
+  currentUserId?: string
+): Promise<number> {
+  const [row] = await db
+    .select({ total: sql<number>`count(*)` })
+    .from(comments)
+    .innerJoin(posts, eq(comments.postId, posts.id))
+    .innerJoin(groups, eq(posts.groupId, groups.id))
+    .where(and(eq(comments.postId, postId), commentVisibilityFilter(currentUserId)));
+  return toNumber(row?.total ?? 0);
 }
 
 export async function listCommentsForPost(
@@ -188,6 +226,8 @@ export async function listCommentsForPost(
     columns: { acceptedCommentId: true },
   });
   const acceptedId = post?.acceptedCommentId ?? null;
+
+  const total = await commentTotalForViewer(db, postId, currentUserId);
 
   // Root comments only are paged; the accepted solution is always excluded
   // here and returned separately (hoisted first regardless of sort).
@@ -260,7 +300,7 @@ export async function listCommentsForPost(
     }
   }
 
-  return { comments: rootsInOrder, acceptedComment, hasMore };
+  return { comments: rootsInOrder, acceptedComment, hasMore, total };
 }
 
 export async function createComment(
@@ -400,11 +440,26 @@ export async function updateComment(
   }
   if (input.status !== undefined) update.status = input.status;
 
-  const [updated] = await db
-    .update(comments)
-    .set(update)
-    .where(eq(comments.id, id))
-    .returning();
+  // Hiding or deleting a parent takes its replies with it. Left alone, those
+  // replies stay `published` — so trg_comment_count keeps counting them — while
+  // becoming unreachable, because listCommentsForPost only fetches replies under
+  // root comments the viewer can already see. That gap is a permanent drift
+  // between the counter and the thread, so close it here rather than reconciling
+  // it later.
+  const cascadeStatus =
+    input.status === 'hidden' || input.status === 'deleted' ? input.status : null;
+
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx.update(comments).set(update).where(eq(comments.id, id)).returning();
+    if (!row) return undefined;
+    if (cascadeStatus) {
+      await tx
+        .update(comments)
+        .set({ status: cascadeStatus, updatedAt: new Date() })
+        .where(and(eq(comments.parentCommentId, id), eq(comments.status, 'published')));
+    }
+    return row;
+  });
 
   if (!updated) throw new Error('Failed to update comment');
 

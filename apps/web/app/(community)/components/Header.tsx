@@ -75,6 +75,16 @@ export function Header({ onSearchClick }: HeaderProps = {}) {
   const [menuOpen, setMenuOpen] = React.useState(false);
 
   React.useEffect(() => {
+    // Anonymous viewers have no session to fetch: without this guard every
+    // crawler/anonymous pageview fired a guaranteed-401 /api/v1/me (console
+    // noise on every crawl). Same cookie-stem check middleware.ts uses —
+    // @supabase/ssr session cookies (sb-<ref>-auth-token[.n]) are JS-readable
+    // by design, so presence is detectable without a network call.
+    const hasAuthCookie = document.cookie
+      .split('; ')
+      .some((c) => c.startsWith('sb-') && c.includes('-auth-token'));
+    if (!hasAuthCookie) return;
+
     fetch('/api/v1/me')
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {

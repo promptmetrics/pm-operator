@@ -131,26 +131,44 @@ export async function getPostImageUploadUrl(
   return data.signedUrl;
 }
 
-export async function getPostImageReadUrl(path: string | null | undefined): Promise<string | null> {
+// Post images are served through /api/img/{userId}/{objectId} instead of
+// Supabase signed URLs. Signed URLs expire after an hour, so every crawler,
+// CDN, and Google Images reference went stale — and each serialization paid a
+// Supabase signing round trip per image. Object paths are write-once UUIDs
+// (see uploads/post-image/route.ts), so the proxy URL is stable and immutable.
+const POST_IMAGE_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isPostImageObjectPath(userId: string, objectId: string): boolean {
+  return POST_IMAGE_UUID_RE.test(userId) && POST_IMAGE_UUID_RE.test(objectId);
+}
+
+export function postImageProxyUrl(path: string | null | undefined): string | null {
   if (!path) return null;
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
 
-  // Stored HTML uses a leading bucket prefix for identification; strip it
-  // before asking Supabase, where the object path is relative to the bucket.
   const relativePath = path.replace(/^(?:\/)?post-images\//, '');
+  const segments = relativePath.split('/');
+  if (segments.length !== 2 || !isPostImageObjectPath(segments[0], segments[1])) {
+    return null;
+  }
+  return `/api/img/${segments[0]}/${segments[1]}`;
+}
 
+export async function downloadPostImage(
+  relativePath: string
+): Promise<{ blob: Blob; contentType: string } | null> {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase.storage
     .from(POST_IMAGE_BUCKET)
-    .createSignedUrl(relativePath, READ_TTL_SECONDS);
-  if (error || !data?.signedUrl) {
+    .download(relativePath);
+  if (error || !data) {
     const isNotFound =
       error?.name === 'StorageApiError' &&
-      (Number(error.statusCode) === 404 || /not found/i.test(error.message));
-    if (isNotFound) {
-      return null;
-    }
-    throw error ?? new Error('Failed to create image read URL');
+      (Number((error as any).statusCode) === 404 || /not found/i.test(error.message));
+    if (isNotFound) return null;
+    throw error ?? new Error('Failed to download post image');
   }
-  return data.signedUrl;
+  return { blob: data, contentType: data.type || 'application/octet-stream' };
 }
+

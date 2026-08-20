@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { eq, and } from 'drizzle-orm';
 import { Lock, Settings } from 'lucide-react';
@@ -21,6 +22,10 @@ import { InviteOnlyPreview } from '../../components/InviteOnlyPreview';
 import { CircleRail } from './CircleRail';
 import { UpcomingEventsRail } from './UpcomingEventsRail';
 import { listEvents } from '@/lib/services/events';
+import { getPublicSiteUrl } from '@/lib/site-url';
+import { metaDescription } from '@/lib/seo/meta-description';
+import { buildBreadcrumbJsonLd, buildCollectionPageJsonLd } from '@/lib/seo/site-jsonld';
+import { serializeJsonLd } from '@/lib/seo/post-jsonld';
 import { FeedFilter, FeedSort } from '@pm-operator/api';
 
 type PageSearchParams = Record<string, string | string[] | undefined>;
@@ -40,6 +45,45 @@ function BannerStat({ value, label, teal = false }: { value: string; label: stri
       <div className="mt-0.5 text-[11.5px] text-[var(--pm-muted)]">{label}</div>
     </div>
   );
+}
+
+// Circle pages shipped with no metadata at all: no title, no description, no
+// canonical — so all five circle URLs in the sitemap inherited the root layout's
+// generic title and advertised no canonical of their own.
+//
+// The lookup is deliberately anonymous. getGroupBySlug returns null for a
+// non-public circle when there is no viewer (groups.ts:95), which is what keeps
+// an invite-only circle's name out of a title tag that caches and gets shared.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ groupSlug: string }>;
+}): Promise<Metadata> {
+  const { groupSlug } = await params;
+  const db = createServiceDb();
+  const group = await getGroupBySlug(db, groupSlug, undefined);
+
+  if (!group || group.visibility !== 'public') {
+    return { title: 'Circle', robots: { index: false, follow: false } };
+  }
+
+  const canonical = `${getPublicSiteUrl()}/g/${groupSlug}`;
+  const description = metaDescription(
+    group.description || `${group.name} — a circle on operator.promptmetrics.dev`
+  );
+
+  return {
+    title: group.name,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title: group.name,
+      description,
+      url: canonical,
+      type: 'website',
+    },
+    twitter: { card: 'summary', title: group.name, description },
+  };
 }
 
 export default async function GroupRoute({
@@ -142,8 +186,43 @@ export default async function GroupRoute({
   const moderators = members.filter((m) => m.role === 'admin' || m.role === 'moderator');
   const otherCircles = circles.groups.filter((c) => c.slug !== slug).slice(0, 6);
 
+  // Structured data only for public circles — schema on a members-only page
+  // would publish a name/description the anonymous web isn't meant to see.
+  const siteUrl = getPublicSiteUrl();
+  const circleUrl = `${siteUrl}/g/${slug}`;
+  const circleJsonLd =
+    group.visibility === 'public'
+      ? buildCollectionPageJsonLd({
+          name: group.name,
+          description: metaDescription(
+            group.description || `${group.name} — a circle on operator.promptmetrics.dev`
+          ),
+          url: circleUrl,
+          siteUrl,
+        })
+      : null;
+  const circleBreadcrumbJsonLd =
+    group.visibility === 'public'
+      ? buildBreadcrumbJsonLd([
+          { name: 'Community', url: `${siteUrl}/feed` },
+          { name: group.name, url: circleUrl },
+        ])
+      : null;
+
   return (
     <div>
+      {circleJsonLd ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(circleJsonLd) }}
+        />
+      ) : null}
+      {circleBreadcrumbJsonLd ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(circleBreadcrumbJsonLd) }}
+        />
+      ) : null}
       <div className="mx-auto mb-6 max-w-6xl rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-6 shadow-[var(--pm-shadow)]">
         <p className="mb-3 text-xs text-[var(--pm-muted)]">
           <Link href="/feed" className="hover:text-[var(--pm-ink)]">
