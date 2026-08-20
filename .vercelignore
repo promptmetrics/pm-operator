@@ -2,6 +2,7 @@
 # .claude/worktrees alone is ~27GB and pushed the archive over Vercel's
 # upload limits (2026-08-20 deploy failure).
 .claude
+.turbo
 design
 .next
 apps/web/.next

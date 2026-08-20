@@ -143,7 +143,13 @@ export function Header({ onSearchClick }: HeaderProps = {}) {
           >
             <PanelLeft className="h-5 w-5" aria-hidden="true" />
           </Button>
-          <Link href="/feed" aria-label="Operator home">
+          {/* min-h from the control token so the logo's tap box meets the
+              44px coarse-pointer floor (Lighthouse target-size flagged it). */}
+          <Link
+            href="/feed"
+            aria-label="Operator home"
+            className="flex min-h-[var(--pm-control-h)] items-center"
+          >
             <OperatorLockup size="md" nameClassName="hidden sm:inline" />
           </Link>
         </div>
@@ -184,12 +190,15 @@ export function Header({ onSearchClick }: HeaderProps = {}) {
             </>
           ) : (
             <>
-              <Link href="/login">
-                <Button variant="secondary" size="sm">Log in</Button>
-              </Link>
-              <Link href="/register">
-                <Button variant="primary" size="sm">Create account</Button>
-              </Link>
+              {/* asChild so the anchor IS the button box — a plain inline
+                  anchor around a button gets a line-height-sized tap target
+                  that fails the 44px audit even when the button passes. */}
+              <Button variant="secondary" size="sm" asChild>
+                <Link href="/login">Log in</Link>
+              </Button>
+              <Button variant="primary" size="sm" asChild>
+                <Link href="/register">Create account</Link>
+              </Button>
             </>
           )}
         </div>
