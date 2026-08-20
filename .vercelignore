@@ -1,0 +1,9 @@
+# Local-only directories that must never ship in a CLI deploy upload.
+# .claude/worktrees alone is ~27GB and pushed the archive over Vercel's
+# upload limits (2026-08-20 deploy failure).
+.claude
+design
+.next
+apps/web/.next
+node_modules
+faq.json
