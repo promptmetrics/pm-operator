@@ -98,6 +98,15 @@ jobs:
     # Uses the dedicated test Supabase project — never production. The app is
     # built and served inside the runner; Playwright drives localhost.
     environment: test
+    # The test Supabase project is a single shared database: two E2E jobs
+    # running at once reset/migrate the schema out from under each other's
+    # in-flight tests ("relation users does not exist" mid-run — 2026-08-20,
+    # runs 32395286235/32395576977, triggered by two pushes 2 min apart).
+    # Queue instead of colliding; don't cancel, so every commit still gets
+    # its E2E verdict.
+    concurrency:
+      group: e2e-shared-test-db
+      cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
