@@ -57,7 +57,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const authorRows = await db
     .select({
       userslug: schema.users.userslug,
-      lastPostAt: sql<Date>`max(${schema.posts.updatedAt})`,
+      // mapWith reuses the column's driver-value decoder: a raw SQL aggregate
+      // otherwise returns the pg timestamptz string, which Next's sitemap
+      // serializer emits verbatim as an invalid <lastmod>.
+      lastPostAt: sql`max(${schema.posts.updatedAt})`.mapWith(schema.posts.updatedAt),
     })
     .from(schema.posts)
     .innerJoin(schema.groups, eq(schema.posts.groupId, schema.groups.id))
