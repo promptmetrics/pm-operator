@@ -431,10 +431,18 @@ export async function listGlobalPinnedPosts(
   return Promise.all(rows.map(toPostListItem));
 }
 
+// opts.includeDeleted widens the visibility filter to also match
+// status='deleted' rows. It exists for exactly one caller: updatePost's
+// post-write reload, where the actor (already authorized before the write)
+// has just set the status to 'deleted' and the normal filter would hide the
+// post from its own deleter — making a successful delete throw. Do NOT pass
+// it from request-facing code paths; the visibility filter stays the single
+// public chokepoint.
 export async function getPostById(
   db: DrizzleClient,
   id: string,
-  currentUserId?: string
+  currentUserId?: string,
+  opts?: { includeDeleted?: boolean }
 ): Promise<PostDetail | null> {
   const asCount = db.$with('as_count').as(
     db
@@ -465,7 +473,9 @@ export async function getPostById(
     .where(
       and(
         eq(schema.posts.id, id),
-        postVisibilityFilter(currentUserId)
+        opts?.includeDeleted
+          ? or(postVisibilityFilter(currentUserId), sql`${schema.posts.status} = 'deleted'`)
+          : postVisibilityFilter(currentUserId)
       )
     )
     .limit(1);
@@ -743,7 +753,13 @@ export async function updatePost(
 
   if (!updated) throw new Error('Failed to update post');
 
-  const detail = await getPostById(db, updated.id, currentUserId);
+  // includeDeleted: a status='deleted' post is invisible to EVERYONE through
+  // the visibility filter — including the actor who just deleted it — so the
+  // reload used to return null and this threw AFTER the write committed
+  // (every MCP/API delete-escalation "failed" while actually succeeding).
+  const detail = await getPostById(db, updated.id, currentUserId, {
+    includeDeleted: updated.status === 'deleted',
+  });
   if (!detail) throw new Error('Failed to load updated post');
 
   // Ping only for content-visible changes — pin/feature toggles don't alter
