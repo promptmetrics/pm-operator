@@ -49,8 +49,10 @@ test('podium renders the top three in 2 · 1 · 3 order and crowns the weekly wi
   const first = await seedRankedUser(TOP, 30);
   const second = await seedRankedUser(TOP - 1, 20);
   const third = await seedRankedUser(TOP - 2, 10);
-  // A viewer with no score at all: getLeaderboardViewer returns null, so no
-  // pinned row competes with the podium assertions.
+  // The viewer cannot stay scoreless: the Header auto-awards daily-visit
+  // points on the first authenticated page render, so they may trail the
+  // list as a low-score row. Their tiny score can never crack the podium,
+  // which is what the assertions below actually pin.
   const viewer = await createTestUser({ onboardingComplete: true });
   usersToClean.push(viewer.id);
 
@@ -77,7 +79,14 @@ test('podium renders the top three in 2 · 1 · 3 order and crowns the weekly wi
   // Trimmed table: rank · member · score rows, and no uppercase header row
   // (reference has none).
   await expect(page.getByTestId('leaderboard-table').getByRole('columnheader')).toHaveCount(0);
-  await expect(page.getByTestId('leaderboard-row')).toHaveCount(3);
+  // Exact row count is a race: the viewer's automatic daily-visit award may
+  // or may not have landed before render (it flipped when the editor
+  // code-split sped up hydration — CI 2026-08-21). The stable pin is the
+  // seeded order at the top of the table.
+  const rows = page.getByTestId('leaderboard-row');
+  await expect(rows.nth(0)).toContainText(first.username);
+  await expect(rows.nth(1)).toContainText(second.username);
+  await expect(rows.nth(2)).toContainText(third.username);
 });
 
 test('board chips switch boards and re-label the score column', async ({ page }) => {

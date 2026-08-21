@@ -225,15 +225,26 @@ test('daily_visit point event is idempotent per day', async ({ page }) => {
 
   await signIn(page, user.email, user.password);
 
+  // The Header fires its own fire-and-forget daily-visit POST after sign-in,
+  // and the editor code-split sped hydration up enough for it to beat the
+  // manual request below (CI 2026-08-21). Whether this POST is the first or
+  // second award attempt of the day is therefore a race — so the assertions
+  // pin the invariant itself: repeat requests never double-award.
   const first = await page.request.post('/api/v1/daily-visit');
   expect(first.status()).toBe(200);
-  const firstBody = await first.json();
-  expect(firstBody.data.awarded).toBe(true);
 
   const second = await page.request.post('/api/v1/daily-visit');
   expect(second.status()).toBe(200);
   const secondBody = await second.json();
   expect(secondBody.data.awarded).toBe(false);
+
+  // The real idempotence pin: exactly one daily_visit event, no matter how
+  // many requests (automatic + manual) landed today.
+  const events = await serviceDb()
+    .select()
+    .from(pointEvents)
+    .where(and(eq(pointEvents.userId, user.id), eq(pointEvents.eventType, 'daily_visit')));
+  expect(events.length).toBe(1);
 });
 
 test('posts_read points cap at 20 reads and 10 points per day', async ({ page }) => {
