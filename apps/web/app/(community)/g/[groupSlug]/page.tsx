@@ -20,6 +20,13 @@ import { GroupMembershipButton } from '../../components/GroupMembershipButton';
 import { GroupInviteButton } from '../../components/GroupInviteButton';
 import { InviteOnlyPreview } from '../../components/InviteOnlyPreview';
 import { CircleRail } from './CircleRail';
+import {
+  CircleHowItWorks,
+  CircleChecklistCard,
+  CircleEmptyState,
+  CircleListFooter,
+} from './CircleContentSections';
+import { getCircleContent } from '@/lib/circle-content';
 import { UpcomingEventsRail } from './UpcomingEventsRail';
 import { listEvents } from '@/lib/services/events';
 import { getPublicSiteUrl } from '@/lib/site-url';
@@ -72,17 +79,22 @@ export async function generateMetadata({
     group.description || `${group.name} — a circle on operator.promptmetrics.dev`
   );
 
+  // Title template (SEO plan Phase 2): every public circle titles as
+  // "<name> — Operator Stack community" (~44 chars for the longest name,
+  // under the 60-char SERP cutoff).
+  const title = `${group.name} — Operator Stack community`;
+
   return {
-    title: group.name,
+    title,
     description,
     alternates: { canonical },
     openGraph: {
-      title: group.name,
+      title,
       description,
       url: canonical,
       type: 'website',
     },
-    twitter: { card: 'summary', title: group.name, description },
+    twitter: { card: 'summary', title, description },
   };
 }
 
@@ -185,6 +197,11 @@ export default async function GroupRoute({
 
   const moderators = members.filter((m) => m.role === 'admin' || m.role === 'moderator');
   const otherCircles = circles.groups.filter((c) => c.slug !== slug).slice(0, 6);
+
+  // Per-circle content sections (SEO plan Phase 2); undefined for circles
+  // without an entry, which keep today's plain list.
+  const circleContent = getCircleContent(slug);
+  const composeHref = `/post/new?group=${encodeURIComponent(slug)}&type=question`;
 
   // Structured data only for public circles — schema on a members-only page
   // would publish a name/description the anonymous web isn't meant to see.
@@ -339,8 +356,22 @@ export default async function GroupRoute({
         viewerUsername={currentUser?.username}
         showComposerStrip={Boolean(membership) || canInvite}
         variant="compact"
+        checklistSlot={
+          circleContent ? <CircleHowItWorks content={circleContent.howItWorks} /> : undefined
+        }
+        emptySlot={
+          circleContent ? (
+            <CircleEmptyState content={circleContent.emptyState} composeHref={composeHref} />
+          ) : undefined
+        }
+        listFooterSlot={
+          circleContent ? (
+            <CircleListFooter text={circleContent.seededFooter} composeHref={composeHref} />
+          ) : undefined
+        }
         railSlot={
           <>
+            {circleContent ? <CircleChecklistCard content={circleContent.checklist} /> : null}
             <UpcomingEventsRail events={upcomingEvents} />
             <CircleRail
               group={group}

@@ -47,12 +47,25 @@ interface FeedPageProps {
    * rather than replacing it, and renders on the feed page only.
    */
   railTopSlot?: React.ReactNode;
-  /** Onboarding checklist card (plan §4.7), above the feed's main column. */
+  /**
+   * Card rendered above the feed's main column: the onboarding checklist on
+   * /feed (plan §4.7), the circle "How this circle works" card on /g pages.
+   */
   checklistSlot?: React.ReactNode;
   /** Overrides composer-strip visibility (default remains !groupSlug). */
   showComposerStrip?: boolean;
   /** Dismissible weekly-digest banner rendered at the top of the main column. */
   digestBanner?: React.ReactNode;
+  /**
+   * Replaces the default empty card when the list has no posts (SEO plan
+   * Phase 2: circle-specific empty states from lib/circle-content).
+   */
+  emptySlot?: React.ReactNode;
+  /**
+   * Rendered below the post list when posts are visible (SEO plan Phase 2:
+   * circle seeded-state footer).
+   */
+  listFooterSlot?: React.ReactNode;
   /** Post-onboarding welcome toast (T8.10); rendered only on /feed?welcome=1. */
   welcomeBanner?: React.ReactNode;
   /**
@@ -94,6 +107,8 @@ export function FeedPage({
   checklistSlot,
   showComposerStrip,
   digestBanner,
+  emptySlot,
+  listFooterSlot,
   welcomeBanner,
   variant = 'rich',
 }: FeedPageProps) {
@@ -352,10 +367,20 @@ export function FeedPage({
         </div>
 
         {visiblePosts.length === 0 && !showHighlights ? (
-          <div className="mt-8 rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 text-center">
-            <p className="font-serif text-lg font-medium text-[var(--pm-ink)]">{emptyTitle(filter, !!groupSlug)}</p>
-            <p className="mt-1 text-sm text-[var(--pm-muted)]">{emptyBody(filter)}</p>
-          </div>
+          // A circle-specific emptySlot only replaces the unfiltered empty
+          // state; filtered empties (e.g. Unanswered) keep the default copy.
+          emptySlot && filter === 'all' ? (
+            emptySlot
+          ) : (
+            <div className="mt-8 rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-8 text-center">
+              <p className="font-serif text-lg font-medium text-[var(--pm-ink)]">{emptyTitle(filter, !!groupSlug)}</p>
+              <p className="mt-1 text-sm text-[var(--pm-muted)]">{emptyBody(filter)}</p>
+            </div>
+          )
+        ) : null}
+
+        {visiblePosts.length > 0 && listFooterSlot ? (
+          <div className="mt-4">{listFooterSlot}</div>
         ) : null}
 
         {cursor ? (
