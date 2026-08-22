@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bookmark, Check, Home, Mail, Newspaper, Trophy, Users } from 'lucide-react';
+import { Bookmark, Check, Home, Mail, Newspaper, ScrollText, Trophy, Users } from 'lucide-react';
 import { useRail } from './RailProvider';
 
 /**
@@ -25,6 +25,7 @@ const NAV_ITEMS = [
   { href: '/feed', label: 'Home feed', icon: Home },
   { href: '/bookmarks', label: 'Bookmarks', icon: Bookmark },
   { href: '/leaderboards', label: 'Leaderboards', icon: Trophy },
+  { href: '/guidelines', label: 'Guidelines', icon: ScrollText },
   { href: '/messages', label: 'Messages', icon: Mail },
   { href: '/digest', label: 'Weekly digest', icon: Newspaper },
   { href: '/g', label: 'All circles', icon: Users },

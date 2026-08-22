@@ -24,6 +24,9 @@ const SITE_URL = getPublicSiteUrl();
 // stamp makes Google distrust lastmod; see the comment on /feed below).
 const LANDING_LASTMOD = new Date('2026-08-21');
 
+// Same rule as LANDING_LASTMOD: bump when the guidelines copy/layout changes.
+const GUIDELINES_LASTMOD = new Date('2026-08-22');
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const db = createServiceDb();
 
@@ -91,6 +94,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // steps down to 0.9 now that it is no longer the site's front door.
     { url: SITE_URL, lastModified: LANDING_LASTMOD, changeFrequency: 'weekly', priority: 1.0 },
     { url: `${SITE_URL}/feed`, lastModified: newestPostAt, changeFrequency: 'hourly', priority: 0.9 },
+    { url: `${SITE_URL}/guidelines`, lastModified: GUIDELINES_LASTMOD, changeFrequency: 'monthly', priority: 0.5 },
   ];
 
   const groupEntries: MetadataRoute.Sitemap = groupRows.map((g) => ({

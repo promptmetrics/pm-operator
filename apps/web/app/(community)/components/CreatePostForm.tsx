@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ImageIcon, X } from 'lucide-react';
 import { type Editor } from '@pm-operator/ui/editor/RichTextEditor';
@@ -385,9 +386,17 @@ export function CreatePostForm({
         ) : null}
 
         <div className="sticky bottom-0 -mx-4 mt-auto flex items-center justify-between gap-2 border-t border-[var(--pm-line)] bg-[var(--pm-paper)] px-4 py-3">
-          <span className="text-xs text-[var(--pm-muted)]">
-            Posting earns <b className="font-semibold text-[var(--pm-teal-dark)]">+10 pts</b>
-          </span>
+          <div className="flex items-center gap-3.5">
+            <span className="text-xs text-[var(--pm-muted)]">
+              Posting earns <b className="font-semibold text-[var(--pm-teal-dark)]">+10 pts</b>
+            </span>
+            <Link
+              href="/guidelines"
+              className="text-[13px] text-[var(--pm-ink-2)] hover:text-[var(--pm-coral-dark)]"
+            >
+              Posting guidelines
+            </Link>
+          </div>
           <div className="flex gap-2">
             <Button type="button" variant="secondary" disabled={submitting} onClick={handleCancel}>
               Cancel

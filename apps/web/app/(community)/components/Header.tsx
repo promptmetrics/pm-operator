@@ -24,6 +24,7 @@ const MOBILE_NAV = [
   { href: '/feed', label: 'Home feed' },
   { href: '/bookmarks', label: 'Bookmarks' },
   { href: '/leaderboards', label: 'Leaderboards' },
+  { href: '/guidelines', label: 'Guidelines' },
   { href: '/messages', label: 'Messages' },
   { href: '/digest', label: 'Weekly digest' },
   { href: '/g', label: 'All circles' },
