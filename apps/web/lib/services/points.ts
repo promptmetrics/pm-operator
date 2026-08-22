@@ -62,6 +62,32 @@ export async function awardPoints(
   }
 }
 
+/**
+ * One-time +5 for writing a ≥50-char bio (SEO plan Phase 3). awardPoints'
+ * built-in idempotency check only fires with a sourceId and the bio award has
+ * none, so this does its own existence check first; the
+ * point_events_profile_bio_idx partial unique index (migration 0027) is the
+ * race guard when two saves land concurrently.
+ */
+export async function awardProfileBio(
+  db: DrizzleClient,
+  userId: string
+): Promise<PointEvent | null> {
+  const existing = await db.query.pointEvents.findFirst({
+    where: and(
+      eq(schema.pointEvents.userId, userId),
+      eq(schema.pointEvents.eventType, 'profile_bio')
+    ),
+  });
+  if (existing) return null;
+
+  return awardPoints(db, {
+    userId,
+    eventType: 'profile_bio',
+    points: POINT_WEIGHTS.profile_bio,
+  });
+}
+
 export async function trackDailyStat(
   db: DrizzleClient,
   userId: string,

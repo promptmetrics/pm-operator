@@ -10,6 +10,7 @@ import type {
   OnboardingRequest,
 } from '@pm-operator/api';
 import { levelForScore } from '@pm-operator/api';
+import { awardProfileBio } from './points';
 import { toUserPublicProfile, toPublicUserProfile, toISO, toNumber } from './shared';
 
 export async function getUserProfile(
@@ -42,6 +43,9 @@ export async function getUserProfile(
   return {
     ...base,
     aboutMe: user.aboutMe,
+    headline: user.headline,
+    linkedinUrl: user.linkedinUrl,
+    githubUrl: user.githubUrl,
     postsCount,
     joinedAt: toISO(user.createdAt),
     levelInfo: levelForScore(toNumber(user.reputationScore)),
@@ -286,7 +290,7 @@ export async function updateUserProfile(
   userId: string,
   input: PatchMeRequest
 ): Promise<UserPublicProfile> {
-  const { fullName, aboutMe, pictureUrl, preferences } = input;
+  const { fullName, aboutMe, pictureUrl, linkedinUrl, githubUrl, headline, preferences } = input;
 
   const update: Partial<typeof schema.users.$inferInsert> = {
     updatedAt: new Date(),
@@ -295,6 +299,9 @@ export async function updateUserProfile(
   if (aboutMe !== undefined) update.aboutMe = aboutMe;
   // pictureUrl is stored as a relative storage path from the client upload.
   if (pictureUrl !== undefined) update.pictureUrl = pictureUrl;
+  if (linkedinUrl !== undefined) update.linkedinUrl = linkedinUrl;
+  if (githubUrl !== undefined) update.githubUrl = githubUrl;
+  if (headline !== undefined) update.headline = headline;
   if (preferences !== undefined) {
     const existing = await db.query.users.findFirst({
       where: eq(schema.users.id, userId),
@@ -313,6 +320,17 @@ export async function updateUserProfile(
     .returning();
 
   if (!updated) throw new Error('User not found');
+
+  // One-time +5 bio bonus (SEO plan Phase 3): fires on every save whose bio
+  // clears 50 trimmed chars; awardProfileBio is idempotent via the partial
+  // unique index, and a failed award must never fail the profile save.
+  if (updated.aboutMe && updated.aboutMe.trim().length >= 50) {
+    try {
+      await awardProfileBio(db, userId);
+    } catch (err) {
+      console.error('[points] profile_bio award failed', err);
+    }
+  }
 
   return toUserPublicProfile(updated);
 }

@@ -203,6 +203,9 @@ export function ProfileTabs({
             <h1 className="font-serif text-2xl font-semibold leading-tight text-[var(--pm-ink)]">
               {displayName}
             </h1>
+            {user.headline ? (
+              <p className="mt-0.5 text-sm text-[var(--pm-ink-2)]">{user.headline}</p>
+            ) : null}
             <p className="mt-1 text-[13px] text-[var(--pm-muted)]">
               Lv {levelInfo.level} · {levelInfo.name} · Joined {formatJoined(user.joinedAt)}
             </p>
@@ -234,6 +237,33 @@ export function ProfileTabs({
               <p className="mt-2 max-w-[56ch] text-[13.5px] leading-relaxed text-[var(--pm-ink-2)]">
                 {user.aboutMe}
               </p>
+            ) : null}
+            {/* Verified off-site links (SEO plan Phase 3f), per Profile.dc.html:
+                mono in/gh prefix + stripped URL, rel="me" for identity. */}
+            {user.linkedinUrl || user.githubUrl ? (
+              <div className="mt-3 flex items-center gap-3.5">
+                {(
+                  [
+                    ['in', user.linkedinUrl],
+                    ['gh', user.githubUrl],
+                  ] as const
+                )
+                  .filter((entry): entry is readonly ['in' | 'gh', string] => Boolean(entry[1]))
+                  .map(([prefix, url]) => (
+                    <a
+                      key={prefix}
+                      href={url}
+                      target="_blank"
+                      rel="me noopener"
+                      className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--pm-ink-2)] hover:text-[var(--pm-coral-dark)]"
+                    >
+                      <span className="font-mono text-[11px] text-[var(--pm-muted-soft)]">
+                        {prefix}
+                      </span>
+                      {url.replace(/^https?:\/\/(www\.)?/, '')}
+                    </a>
+                  ))}
+              </div>
             ) : null}
           </div>
           {isMe ? (

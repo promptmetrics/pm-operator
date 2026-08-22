@@ -73,3 +73,26 @@ export function buildCollectionPageJsonLd(input: {
     publisher: { '@id': WWW_ORGANIZATION_ID },
   };
 }
+
+/**
+ * Author-page Person node (SEO plan Phase 3f): the E-E-A-T identity that post
+ * JSON-LD author.url points at. sameAs carries the member's verified off-site
+ * links when set — that is what lets answer engines place the name outside
+ * the community.
+ */
+export function buildProfileJsonLd(input: {
+  name: string;
+  url: string;
+  description?: string;
+  sameAs?: string[];
+}) {
+  return {
+    '@context': 'https://schema.org' as const,
+    '@type': 'Person' as const,
+    '@id': `${input.url}#person`,
+    name: input.name,
+    url: input.url,
+    ...(input.description ? { description: input.description } : {}),
+    ...(input.sameAs && input.sameAs.length > 0 ? { sameAs: input.sameAs } : {}),
+  };
+}

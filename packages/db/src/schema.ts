@@ -48,6 +48,7 @@ export const pointEventTypeEnum = pgEnum('point_event_type', [
   'posts_read',
   'streak_bonus',
   'manual_award',
+  'profile_bio',
 ]);
 export const leaderboardPeriodEnum = pgEnum('leaderboard_period', [
   'all_time',
@@ -91,6 +92,11 @@ export const users = pgTable(
     fullName: text('full_name'),
     pictureUrl: text('picture_url'),
     aboutMe: text('about_me'),
+    // SEO plan Phase 3: public profile links + "Role & company" headline,
+    // rendered on /u/[slug] and emitted as Person JSON-LD sameAs.
+    linkedinUrl: text('linkedin_url'),
+    githubUrl: text('github_url'),
+    headline: text('headline'),
     linkedinId: text('linkedin_id').unique(),
     githubId: text('github_id').unique(),
     googleId: text('google_id').unique(),
@@ -402,6 +408,12 @@ export const pointEvents = pgTable(
     uniqueStreakBonus: uniqueIndex('point_events_streak_bonus_idx')
       .on(table.userId, sql`CAST((${table.awardedAt} AT TIME ZONE 'UTC') AS date)`)
       .where(sql`${table.eventType} = 'streak_bonus'`),
+    // One profile_bio award per user, ever (bio has no sourceId, so
+    // point_events_source_event_idx can't guard it). The race guard for
+    // awardProfileBio.
+    uniqueProfileBio: uniqueIndex('point_events_profile_bio_idx')
+      .on(table.userId)
+      .where(sql`${table.eventType} = 'profile_bio'`),
   })
 ).enableRLS();
 

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import * as schema from '@pm-operator/db';
 import { createServiceDb } from '@/lib/db';
 import { getSession } from '@/lib/auth/server';
@@ -25,6 +25,16 @@ export default async function SettingsRoute() {
     redirect('/login');
   }
 
+  // Sequential second query, not a third wave member: the community layout's
+  // rail already spends one pool slot on every navigation (pool = 3).
+  const bioEvent = await db.query.pointEvents.findFirst({
+    where: and(
+      eq(schema.pointEvents.userId, userId),
+      eq(schema.pointEvents.eventType, 'profile_bio')
+    ),
+    columns: { id: true },
+  });
+
   return (
     <SettingsPage
       user={{
@@ -35,6 +45,11 @@ export default async function SettingsRoute() {
         fullName: user.fullName,
         pictureUrl: await getAvatarReadUrl(user.pictureUrl),
         role: user.role,
+        aboutMe: user.aboutMe,
+        headline: user.headline,
+        linkedinUrl: user.linkedinUrl,
+        githubUrl: user.githubUrl,
+        bioBonusEarned: Boolean(bioEvent),
         preferences: (user.preferences ?? {}) as any,
       }}
       memberships={memberships}

@@ -104,6 +104,9 @@ export const userPublicProfileSchema = z.object({
   level: z.number().int().min(1),
   painfulToolStackTask: z.string(),
   onboardingComplete: z.boolean(),
+  // SEO plan Phase 3: whether the one-time profile_bio award (+5) has been
+  // granted. Optional — only GET /api/v1/me pays the pointEvents lookup.
+  bioBonusEarned: z.boolean().optional(),
 });
 
 export type UserPublicProfile = z.infer<typeof userPublicProfileSchema>;
@@ -118,6 +121,11 @@ export const patchMeRequestSchema = z.object({
   fullName: z.string().optional(),
   aboutMe: z.string().optional(),
   pictureUrl: z.string().url().optional(),
+  // SEO plan Phase 3: public profile links + "Role & company" headline
+  // (migration 0027). Omit a key to leave it unchanged.
+  linkedinUrl: z.string().url().optional(),
+  githubUrl: z.string().url().optional(),
+  headline: z.string().optional(),
   preferences: userPreferencesSchema.partial().optional(),
 });
 
@@ -173,6 +181,11 @@ export type CircleContribution = z.infer<typeof circleContributionSchema>;
 // publicUserProfileSchema: toPublicUserProfile also feeds mention search.
 export const userProfileDetailSchema = publicUserProfileSchema.extend({
   aboutMe: z.string().nullable(),
+  // SEO plan Phase 3: "Role & company" headline + public links (rendered on
+  // /u/[slug], emitted as Person JSON-LD sameAs).
+  headline: z.string().nullable(),
+  linkedinUrl: z.string().url().nullable(),
+  githubUrl: z.string().url().nullable(),
   postsCount: z.number().int().nonnegative(),
   joinedAt: z.string().datetime(),
   levelInfo: levelInfoSchema,

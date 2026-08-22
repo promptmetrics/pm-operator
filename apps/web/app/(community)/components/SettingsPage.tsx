@@ -12,6 +12,7 @@ import { Avatar } from '@pm-operator/ui/components/Avatar';
 import { Badge } from '@pm-operator/ui/components/Badge';
 import { createAuthClient } from '@/lib/auth/client';
 import { apiErrorMessage } from '@/lib/api/client-errors';
+import { BioLengthMeter } from '@/components/BioLengthMeter';
 import type { Group, UserPreferences, UserRole } from '@pm-operator/api';
 
 interface SettingsUser {
@@ -22,6 +23,11 @@ interface SettingsUser {
   fullName: string | null;
   pictureUrl: string | null;
   role: UserRole;
+  aboutMe: string | null;
+  headline: string | null;
+  linkedinUrl: string | null;
+  githubUrl: string | null;
+  bioBonusEarned: boolean;
   preferences?: UserPreferences;
 }
 
@@ -95,6 +101,11 @@ const EMAIL_SWITCHES: {
 
 export function SettingsPage({ user, memberships }: SettingsPageProps) {
   const [fullName, setFullName] = React.useState(user.fullName ?? '');
+  const [headline, setHeadline] = React.useState(user.headline ?? '');
+  const [aboutMe, setAboutMe] = React.useState(user.aboutMe ?? '');
+  const [linkedinUrl, setLinkedinUrl] = React.useState(user.linkedinUrl ?? '');
+  const [githubUrl, setGithubUrl] = React.useState(user.githubUrl ?? '');
+  const [bioEarned, setBioEarned] = React.useState(user.bioBonusEarned);
   const [preferences, setPreferences] = React.useState<UserPreferences>(
     user.preferences ?? {}
   );
@@ -149,12 +160,21 @@ export function SettingsPage({ user, memberships }: SettingsPageProps) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           fullName: fullName || undefined,
+          headline: headline || undefined,
+          aboutMe,
+          // The links columns only accept valid URLs; a blank field means
+          // "leave unchanged", not "clear".
+          linkedinUrl: linkedinUrl.trim() || undefined,
+          githubUrl: githubUrl.trim() || undefined,
           preferences: Object.fromEntries(
             EMAIL_SWITCHES.map((s) => [s.key, preferences[s.key] ?? s.defaultOn])
           ),
         }),
       });
       if (!res.ok) throw new Error(await apiErrorMessage(res, 'Failed to save'));
+      // The award fires server-side on a ≥50-char bio; flip the badge locally
+      // so the user sees it without a reload.
+      if (aboutMe.trim().length >= 50) setBioEarned(true);
       setSaved(true);
     } catch (err: any) {
       const message = err.message || 'Failed to save';
@@ -226,6 +246,14 @@ export function SettingsPage({ user, memberships }: SettingsPageProps) {
               description="Shown on your profile, posts and comments."
             />
             <Input
+              id="headline"
+              label="Role & company"
+              value={headline}
+              onChange={(e) => setHeadline(e.target.value)}
+              placeholder="RevOps lead, Northwind"
+              description="One line under your name on your public profile."
+            />
+            <Input
               id="email"
               label="Email"
               value={user.email}
@@ -237,7 +265,67 @@ export function SettingsPage({ user, memberships }: SettingsPageProps) {
           </div>
         </Card>
 
-        {/* ------------ 2. Email notifications ------------ */}
+        {/* ---------------- 2. About me (bio bonus) ---------------- */}
+        <Card className="mb-4 px-[22px] py-5">
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <h2 className="font-serif text-base font-semibold text-[var(--pm-ink)]">About me</h2>
+            {bioEarned ? (
+              <span className="inline-flex items-center gap-1.5 rounded-[var(--pm-radius-pill)] bg-[var(--pm-paper-3)] px-2.5 py-1 text-xs font-bold text-[var(--pm-green)]">
+                ✓ +5 pts earned
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-[var(--pm-radius-pill)] bg-[var(--pm-coral-tint)] px-2.5 py-1 text-xs font-bold text-[var(--pm-coral-dark)]">
+                +5 pts on first save
+              </span>
+            )}
+          </div>
+          <p className="mb-3.5 text-[12.5px] leading-[1.6] text-[var(--pm-muted)]">
+            Two to four sentences: your role, your company, and what you build or operate. It
+            shows on your profile and on every post you write.
+          </p>
+          <textarea
+            id="aboutMe"
+            rows={5}
+            value={aboutMe}
+            onChange={(e) => setAboutMe(e.target.value)}
+            placeholder="e.g. RevOps lead at Northwind, a 40-person B2B SaaS. I run HubSpot, Outreach, and a pile of MCP servers that keep our contact data honest. Mostly here for dedupe war stories."
+            className="box-border w-full resize-y rounded-[var(--pm-radius-sm)] border border-[var(--pm-line-2)] bg-[var(--pm-paper)] px-3.5 py-3 text-[15px] leading-[1.6] text-[var(--pm-ink)] focus:border-[var(--pm-coral)] focus:outline-none"
+          />
+          <BioLengthMeter value={aboutMe} variant="settings" />
+        </Card>
+
+        {/* ---------------- 3. Links ---------------- */}
+        <Card className="mb-4 px-[22px] py-5">
+          <h2 className="mb-1.5 font-serif text-base font-semibold text-[var(--pm-ink)]">Links</h2>
+          <p className="mb-4 text-[12.5px] leading-[1.6] text-[var(--pm-muted)]">
+            Optional. They show on your profile as verified links to you, so people can place
+            your name outside the community.
+          </p>
+          <div className="flex flex-col gap-3.5">
+            <label className="grid grid-cols-[90px_minmax(0,1fr)] items-center gap-3.5">
+              <span className="text-[13px] font-semibold text-[var(--pm-ink-2)]">LinkedIn</span>
+              <input
+                type="url"
+                value={linkedinUrl}
+                onChange={(e) => setLinkedinUrl(e.target.value)}
+                placeholder="https://www.linkedin.com/in/username"
+                className="h-[38px] rounded-[var(--pm-radius-sm)] border border-[var(--pm-line-2)] bg-[var(--pm-paper)] px-3 font-mono text-sm text-[var(--pm-ink)] focus:border-[var(--pm-coral)] focus:outline-none"
+              />
+            </label>
+            <label className="grid grid-cols-[90px_minmax(0,1fr)] items-center gap-3.5">
+              <span className="text-[13px] font-semibold text-[var(--pm-ink-2)]">GitHub</span>
+              <input
+                type="url"
+                value={githubUrl}
+                onChange={(e) => setGithubUrl(e.target.value)}
+                placeholder="https://github.com/username"
+                className="h-[38px] rounded-[var(--pm-radius-sm)] border border-[var(--pm-line-2)] bg-[var(--pm-paper)] px-3 font-mono text-sm text-[var(--pm-ink)] focus:border-[var(--pm-coral)] focus:outline-none"
+              />
+            </label>
+          </div>
+        </Card>
+
+        {/* ------------ 4. Email notifications ------------ */}
         <Card className="mb-4 px-[22px] py-5">
           <fieldset>
             <legend className="mb-1 font-serif text-base font-semibold text-[var(--pm-ink)]">
@@ -270,7 +358,7 @@ export function SettingsPage({ user, memberships }: SettingsPageProps) {
           </fieldset>
         </Card>
 
-        {/* ---------------- 3. My circles ---------------- */}
+        {/* ---------------- 5. My circles ---------------- */}
         <Card className="mb-4 px-[22px] py-5">
           <h2 className="mb-[14px] font-serif text-base font-semibold text-[var(--pm-ink)]">
             My circles
@@ -322,6 +410,12 @@ export function SettingsPage({ user, memberships }: SettingsPageProps) {
             Sign out
           </Button>
           <div className="flex items-center gap-3">
+            <Link
+              href={`/u/${user.userslug}`}
+              className="text-sm font-semibold text-[var(--pm-ink-2)] hover:text-[var(--pm-coral-dark)]"
+            >
+              View public profile →
+            </Link>
             {saved ? (
               <span role="status" className="text-[12.5px] font-medium text-[var(--pm-green)]">
                 Saved ✓

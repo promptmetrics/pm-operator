@@ -6,6 +6,7 @@ import * as schema from '@pm-operator/db';
 import { getSession } from '@/lib/auth/server';
 import { getDb } from '@/lib/api/server';
 import { joinGroup } from '@/lib/services/groups';
+import { awardProfileBio } from '@/lib/services/points';
 
 type UserPreferences = Record<string, unknown>;
 
@@ -22,13 +23,15 @@ async function readPreferences(db: ReturnType<typeof getDb>, userId: string): Pr
   return (row?.preferences as UserPreferences | null | undefined) ?? {};
 }
 
-// Step 1: save the painful-tool-stack task + stack tags, then advance to step 2.
-// Two sequential queries (read preferences, then one update writing both the task
-// and the merged preferences) — pool-safe.
+// Step 1: save the painful-tool-stack task + stack tags (+ optional bio, SEO
+// plan Phase 3e), then advance to step 2. Two sequential queries (read
+// preferences, then one update writing the task, bio and merged preferences) —
+// pool-safe.
 export async function saveOnboardingStep1(input: {
   userId: string;
   painfulToolStackTask: string;
   stackTags: string[];
+  aboutMe?: string;
 }) {
   if (!(await requireMatchingSession(input.userId))) {
     return { error: 'You must be signed in to complete onboarding.' };
@@ -44,10 +47,27 @@ export async function saveOnboardingStep1(input: {
     stackTags: input.stackTags,
     onboardingStep: 2,
   };
+  const bio = input.aboutMe?.trim() ?? '';
   await db
     .update(schema.users)
-    .set({ painfulToolStackTask: task, preferences, updatedAt: new Date() })
+    .set({
+      painfulToolStackTask: task,
+      preferences,
+      updatedAt: new Date(),
+      // Only overwrite aboutMe when the user actually wrote something — an
+      // empty box must not wipe a bio set earlier in Settings.
+      ...(bio ? { aboutMe: bio } : {}),
+    })
     .where(eq(schema.users.id, input.userId));
+
+  // One-time +5 bio bonus; a failed award must never fail onboarding.
+  if (bio.length >= 50) {
+    try {
+      await awardProfileBio(db, input.userId);
+    } catch (err) {
+      console.error('[points] profile_bio award failed', err);
+    }
+  }
 
   redirect('/register/complete');
 }

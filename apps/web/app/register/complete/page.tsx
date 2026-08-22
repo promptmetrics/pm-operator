@@ -29,7 +29,7 @@ export default async function CompleteRegistrationPage({
   const db = createServiceDb();
   const profile = await db.query.users.findFirst({
     where: eq(schema.users.id, userId),
-    columns: { painfulToolStackTask: true, preferences: true, fullName: true },
+    columns: { painfulToolStackTask: true, preferences: true, fullName: true, aboutMe: true },
   });
 
   const preferences = (profile?.preferences as Record<string, unknown> | null | undefined) ?? {};
@@ -54,6 +54,7 @@ export default async function CompleteRegistrationPage({
         fullName={profile?.fullName ?? ''}
         initialTask={profile?.painfulToolStackTask ?? ''}
         initialStackTags={stackTags}
+        initialBio={profile?.aboutMe ?? ''}
       />
     );
   } else if (step === 2) {

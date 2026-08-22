@@ -15,6 +15,7 @@ import { Input } from '@pm-operator/ui/components/Input';
 import { LevelBadge } from '@pm-operator/ui/components/LevelBadge';
 import { POINT_WEIGHTS, PointEventType, OPERATOR_LEVELS, levelForScore } from '@pm-operator/api';
 import { Checkbox } from '@/components/ui/checkbox';
+import { BioLengthMeter } from '@/components/BioLengthMeter';
 import { trackEvent, identifyAnalytics } from '@/lib/analytics';
 import { saveOnboardingStep1, joinOnboardingCircles, finishOnboarding } from './actions';
 import type { RecommendedCircle } from '@/lib/services/groups';
@@ -117,15 +118,18 @@ export function Step1Focus({
   fullName,
   initialTask,
   initialStackTags,
+  initialBio,
 }: {
   userId: string;
   fullName: string;
   initialTask: string;
   initialStackTags: string[];
+  initialBio: string;
 }) {
   const [task, setTask] = React.useState(initialTask);
   const [selectedTags, setSelectedTags] = React.useState<string[]>(initialStackTags);
   const [customTag, setCustomTag] = React.useState('');
+  const [bio, setBio] = React.useState(initialBio);
   const [error, setError] = React.useState<string | undefined>();
   const [isLoading, setIsLoading] = React.useState(false);
 
@@ -161,6 +165,7 @@ export function Step1Focus({
       userId,
       painfulToolStackTask: task.trim(),
       stackTags: selectedTags,
+      aboutMe: bio.trim(),
     });
     setIsLoading(false);
     if (result?.error) setError(result.error);
@@ -226,9 +231,52 @@ export function Step1Focus({
         </p>
       ) : null}
 
+      {/* Bio card (SEO plan Phase 3e, per Onboarding.dc.html): optional, earns
+          the one-time +5 profile_bio bonus at ≥50 trimmed chars. */}
+      <section
+        aria-labelledby="onboarding-bio-heading"
+        className="rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-5 shadow-[var(--pm-shadow)]"
+      >
+        <div className="mb-1.5 flex items-baseline justify-between">
+          <h2
+            id="onboarding-bio-heading"
+            className="font-serif text-base font-semibold text-[var(--pm-ink)]"
+          >
+            Tell the community who you are
+          </h2>
+          <span className="rounded-[var(--pm-radius-pill)] bg-[var(--pm-coral-tint)] px-2.5 py-1 text-xs font-bold text-[var(--pm-coral-dark)]">
+            +5 pts
+          </span>
+        </div>
+        <p className="mb-3.5 text-[13px] leading-[1.6] text-[var(--pm-ink-2)]">
+          Two sentences is plenty: role, company size, what you operate. People reply to names
+          they can place. It&apos;s the single biggest thing you can do to get answers in your
+          first week.
+        </p>
+        <textarea
+          id="onboarding-bio"
+          rows={4}
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          placeholder="RevOps lead at a 40-person B2B SaaS. I run HubSpot and Outreach, and I'm trying to stop hand-merging duplicate contacts every Friday."
+          disabled={isLoading}
+          className="box-border w-full resize-y rounded-[var(--pm-radius-sm)] border border-[var(--pm-line-2)] bg-[var(--pm-paper)] px-3.5 py-3 text-[15px] leading-[1.6] text-[var(--pm-ink)] focus:border-[var(--pm-coral)] focus:outline-none"
+        />
+        <BioLengthMeter value={bio} variant="onboarding" />
+      </section>
+
       <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
         Continue
       </Button>
+
+      <p className="text-center">
+        <a
+          href="/guidelines"
+          className="text-[13px] font-medium text-[var(--pm-ink-2)] hover:text-[var(--pm-coral-dark)]"
+        >
+          Posting guidelines
+        </a>
+      </p>
     </form>
   );
 }
@@ -550,6 +598,15 @@ export function Step3Primer({
           Write your first post
         </Button>
       </div>
+
+      <p className="text-center">
+        <a
+          href="/guidelines"
+          className="text-[13px] font-medium text-[var(--pm-ink-2)] hover:text-[var(--pm-coral-dark)]"
+        >
+          Posting guidelines
+        </a>
+      </p>
 
       {error ? (
         <p className="text-sm text-[var(--pm-danger)]" role="alert">

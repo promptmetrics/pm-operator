@@ -13,6 +13,9 @@ export const PointEventType = {
   // before any award may be inserted.
   STREAK_BONUS: 'streak_bonus',
   MANUAL_AWARD: 'manual_award',
+  // One-time +5 for a ≥50-char bio (SEO plan Phase 3); guarded by the
+  // point_events_profile_bio_idx partial unique index (migration 0027).
+  PROFILE_BIO: 'profile_bio',
 } as const;
 
 export type PointEventType =
@@ -37,6 +40,7 @@ export const POINT_WEIGHTS = {
   [PointEventType.DAILY_VISIT]: 0.5,
   [PointEventType.POSTS_READ]: 0.5,
   [PointEventType.STREAK_BONUS]: 2,
+  [PointEventType.PROFILE_BIO]: 5,
 } as const;
 
 export const DAILY_CAPS = {

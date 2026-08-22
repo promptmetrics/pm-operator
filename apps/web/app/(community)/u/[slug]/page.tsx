@@ -19,6 +19,8 @@ import {
 } from '@/lib/services/community';
 import { getUserBadges } from '@/lib/services/badges';
 import { listBookmarkedPosts } from '@/lib/services/bookmarks';
+import { buildProfileJsonLd } from '@/lib/seo/site-jsonld';
+import { serializeJsonLd } from '@/lib/seo/post-jsonld';
 import { ProfileTabs } from '../../components/ProfileTabs';
 import type { PostListItem } from '@pm-operator/api';
 
@@ -115,19 +117,35 @@ export default async function UserRoute({ params }: { params: Promise<{ slug: st
   const circles = await listUserCircleContributions(db, user.id);
   const badges = await getUserBadges(db, user.id);
 
+  // Person JSON-LD (SEO plan Phase 3f): @id {url}#person, description from the
+  // bio, sameAs from the member's verified links.
+  const profileUrl = `${getPublicSiteUrl()}/u/${user.userslug}`;
+  const personJsonLd = buildProfileJsonLd({
+    name: user.fullName?.trim() || user.username,
+    url: profileUrl,
+    description: user.aboutMe?.trim() || undefined,
+    sameAs: [user.linkedinUrl, user.githubUrl].filter((u): u is string => Boolean(u)),
+  });
+
   return (
-    <ProfileTabs
-      user={user}
-      currentUserId={currentUserId}
-      isFollowing={viewer.isFollowing}
-      posts={posts}
-      solutions={solutions}
-      comments={comments}
-      badges={badges}
-      bookmarks={viewer.bookmarks}
-      circles={circles}
-      circlePoints={circlePoints}
-      streak={streak}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(personJsonLd) }}
+      />
+      <ProfileTabs
+        user={user}
+        currentUserId={currentUserId}
+        isFollowing={viewer.isFollowing}
+        posts={posts}
+        solutions={solutions}
+        comments={comments}
+        badges={badges}
+        bookmarks={viewer.bookmarks}
+        circles={circles}
+        circlePoints={circlePoints}
+        streak={streak}
+      />
+    </>
   );
 }

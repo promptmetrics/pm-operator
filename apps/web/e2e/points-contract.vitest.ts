@@ -21,6 +21,7 @@ test('POINT_WEIGHTS covers all fixed-weight event types with canonical values', 
     [PointEventType.DAILY_VISIT]: 0.5,
     [PointEventType.POSTS_READ]: 0.5,
     [PointEventType.STREAK_BONUS]: 2,
+    [PointEventType.PROFILE_BIO]: 5,
   });
   expect(
     Object.keys(POINT_WEIGHTS).includes(PointEventType.MANUAL_AWARD)

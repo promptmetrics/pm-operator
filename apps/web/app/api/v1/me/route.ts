@@ -1,6 +1,6 @@
 export const runtime = 'nodejs';
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import * as schema from '@pm-operator/db';
 import { patchMeRequestSchema, levelForScore, type UserPublicProfile } from '@pm-operator/api';
 import {
@@ -24,6 +24,16 @@ export async function GET(request: Request) {
   });
   if (!user) return notFound('User not found');
 
+  // SEO plan Phase 3: the settings badge needs to know whether the one-time
+  // bio bonus was already granted. One cheap lookup, GET /me only.
+  const bioEvent = await getDb().query.pointEvents.findFirst({
+    where: and(
+      eq(schema.pointEvents.userId, session.userId),
+      eq(schema.pointEvents.eventType, 'profile_bio')
+    ),
+    columns: { id: true },
+  });
+
   const profile: UserPublicProfile = {
     id: user.id,
     email: user.email,
@@ -37,6 +47,7 @@ export async function GET(request: Request) {
     streakDays: user.streakDays,
     painfulToolStackTask: user.painfulToolStackTask ?? '',
     onboardingComplete: Boolean(user.painfulToolStackTask && user.painfulToolStackTask.length > 0),
+    bioBonusEarned: Boolean(bioEvent),
   };
 
   return ok(profile);
