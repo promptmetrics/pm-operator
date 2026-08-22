@@ -56,7 +56,13 @@ export default async function CirclesDirectoryRoute() {
               <li
                 key={group.slug}
                 data-testid={`circle-card-${group.slug}`}
-                className="flex h-full flex-col rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-5 shadow-[var(--pm-shadow)] transition-shadow hover:shadow-[var(--pm-shadow-lg)]"
+                // min-w-0: a grid item defaults to min-width:auto, so a circle
+                // whose name is one long unbreakable token grows the card past
+                // its minmax(0,1fr) track and scrolls the whole page sideways
+                // (measured: a 358px card became 563px, document 579px, at a
+                // 390px viewport). The inner truncate cannot help until the
+                // item itself is allowed to shrink.
+                className="flex h-full min-w-0 flex-col rounded-xl border border-[var(--pm-line)] bg-[var(--pm-paper-inset)] p-5 shadow-[var(--pm-shadow)] transition-shadow hover:shadow-[var(--pm-shadow-lg)]"
               >
                 <div className="mb-2.5 flex items-center gap-3">
                   {/* Reference: colored tile icon, not a small dot. */}
