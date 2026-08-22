@@ -16,7 +16,8 @@ export type AnalyticsEvent =
   | 'onboarding_complete'
   | 'first_post'
   | 'first_comment'
-  | 'daily_visit';
+  | 'daily_visit'
+  | 'landing_cta_click';
 
 export function trackEvent(
   event: AnalyticsEvent,

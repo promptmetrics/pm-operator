@@ -13,8 +13,9 @@ export const metadata: Metadata = {
   // localhost in dev and warns in prod. Same helper the canonicals and sitemap
   // use, so every absolute URL we publish shares one origin.
   metadataBase: new URL(getPublicSiteUrl()),
-  title: 'operator.promptmetrics.dev',
-  description: 'A community for AI operators, founders, and teams building with AI.',
+  title: 'Operator Stack',
+  description:
+    'A community for RevOps, CS, and marketing-ops operators sharing how they orchestrate their tools with coding agents.',
 };
 
 export default function RootLayout({

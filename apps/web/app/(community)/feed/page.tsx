@@ -17,8 +17,6 @@ import { WelcomeToast } from '../components/WelcomeToast';
 import { OnboardingChecklist } from '../components/OnboardingChecklist';
 import { HelpSomeoneCard, getHelpQueue } from '../components/HelpSomeoneCard';
 import { getPublicSiteUrl } from '@/lib/site-url';
-import { buildWebSiteJsonLd } from '@/lib/seo/site-jsonld';
-import { serializeJsonLd } from '@/lib/seo/post-jsonld';
 import { FeedFilter, FeedSort } from '@pm-operator/api';
 
 // /feed is the sitemap's priority-1.0 URL yet shipped with the root layout's
@@ -125,16 +123,6 @@ export default async function FeedRoute({ searchParams }: { searchParams: Promis
       : [];
 
   return (
-    <>
-      {/* WebSite node for the subdomain, publisher-linked to www's Organization
-          @id so the two graphs merge (see site-jsonld.ts). Emitted here because
-          /feed is the entry page — `/` 308s to it. */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: serializeJsonLd(buildWebSiteJsonLd(getPublicSiteUrl())),
-        }}
-      />
     <FeedPage
       initialPosts={posts}
       initialFilter={filter}
@@ -160,6 +148,5 @@ export default async function FeedRoute({ searchParams }: { searchParams: Promis
       }
       railTopSlot={<HelpSomeoneCard items={helpQueue} />}
     />
-    </>
   );
 }

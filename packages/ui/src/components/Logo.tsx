@@ -73,43 +73,45 @@ OperatorMark.displayName = "OperatorMark";
 
 export type OperatorLockupSize = "sm" | "md";
 
-// The doc sets the wordmark at 20px mono over 26px serif; both sizes below hold
-// that ratio.
+// Lockup per the mint redesign bundle (promptmetrics-community-portal-redesign,
+// 2026-08-21): one brand name site-wide — a coral dot plus "Operator Stack" in
+// Fraunces. The former mono "operator." prefix + serif "promptmetrics" split is
+// retired (open decision 1: Operator Stack everywhere).
 const lockupSizes: Record<
   OperatorLockupSize,
-  { mark: OperatorMarkSize; gap: string; prefix: string; name: string }
+  { dot: string; gap: string; name: string }
 > = {
-  sm: { mark: "sm", gap: "gap-2", prefix: "text-[10px]", name: "text-[13px]" },
-  md: { mark: "md", gap: "gap-2.5", prefix: "text-[15px]", name: "text-xl" },
+  sm: { dot: "size-2", gap: "gap-2", name: "text-[13px]" },
+  md: { dot: "size-2.5", gap: "gap-2.5", name: "text-xl" },
 };
 
 export interface OperatorLockupProps extends React.HTMLAttributes<HTMLSpanElement> {
   size?: OperatorLockupSize;
   /**
-   * Extra classes for the serif "promptmetrics" half only. The header uses this
-   * to drop it below the sm breakpoint, leaving the mark plus "operator.".
+   * Extra classes for the serif "Operator Stack" wordmark only. The header uses
+   * this to drop it below the sm breakpoint, leaving just the coral dot.
    */
   nameClassName?: string;
 }
 
 export const OperatorLockup = React.forwardRef<HTMLSpanElement, OperatorLockupProps>(
   ({ size = "md", className, nameClassName, ...props }, ref) => {
-    const { mark, gap, prefix, name } = lockupSizes[size];
+    const { dot, gap, name } = lockupSizes[size];
     return (
       <span ref={ref} className={cn("inline-flex items-center", gap, className)} {...props}>
         {/* Hidden from AT: the wordmark beside it already reads the name. */}
-        <OperatorMark size={mark} aria-hidden="true" />
-        <span className="flex items-baseline gap-[2px]">
-          <span className={cn("font-mono text-[var(--pm-teal-dark)]", prefix)}>operator.</span>
-          <span
-            className={cn(
-              "font-serif font-semibold tracking-[-0.01em] text-[var(--pm-ink)]",
-              name,
-              nameClassName
-            )}
-          >
-            promptmetrics
-          </span>
+        <span
+          aria-hidden="true"
+          className={cn("inline-block shrink-0 rounded-full bg-[var(--pm-coral)]", dot)}
+        />
+        <span
+          className={cn(
+            "font-serif font-semibold tracking-[-0.01em] text-[var(--pm-ink)]",
+            name,
+            nameClassName
+          )}
+        >
+          Operator Stack
         </span>
       </span>
     );

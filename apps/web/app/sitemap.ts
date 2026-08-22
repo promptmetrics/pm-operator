@@ -20,6 +20,10 @@ export const dynamic = 'force-dynamic';
 // go through one helper rather than two copies of the same expression.
 const SITE_URL = getPublicSiteUrl();
 
+// Bump when landing copy/design changes (never `new Date()` — a request-time
+// stamp makes Google distrust lastmod; see the comment on /feed below).
+const LANDING_LASTMOD = new Date('2026-08-21');
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const db = createServiceDb();
 
@@ -83,7 +87,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   );
 
   const staticEntries: MetadataRoute.Sitemap = [
-    { url: `${SITE_URL}/feed`, lastModified: newestPostAt, changeFrequency: 'hourly', priority: 1.0 },
+    // `/` is the marketing landing page and the new priority-1.0 URL; /feed
+    // steps down to 0.9 now that it is no longer the site's front door.
+    { url: SITE_URL, lastModified: LANDING_LASTMOD, changeFrequency: 'weekly', priority: 1.0 },
+    { url: `${SITE_URL}/feed`, lastModified: newestPostAt, changeFrequency: 'hourly', priority: 0.9 },
   ];
 
   const groupEntries: MetadataRoute.Sitemap = groupRows.map((g) => ({

@@ -625,3 +625,33 @@ describe('getUserBadges progress mapping', () => {
     ]);
   });
 });
+
+// ── Landing page data cache ──────────────────────────────────────────────────
+//
+// getLandingData recomputes at most once a day (unstable_cache, revalidate
+// 86400) and the recompute fits the pool=3 budget: one combined counts
+// statement, one curated-slug lookup, and at most one backfill — strictly
+// sequential. Scanned here so nobody widens it into a Promise.all later
+// (MEMORY "DB pool starvation trap").
+
+function landingSource(): string {
+  return stripComments(
+    readFileSync(path.join(webRoot, 'lib/services/landing.ts'), 'utf8')
+  );
+}
+
+describe('landing service source shape', () => {
+  test('no Promise.all anywhere: a recompute never widens past one query', () => {
+    expect(landingSource()).not.toContain('Promise.all');
+  });
+
+  test('a recompute awaits at most three queries', () => {
+    const awaited = landingSource().match(/await\s+db\b/g) ?? [];
+    expect(awaited.length).toBeGreaterThan(0);
+    expect(awaited.length).toBeLessThanOrEqual(3);
+  });
+
+  test('the cache entry revalidates daily, so a warm request runs zero queries', () => {
+    expect(landingSource()).toContain('revalidate: 86400');
+  });
+});

@@ -105,31 +105,32 @@
 [data-theme='paper'] {
   color-scheme: light;
 
-  /* Surfaces */
-  --pm-paper: #e9f1ee;
-  --pm-paper-2: #e0ebe7;
-  --pm-paper-3: #d2e1db;
-  --pm-paper-inset: #f6faf8;
+  /* Surfaces — mint palette (promptmetrics-community-portal-redesign,
+     mint variant, 2026-08-21): green-tinted paper + clay coral. */
+  --pm-paper: #e4ece2;
+  --pm-paper-2: #dbe5d8;
+  --pm-paper-3: #cedbca;
+  --pm-paper-inset: #f2f7f0;
   --pm-bg: var(--pm-paper);
 
   /* Text */
-  --pm-ink: #161c1a;
-  --pm-ink-2: #39443f;
-  --pm-muted: #5e6f68;
-  --pm-muted-soft: #7a8d86;
-  --pm-on-ink: #e9f1ee;
-  --pm-link: #8a2c4e;
+  --pm-ink: #1c1c1c;
+  --pm-ink-2: #43403a;
+  --pm-muted: #6f665a;
+  --pm-muted-soft: #8c8275;
+  --pm-on-ink: #f4efe7;
+  --pm-link: #a94d30;
 
   /* Brand / accents */
-  --pm-coral: #b8446a;
-  --pm-coral-dark: #8a2c4e;
+  --pm-coral: #d97757;
+  --pm-coral-dark: #a1482a;
   --pm-coral-ink: #ffffff;
-  --pm-coral-tint: color-mix(in srgb, #b8446a 12%, transparent);
-  --pm-coral-tint-10: color-mix(in srgb, #b8446a 10%, transparent);
+  --pm-coral-tint: color-mix(in srgb, #d97757 12%, transparent);
+  --pm-coral-tint-10: color-mix(in srgb, #d97757 10%, transparent);
   --pm-brand: var(--pm-coral);
   --pm-teal: #3f8f82;
   --pm-teal-dark: #276358;
-  --pm-green: #2f6b58;
+  --pm-green: #3a6447;
   --pm-green-bg: #d9e9e1;
   --pm-green-line: #bcd6ca;
   --pm-amber: #7a4d18;
@@ -141,12 +142,12 @@
   --pm-danger-bg: #eedcd4;
 
   /* Lines */
-  --pm-line: #cddcd6;
-  --pm-line-2: #b8ccc4;
+  --pm-line: #cdd9c8;
+  --pm-line-2: #b4c6af;
 
   /* Category hues */
   --pm-cat-finance: #2f5675;
-  --pm-cat-education: #276358;
+  --pm-cat-education: #3a6349;
   --pm-cat-sales: #6f5012;
   --pm-cat-marketing: #6f4675;
   --pm-cat-professional: #465777;
