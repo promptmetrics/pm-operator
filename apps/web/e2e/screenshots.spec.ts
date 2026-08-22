@@ -45,7 +45,7 @@ function assertDisposableDatabase() {
 const VIEWPORTS = [
   { key: 'desktop', width: 1280, height: 900 },
   // 390x844 is an iPhone 14 viewport — below every breakpoint the redesign
-  // uses (messages two-pane collapses at 768, admin reflows at 860).
+  // uses (messages two-pane collapses at 800, admin reflows at 860).
   { key: 'mobile', width: 390, height: 844 },
 ] as const;
 

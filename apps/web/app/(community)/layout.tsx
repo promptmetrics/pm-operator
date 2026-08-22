@@ -93,7 +93,9 @@ export default async function CommunityLayout({ children }: { children: React.Re
     <RealtimeProvider>
       <RailProvider>
         <div className="flex min-h-screen flex-col">
-          <HeaderWithCommandPalette />
+          {/* Same array the rail gets: below lg the rail is hidden, so the
+              header's mobile drawer renders the circle list instead. */}
+          <HeaderWithCommandPalette circles={circles} />
           <div className="mx-auto flex w-full max-w-7xl flex-1 gap-6 px-4 py-6">
             <LeftRail circles={circles} />
             <main className="min-w-0 flex-1">{children}</main>

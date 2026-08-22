@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Search, Menu, X, ChevronDown, LogOut, User, Settings, Award, Bell, Shield, Plus, PanelLeft } from 'lucide-react';
 import { createAuthClient } from '@/lib/auth/client';
@@ -16,19 +16,9 @@ import { Progress } from '@pm-operator/ui/components/Progress';
 import { NotificationBell } from './NotificationBell';
 import { useRail } from './RailProvider';
 import { CommandPalette } from './CommandPalette';
+import { MobileNav, MOBILE_NAV_ID } from './MobileNav';
+import type { RailCircle } from './LeftRail';
 import type { UserPublicProfile } from '@pm-operator/api';
-
-// The rail owns primary navigation on lg+ screens; this menu mirrors it for
-// the small-screen header hamburger.
-const MOBILE_NAV = [
-  { href: '/feed', label: 'Home feed' },
-  { href: '/bookmarks', label: 'Bookmarks' },
-  { href: '/leaderboards', label: 'Leaderboards' },
-  { href: '/guidelines', label: 'Guidelines' },
-  { href: '/messages', label: 'Messages' },
-  { href: '/digest', label: 'Weekly digest' },
-  { href: '/g', label: 'All circles' },
-];
 
 interface HeaderProps {
   /**
@@ -37,6 +27,12 @@ interface HeaderProps {
    * layout — the trigger falls back to navigating to /search.
    */
   onSearchClick?: () => void;
+  /**
+   * The rail's circles, reused by the mobile drawer so small screens get the
+   * same circle list instead of losing it along with the hidden rail. Omitted
+   * on shells that never mount the rail (admin).
+   */
+  circles?: RailCircle[];
 }
 
 /**
@@ -44,7 +40,7 @@ interface HeaderProps {
  * header search pill and the global hotkey drive the same dialog, and lives at
  * layout level so the hotkey works on every community page.
  */
-export function HeaderWithCommandPalette() {
+export function HeaderWithCommandPalette({ circles }: { circles?: RailCircle[] } = {}) {
   const [open, setOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -62,15 +58,14 @@ export function HeaderWithCommandPalette() {
 
   return (
     <>
-      <Header onSearchClick={() => setOpen(true)} />
+      <Header onSearchClick={() => setOpen(true)} circles={circles} />
       {open ? <CommandPalette onClose={close} /> : null}
     </>
   );
 }
 
-export function Header({ onSearchClick }: HeaderProps = {}) {
+export function Header({ onSearchClick, circles }: HeaderProps = {}) {
   const router = useRouter();
-  const pathname = usePathname();
   const { collapsed, toggle: toggleRail } = useRail();
   const [profile, setProfile] = React.useState<UserPublicProfile | null>(null);
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -106,6 +101,7 @@ export function Header({ onSearchClick }: HeaderProps = {}) {
 
   const openSearch = () => router.push('/search');
   const handleSearchClick = onSearchClick ?? openSearch;
+  const closeMenu = React.useCallback(() => setMenuOpen(false), []);
 
   const signOut = async () => {
     const client = createAuthClient();
@@ -115,6 +111,7 @@ export function Header({ onSearchClick }: HeaderProps = {}) {
   };
 
   return (
+    <>
     <header className="sticky top-0 z-40 border-b border-[var(--pm-line)] bg-[var(--pm-paper)]/95 px-4 py-3 backdrop-blur-sm">
       <nav className="mx-auto flex max-w-7xl items-center justify-between" aria-label="Main">
         <div className="flex items-center gap-2 md:gap-3">
@@ -126,6 +123,7 @@ export function Header({ onSearchClick }: HeaderProps = {}) {
             className="lg:hidden"
             aria-label="Menu"
             aria-expanded={menuOpen}
+            aria-controls={MOBILE_NAV_ID}
             onClick={() => setMenuOpen((m) => !m)}
           >
             {menuOpen ? (
@@ -180,10 +178,13 @@ export function Header({ onSearchClick }: HeaderProps = {}) {
 
           {profile ? (
             <>
-              <Button size="sm" asChild className="hidden gap-1 sm:inline-flex">
-                <Link href="/post/new">
+              {/* Icon-only under sm: the label does not fit next to the bell
+                  and avatar on a 390px bar, but compose has to stay reachable
+                  (it used to disappear entirely below sm). */}
+              <Button size="sm" asChild className="gap-1">
+                <Link href="/post/new" aria-label="New post">
                   <Plus className="h-4 w-4" aria-hidden="true" />
-                  New post
+                  <span className="hidden sm:inline">New post</span>
                 </Link>
               </Button>
               <NotificationBell userId={profile.id} />
@@ -205,45 +206,21 @@ export function Header({ onSearchClick }: HeaderProps = {}) {
         </div>
       </nav>
 
-      {menuOpen ? (
-        <div className="mx-auto max-w-7xl px-4 pb-3 lg:hidden">
-          <div className="flex flex-col gap-1">
-            {MOBILE_NAV.map((item) => {
-              const active = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`rounded-lg px-3 py-2 text-sm ${
-                    active
-                      ? 'bg-[var(--pm-paper-2)] text-[var(--pm-ink)]'
-                      : 'text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]'
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-            {profile ? (
-              <Link
-                href="/notifications"
-                className="rounded-lg px-3 py-2 text-sm text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]"
-              >
-                Notifications
-              </Link>
-            ) : null}
-            {profile && isModeratorOrAdmin(profile.role) ? (
-              <Link
-                href="/moderation"
-                className="rounded-lg px-3 py-2 text-sm text-[var(--pm-muted)] hover:bg-[var(--pm-paper-2)] hover:text-[var(--pm-ink)]"
-              >
-                Moderation
-              </Link>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
     </header>
+
+    {/* A sibling of <header>, not a child: the header's backdrop-blur makes it
+        a containing block, which would scope the drawer's `fixed` positioning
+        to the header box instead of the viewport. Mount = open; MobileNav owns
+        scroll lock, focus and every dismissal path. */}
+    {menuOpen ? (
+      <MobileNav
+        onClose={closeMenu}
+        circles={circles}
+        signedIn={Boolean(profile)}
+        isModerator={Boolean(profile && isModeratorOrAdmin(profile.role))}
+      />
+    ) : null}
+    </>
   );
 }
 

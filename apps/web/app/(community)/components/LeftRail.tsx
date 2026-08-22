@@ -3,8 +3,9 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bookmark, Check, Home, Mail, Newspaper, ScrollText, Trophy, Users } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useRail } from './RailProvider';
+import { NAV_ITEMS, isNavItemActive } from './navItems';
 
 /**
  * Rail circle shape (Phase 1 + 3D). postsThisMonth comes from the shared
@@ -21,16 +22,6 @@ export interface RailCircle {
   postsThisMonth: number;
 }
 
-const NAV_ITEMS = [
-  { href: '/feed', label: 'Home feed', icon: Home },
-  { href: '/bookmarks', label: 'Bookmarks', icon: Bookmark },
-  { href: '/leaderboards', label: 'Leaderboards', icon: Trophy },
-  { href: '/guidelines', label: 'Guidelines', icon: ScrollText },
-  { href: '/messages', label: 'Messages', icon: Mail },
-  { href: '/digest', label: 'Weekly digest', icon: Newspaper },
-  { href: '/g', label: 'All circles', icon: Users },
-];
-
 export function LeftRail({ circles }: { circles: RailCircle[] }) {
   const pathname = usePathname();
   const { collapsed } = useRail();
@@ -46,12 +37,7 @@ export function LeftRail({ circles }: { circles: RailCircle[] }) {
       <div className="sticky top-24 flex flex-col gap-6">
         <ul className="flex flex-col gap-0.5">
           {NAV_ITEMS.map((item) => {
-            // "/g" stays exact so circle pages highlight the circle row, not
-            // the directory link.
-            const active =
-              item.href === '/g'
-                ? pathname === '/g'
-                : pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const active = isNavItemActive(item.href, pathname);
             const Icon = item.icon;
             return (
               <li key={item.href}>

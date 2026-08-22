@@ -48,7 +48,11 @@ export default function AdminPointsPage() {
       </p>
 
       <Card className="mb-2 overflow-hidden p-0">
-        <table className="w-full table-auto border-collapse text-left text-sm">
+        {/* The Card clips, so a 4-column table lost columns outright on a
+            phone. Scroll the wrapper rather than the page — same treatment as
+            components/admin/DataTable.tsx. */}
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[34rem] table-auto border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-[var(--pm-line-2)] bg-[var(--pm-paper-2)]">
               <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--pm-muted)]">
@@ -74,6 +78,7 @@ export default function AdminPointsPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </Card>
 
       {/* Level ladder — thresholds from OPERATOR_LEVELS. */}
