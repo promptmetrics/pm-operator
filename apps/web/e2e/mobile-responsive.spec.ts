@@ -61,15 +61,27 @@ test.describe('mobile layout', () => {
         }
         return { scrollWidth: docEl.scrollWidth, clientWidth: limit, offenders: culprits };
       });
-      // +1 absorbs sub-pixel rounding on fractional layout widths.
+      // Assert on offending ELEMENTS, not raw scrollWidth. A real layout break
+      // always puts some box past the viewport edge (the landing hero's 372px
+      // intrinsic grid inside a 310px content box did), whereas scrollWidth
+      // alone also picks up scrollbar width and sub-pixel rounding. /g proved
+      // the difference: it reported a 2px scrollWidth excess in CI on one run
+      // and none on the next, because the page renders whatever circles earlier
+      // specs left in the shared test DB — a flake that skips the gated
+      // deploy job for no real defect.
+      expect(
+        offenders,
+        `${route} has elements past the ${MOBILE.width}px viewport ` +
+          `(clientWidth=${clientWidth}, scrollWidth=${scrollWidth}):\n  ${offenders.join('\n  ')}`
+      ).toEqual([]);
+
+      // Kept as a loose backstop for a break that somehow moves no single box.
+      // 16px absorbs a classic scrollbar (CI Chromium on Linux renders one;
+      // macOS overlay scrollbars take no space) plus rounding.
       expect(
         scrollWidth,
-        `${route} overflows by ${scrollWidth - clientWidth}px at ${MOBILE.width}px ` +
-          `(clientWidth=${clientWidth}).\nOffending elements:\n  ${
-            offenders.length ? offenders.join('\n  ') : '(none wider than the viewport — ' +
-              'likely a scrollbar or sub-pixel rounding artifact rather than a real element)'
-          }`
-      ).toBeLessThanOrEqual(clientWidth + 1);
+        `${route} overflows by ${scrollWidth - clientWidth}px with no single element past the edge`
+      ).toBeLessThanOrEqual(clientWidth + 16);
     });
   }
 
