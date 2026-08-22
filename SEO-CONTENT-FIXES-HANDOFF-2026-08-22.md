@@ -3,7 +3,7 @@
 **Status:** plan `SEO-CONTENT-FIXES-PLAN-2026-08-21.md` (rev 2) FULLY EXECUTED — all six phases code/doc-complete and committed on `main` (not pushed): 75821aa (Phase 1 + mint tokens), 843e207 (Phase 2), deb7f29 (Phase 3 + migration 0027), 6aca7a4 (Phase 4), plus a docs commit (plan, handoff, seeds, retrofit drafts, playbooks).
 
 **Remaining = user-side steps, in order:**
-1. Apply migration 0027 to the test DB, then prod — BEFORE deploying deb7f29 or later (drizzle selects the new users columns on every users query; unmigrated prod 500s every page that touches users, including local dev against prod).
+1. ~~Apply migration 0027~~ DONE (0027+0028 applied to prod 2026-08-22, verified). Local dev against prod works again.
 2. Deploy (push triggers Vercel). Post-deploy curl checks: `/` (200, landing), `/g/fix-this-workflow` (title template + sections), `/guidelines` (200), a `/u/` page (Person JSON-LD), sitemap entries.
 3. Run `settings-bio.spec.ts` in CI (writes to DB; never local).
 4. Apply the 5 circle descriptions via `/admin/groups` (strings in plan Phase 0 table).
@@ -45,9 +45,8 @@
 - Verified: tsc clean, 21 vitest, 2 ad-hoc Playwright (sections render; footer hidden when empty; plain circles unaffected), 5 landing Playwright; screenshot eyeballed. Ad-hoc spec deleted after run.
 - Note: header description still shows the old DB string — Phase 0 admin-groups update is a user-side step, still open.
 
-### Phase 3 — bio feature — CODE COMPLETE (uncommitted); migration NOT applied
-- Migration `0027_dapper_the_fallen.sql` generated + hand-fixed: guarded `DO $$ … pg_enum … $$;` wrap for `point_event_type += 'profile_bio'`; users += linkedin_url/github_url/headline; partial unique index `point_events_profile_bio_idx`. Second `db:generate` quiet, snapshot prevId chain verified.
-- **DEPLOY ORDER (sprint 2): apply 0027 to prod BEFORE deploying this code** — drizzle selects the three new users columns on every users query, so pages 500 against an unmigrated DB. Migrate test DB first, then prod (user/CI step; local `.env.local` points at prod, do NOT run `db:migrate` locally without intent).
+### Phase 3 — bio feature — CODE COMPLETE; migration APPLIED TO PROD 2026-08-22
+- Migrations `0027_dapper_the_fallen.sql` (enum `point_event_type += 'profile_bio'` in guarded `DO $$ … pg_enum … $$;` + users += linkedin_url/github_url/headline) and `0028_profile_bio_index.sql` (partial unique index). **Split required:** the index predicate resolves the new enum value, which must be committed in an earlier transaction (55P04 — the 0010/0011 precedent); drizzle-kit had emitted them in one file. Second `db:generate` quiet, snapshot chain intact. Applied to prod (2 applied), verified: enum value, 3 columns, index, journal rows.
 - Contracts: `PROFILE_BIO` + weight 5 (points-contract test updated); `patchMeRequestSchema` += linkedinUrl/githubUrl/headline; `/me` GET exposes `bioBonusEarned` (optional field, GET-only lookup); `userProfileDetailSchema` += headline/linkedinUrl/githubUrl.
 - `awardProfileBio` in lib/services/points.ts (own existence check, unique index is race guard); called from `updateUserProfile` (≥50 trimmed chars, try/catch logs, never fails save) and `saveOnboardingStep1` (writes aboutMe only when non-empty, then awards).
 - `components/BioLengthMeter.tsx` (settings/onboarding variants; onboarding earned string keeps its em dash — the documented exception).

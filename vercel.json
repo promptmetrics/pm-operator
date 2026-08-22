@@ -5,28 +5,40 @@
       "missing": [
         { "type": "header", "key": "cookie", "value": "(.*;\\s*)?sb-[^=;\\s]*-auth-token[^=;\\s]*=.*" }
       ],
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+        { "key": "X-Anon-Public-Read", "value": "1" }
+      ]
     },
     {
       "source": "/g/:groupSlug",
       "missing": [
         { "type": "header", "key": "cookie", "value": "(.*;\\s*)?sb-[^=;\\s]*-auth-token[^=;\\s]*=.*" }
       ],
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+        { "key": "X-Anon-Public-Read", "value": "1" }
+      ]
     },
     {
       "source": "/g/:groupSlug/:postSlug",
       "missing": [
         { "type": "header", "key": "cookie", "value": "(.*;\\s*)?sb-[^=;\\s]*-auth-token[^=;\\s]*=.*" }
       ],
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+        { "key": "X-Anon-Public-Read", "value": "1" }
+      ]
     },
     {
       "source": "/u/:slug",
       "missing": [
         { "type": "header", "key": "cookie", "value": "(.*;\\s*)?sb-[^=;\\s]*-auth-token[^=;\\s]*=.*" }
       ],
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+        { "key": "X-Anon-Public-Read", "value": "1" }
+      ]
     }
   ],
   "crons": [

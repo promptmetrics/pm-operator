@@ -197,6 +197,13 @@
       "when": 1787379138123,
       "tag": "0027_dapper_the_fallen",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1787379138124,
+      "tag": "0028_profile_bio_index",
+      "breakpoints": true
     }
   ]
 }
