@@ -28,9 +28,20 @@ test.describe('landing page', () => {
     await expect(page).toHaveTitle(/Operator Stack/);
     // The canonical must match the sitemap URL byte-for-byte, and the sitemap
     // emits the bare origin (no trailing slash).
+    //
+    // Mirrors lib/site-url.ts getPublicSiteUrl() rather than hardcoding the
+    // production domain, so it holds wherever the suite runs: CI builds and
+    // serves with NEXT_PUBLIC_SITE_URL=http://localhost:3000 (ci.yml), and
+    // playwright.config.mjs dotenv-loads the same .env.local the local build
+    // used, so expectation and page always agree. Hardcoding prod made this
+    // the only failing E2E test on main, which skipped the gated deploy job —
+    // a wrong assertion here silently blocks every release.
+    const expectedCanonical = (
+      process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://operator.promptmetrics.dev'
+    ).replace(/\/+$/, '');
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       'href',
-      'https://operator.promptmetrics.dev'
+      expectedCanonical
     );
 
     expect(await page.locator('h1').count()).toBe(1);

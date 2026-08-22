@@ -37,14 +37,38 @@ test.describe('mobile layout', () => {
       expect(new URL(page.url()).pathname.replace(/\/$/, '')).toBe(route.replace(/\/$/, ''));
       // documentElement rather than body: the body can be narrower than an
       // overflowing descendant, which would hide the failure.
-      const { scrollWidth, clientWidth } = await page.evaluate(() => ({
-        scrollWidth: document.documentElement.scrollWidth,
-        clientWidth: document.documentElement.clientWidth,
-      }));
+      //
+      // On failure, name the culprits. A bare "overflows by Npx" is not
+      // actionable when the offending element depends on seeded data — CI's
+      // test project has different circles than a local prod-pointing run, so
+      // a route can overflow there and not here.
+      const { scrollWidth, clientWidth, offenders } = await page.evaluate(() => {
+        const docEl = document.documentElement;
+        const limit = docEl.clientWidth;
+        const culprits: string[] = [];
+        for (const el of Array.from(document.body.querySelectorAll<HTMLElement>('*'))) {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 || r.height === 0) continue;
+          if (r.right <= limit + 1 && r.left >= -1) continue;
+          // Report the outermost offenders only; a wide child drags its
+          // ancestors along and the list becomes noise.
+          if (culprits.length >= 6) break;
+          const cls = (el.getAttribute('class') ?? '').slice(0, 120);
+          culprits.push(
+            `${el.tagName.toLowerCase()}${cls ? '.' + cls.split(/\s+/).slice(0, 6).join('.') : ''} ` +
+              `[left=${Math.round(r.left)} right=${Math.round(r.right)} w=${Math.round(r.width)}]`
+          );
+        }
+        return { scrollWidth: docEl.scrollWidth, clientWidth: limit, offenders: culprits };
+      });
       // +1 absorbs sub-pixel rounding on fractional layout widths.
       expect(
         scrollWidth,
-        `${route} overflows by ${scrollWidth - clientWidth}px at ${MOBILE.width}px`
+        `${route} overflows by ${scrollWidth - clientWidth}px at ${MOBILE.width}px ` +
+          `(clientWidth=${clientWidth}).\nOffending elements:\n  ${
+            offenders.length ? offenders.join('\n  ') : '(none wider than the viewport — ' +
+              'likely a scrollbar or sub-pixel rounding artifact rather than a real element)'
+          }`
       ).toBeLessThanOrEqual(clientWidth + 1);
     });
   }
